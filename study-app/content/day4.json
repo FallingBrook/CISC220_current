@@ -1,0 +1,1316 @@
+{
+  "day": 4,
+  "title": "Writing scripts: arguments, variables, strings, arithmetic",
+  "goal": "Write complete exam-style Bash scripts that use command line arguments, variables, command substitution, string expansions like ${p%/*}, and integer arithmetic.",
+  "topics": [
+    {
+      "id": "d4-scripts",
+      "title": "Your first scripts: shebang, running, comments, arguments",
+      "notebook": "bash/introduction_to_bash_scripting.ipynb",
+      "priority": "high",
+      "examNote": "Every long question on Quiz 1 was a script: Q4 (copy permissions, 4 marks) and Q5 (`trash.sh`, 10 marks). Q2E asked how a script prints its number of arguments (`echo $#`). Assignment 3 scripts all had to print usage messages to standard error and exit with a given status.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "A **Bash script** is a plain-text file that holds a list of commands. When you run the script, Bash reads the file and runs the commands one after another, exactly as if you had typed them at the prompt. So **anything you can type in the terminal can go in a script**, and everything you learned on Days 1 to 3 (paths, globs, quoting, redirection, pipes) works inside scripts too.\n\nThe course naming conventions for script files:\n\n- end with `.sh` (for example `hello.sh`)\n- start with a lowercase letter\n- use only letters, digits and `_` (for example `make_backup.sh`)\n\nHere is the course's first script, `hello.sh`:"
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\necho 'Hello, world!'",
+          "caption": "hello.sh"
+        },
+        {
+          "type": "md",
+          "text": "### The shebang line\n\nThe first line, `#!/bin/bash`, is called the **shebang** (or *hash-bang*, from the two characters `#` and `!`). It must be the very first line. It tells the operating system which program should interpret the rest of the file: here `/bin/bash`, the Bash shell. On the exam, **start every script with `#!/bin/bash`**.\n\n### Running a script\n\nTo run a script you write it with an editor, save it, make it executable, and call it by its path:"
+        },
+        {
+          "type": "code",
+          "code": "$ chmod u+x hello.sh\n$ ./hello.sh\nHello, world!\n$ bash hello.sh\nHello, world!"
+        },
+        {
+          "type": "md",
+          "text": "- `chmod u+x hello.sh` gives the owner (`u`) execute permission (Day 2). The file must be **readable and executable** to run it as `./hello.sh`.\n- `./hello.sh` means \"the file `hello.sh` in the current directory `.`\". You need the `./` because the shell only looks for bare command names (like `ls`) in the directories listed in your *path*, and the current directory is normally not one of them.\n- `bash hello.sh` starts a new Bash and hands it the file as an argument. This works **even without execute permission**, because `bash` only needs to *read* the file."
+        },
+        {
+          "type": "check",
+          "q": "You saved `hello.sh` in the current directory. Give the two commands that make it executable for you and then run it.",
+          "a": "`chmod u+x hello.sh` then `./hello.sh`. (Without execute permission you could still run it with `bash hello.sh`.)"
+        },
+        {
+          "type": "why",
+          "q": "Why does typing just `hello.sh` usually give `command not found`, while `./hello.sh` works?",
+          "a": "A bare name is searched for only in the directories on the path, and the current directory is normally not on it. `./hello.sh` is a pathname, so the shell does not search: it runs exactly that file."
+        },
+        {
+          "type": "md",
+          "text": "### Comments\n\n`#` starts a **comment**: the shell ignores the `#` and everything after it to the end of the line. Comments can be on their own line or after a command:\n\n```bash\n#!/bin/bash\n\n# makesh.sh: create a skeleton script named tmp.sh\n\necho '#!/bin/bash' > tmp.sh    # write the shebang into tmp.sh\nchmod u+x tmp.sh\n```\n\nTwo details:\n\n- A **quoted or escaped** `#` is not a comment. `echo '# This is not a comment'` prints `# This is not a comment`. (The `'#!/bin/bash'` above is quoted too, so it is written into `tmp.sh`.)\n- A comment always runs **to the end of the line**, so you cannot put one in the middle of a command. `ls #list_all_.txt_files .txt` is just `ls`.\n\nEvery command sets an **exit status** (Day 1): `0` for success, `1` to `255` for failure, stored in `$?`. A script's exit status is the status of the **last command it ran**, unless it stops early with `exit N`:"
+        },
+        {
+          "type": "code",
+          "code": "$ ./comment.sh          # contains only comments\n$ echo $?\n0"
+        },
+        {
+          "type": "check",
+          "q": "What does the script line `ls *.txt # list text files` run?",
+          "a": "`ls *.txt`. Everything from `#` onward is a comment, so it is ignored."
+        },
+        {
+          "type": "md",
+          "text": "### Command line arguments: positional parameters\n\nScripts take command line arguments like any other command. Bash stores them in **positional parameters** and a few **special parameters**:\n\n| Parameter | Meaning |\n|---|---|\n| `$0` | the pathname used to run the script, e.g. `./viewargs.sh` |\n| `$1`, `$2`, ... `$9` | the first, second, ... ninth argument |\n| `${10}`, `${11}`, ... | the tenth argument and later: **braces required** |\n| `$#` | the **number** of arguments (not counting `$0`) |\n| `\"$@\"` | all the arguments, each kept as a separate word |\n\nYou cannot assign to these with `=`; the shell sets them. Asking for an argument that was not given is **not an error**: `$3` just expands to the empty string.\n\nSuppose `args.sh` contains:\n\n```bash\n#!/bin/bash\n\necho \"$# arguments: first=$1 second=$2\"\necho \"called as $0\"\n```"
+        },
+        {
+          "type": "code",
+          "code": "$ ./args.sh \"a b\" c\n2 arguments: first=a b second=c\ncalled as ./args.sh\n$ ./args.sh\n0 arguments: first= second=\ncalled as ./args.sh"
+        },
+        {
+          "type": "md",
+          "text": "Notice that `\"a b\"` is **one** argument: the quotes on the command line kept the space inside it (Day 2). The quotes themselves are not part of `$1`."
+        },
+        {
+          "type": "pitfall",
+          "text": "`$10` is **not** the tenth argument. Bash reads it as `$1` followed by the character `0`. With arguments `a b c d e f g h i j`, `echo \"$10 ${10}\"` prints `a0 j`. Always write `${10}`, `${11}`, ..."
+        },
+        {
+          "type": "check",
+          "q": "A script is run as `./s.sh one \"two three\" four`. What are `$#`, `$2` and `$0`?",
+          "a": "`$#` is `3`, `$2` is `two three`, and `$0` is `./s.sh`."
+        },
+        {
+          "type": "md",
+          "text": "### All the arguments: `\"$@\"` (and `$*`)\n\n`\"$@\"` (**with** the double quotes) expands to all the arguments as separate words, exactly as given: `\"$1\" \"$2\" \"$3\" ...`. It is the safe way to pass every argument on to another command. You will use it most with `for` loops (the loops day: `for arg in \"$@\"; do ... done`, Quiz 2 Q1F)."
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\n# longlist.sh: long listing of every file named on the command line\n\nls -l \"$@\"",
+          "caption": "longlist.sh: ./longlist.sh \"my file\" notes.txt runs ls -l \"my file\" notes.txt"
+        },
+        {
+          "type": "md",
+          "text": "Without the quotes, `$@` is word split, so the argument `my file` becomes the two words `my` and `file`. `\"$*\"` joins all the arguments into **one** string separated by spaces; you will rarely want that.\n\n### Errors and exit statuses\n\nA well-behaved script writes **error messages to standard error** (stream 2) and **exits with a non-zero status**. Recall from Day 3 that `>&2` redirects standard output into standard error:\n\n```bash\necho \"Usage: greet.sh name\" >&2    # message goes to stderr, not stdout\nexit 1                             # stop the script now, exit status 1\n```\n\n`exit N` stops the script immediately and makes its exit status `N`. The arithmetic notebook uses this pattern to check the number of arguments at the top of a script (the `if (( ... ))` test is explained in the arithmetic topic today, and `if` in full on the next day):\n\n```bash\n#!/bin/bash\n\nif (( $# != 1 )); then\n    echo \"Script requires 1 argument\" >&2\n    exit 1\nfi\n```"
+        },
+        {
+          "type": "why",
+          "q": "Why send error messages to standard error instead of standard output?",
+          "a": "So they still reach the user's screen when standard output is redirected to a file or piped into another command, and so they do not get mixed into the script's real output."
+        },
+        {
+          "type": "check",
+          "q": "Write the two lines that print `bad input` to standard error and stop the script with exit status 2.",
+          "a": "`echo \"bad input\" >&2` then `exit 2`."
+        },
+        {
+          "type": "md",
+          "text": "### Putting it together\n\nThe notebook improves `makesh.sh` so the user chooses the filename with `$1`. With the quoting the course requires:\n\n```bash\n#!/bin/bash\n\n# namedsh.sh: create an executable skeleton script named $1\n\necho '#!/bin/bash' > \"$1\"\nchmod u+x \"$1\"\n```\n\nRunning `./namedsh.sh myscript.sh` creates `myscript.sh` containing the shebang, with execute permission for the owner.\n\n### Key points\n\n- Start every script with `#!/bin/bash`; make it executable with `chmod u+x f.sh`; run it with `./f.sh` (or `bash f.sh`).\n- `#` starts a comment that runs to the end of the line, unless it is quoted.\n- `$1`...`$9`, then `${10}`; `$#` is the number of arguments; `$0` is how the script was called; `\"$@\"` is all arguments, separately.\n- Errors: `echo \"message\" >&2` then `exit 1` (any status from 1 to 255).\n- A script's exit status is that of its last command unless `exit N` is used."
+        }
+      ]
+    },
+    {
+      "id": "d4-variables",
+      "title": "Variables, quoting and command substitution",
+      "notebook": "bash/variables.ipynb",
+      "priority": "high",
+      "examNote": "Quiz 1 Q2F: concatenate `str1` and `str2` into `str3` (`str3=$str1$str2`). Quiz 1 Q4 was built on `perm=$(stat -c %a \"$src\")`, and the posted solution marks the quotes around `\"$src\"` and `\"$dest\"` as **required**. The notebook's `bad_backup.sh` (`$in_.bak`) is a classic short-answer trap.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "A **variable** is a name that refers to a stored value. In Bash a variable name is made of letters, digits and underscores and starts with a letter or underscore. The course convention is **lowercase names**, with `_` between words (`trash_dir`, `perm`).\n\n### Assignment: no spaces around `=`\n\nTo store a value, write the name, `=`, and the value, with **no spaces anywhere around the `=`**:"
+        },
+        {
+          "type": "code",
+          "code": "a=2                # assign the string 2 to a\nb=\"some string\"    # quotes keep the space inside the value\nc=$a$b             # concatenation: c is 2some string\necho \"$c\"",
+          "caption": "Prints: 2some string"
+        },
+        {
+          "type": "md",
+          "text": "Spaces break assignment because the shell splits a line into words at spaces (Day 1), and the first word is the command:"
+        },
+        {
+          "type": "code",
+          "code": "$ x = 5\nbash: x: command not found\n$ x= 5\nbash: 5: command not found"
+        },
+        {
+          "type": "md",
+          "text": "`x = 5` runs a command named `x` with arguments `=` and `5`. `x= 5` sets `x` to empty just for a command named `5`, which does not exist.\n\n### Getting the value: parameter expansion\n\nWrite `$` in front of the name to get the value: `$var` or `${var}`. Replacing `${var}` with its value is called **parameter expansion** (or variable expansion). Without the `$`, a name is just text: `echo a` prints `a`, while `echo $a` prints `2`.\n\nBash variables are **untyped**: every value is a string. A value made only of digits can be used as a number in arithmetic (later today). There are **no floating-point numbers** in Bash.\n\n**Concatenation** is just writing expansions next to each other, so Quiz 1 Q2F's answer is:\n\n```bash\nstr3=$str1$str2\n```"
+        },
+        {
+          "type": "check",
+          "q": "Write the assignment that stores `CISC` followed by `220` in `course`, given `dept=CISC` and `num=220`.",
+          "a": "`course=$dept$num` (or `course=\"$dept$num\"`, or `course=${dept}${num}`)."
+        },
+        {
+          "type": "md",
+          "text": "### Unset variables are empty, and why `${var}` matters\n\nUsing a variable that was never assigned is **not an error**: it expands to the empty string. The command `unset var` removes a variable, so it becomes unset again.\n\nThat friendly behaviour causes a classic bug. The notebook's `bad_backup.sh` tries to copy file `abc` to `abc_.bak`:\n\n```bash\n#!/bin/bash\n\n# bad_backup.sh\nin=\"$1\"\nout=\"$in_.bak\"\ncp \"$in\" \"$out\"\n```"
+        },
+        {
+          "type": "code",
+          "code": "$ ls -A\n'my file'\n$ ../bad_backup.sh \"my file\"\n$ ls -A\n.bak  'my file'",
+          "caption": "The script is in the parent directory. (ls puts quotes around names with spaces when it prints to a terminal.)"
+        },
+        {
+          "type": "md",
+          "text": "`in_` is a valid variable name, so `$in_.bak` means \"the value of `in_`, then `.bak`\". `in_` was never set, so `out` becomes just `.bak`. The fix is braces, which mark exactly where the name ends:\n\n```bash\n#!/bin/bash\n\n# backup.sh\nin=\"$1\"\nout=\"${in}_.bak\"\ncp \"$in\" \"$out\"\n```\n\nNow `./backup.sh \"my file\"` creates `my file_.bak`. **Rule:** when a variable is directly followed by a letter, digit or `_`, write `${name}`."
+        },
+        {
+          "type": "why",
+          "q": "Why did `bad_backup.sh` produce a file named `.bak` instead of an error?",
+          "a": "Bash treats `in_` as the variable name. Unset variables expand to the empty string without any error, so `\"$in_.bak\"` became `.bak`."
+        },
+        {
+          "type": "md",
+          "text": "### Always quote your variables\n\nWhen a variable expansion is **not** inside double quotes, Bash splits its value into words at spaces and expands any glob characters in it. Filenames with spaces then break:"
+        },
+        {
+          "type": "code",
+          "code": "$ f=\"my file\"\n$ cat $f\ncat: my: No such file or directory\ncat: file: No such file or directory\n$ cat \"$f\"\nhello",
+          "caption": "The file my file contains the line hello."
+        },
+        {
+          "type": "md",
+          "text": "Inside double quotes, the `$` expansion still happens but the result stays **one word**. That is why the course requires `cp \"$in\" \"$out\"`, `chmod \"$perm\" \"$dest\"`, `mv \"$pathname\" \"$trashdir\"`. Single quotes turn expansion off completely: `echo '$f'` prints `$f`.\n\nQuoting on the right side of a plain assignment is optional (`in=$1` and `in=\"$1\"` both store the whole argument, spaces included), but quoting it never hurts."
+        },
+        {
+          "type": "pitfall",
+          "text": "Unquoted variables are the most common way to lose marks on script questions. Quote every `$var` that is used as a command argument: `chmod \"$perm\" \"$dest\"`, not `chmod $perm $dest`."
+        },
+        {
+          "type": "check",
+          "q": "`f=\"lab 1.txt\"`. What goes wrong with `rm $f`?",
+          "a": "The value is split into two words, so `rm` tries to delete files named `lab` and `1.txt`. Write `rm \"$f\"`."
+        },
+        {
+          "type": "md",
+          "text": "### What is expanded in an assignment\n\nOn the right of `=`, Bash performs **tilde expansion, parameter expansion, command substitution and arithmetic expansion**, but **not** brace expansion or filename (glob) expansion:"
+        },
+        {
+          "type": "code",
+          "code": "$ yrs={2020..2029..3}\n$ echo \"$yrs\"\n{2020..2029..3}\n$ sum=$(( 5 + 3 ))\n$ echo \"$sum\"\n8"
+        },
+        {
+          "type": "md",
+          "text": "### Command substitution into a variable\n\n`$(command)` runs the command and is replaced by its output, with trailing newlines removed (Day 3). Storing that output in a variable is how a script captures information from other commands. For example, `stat -c %a file` prints a file's permissions as three octal digits (from Assignment 2):\n\n```bash\nperm=$(stat -c %a \"$src\")    # e.g. perm is 640\nchmod \"$perm\" \"$dest\"        # give dest the same permissions\n```\n\nThese two lines are the heart of Quiz 1 Q4 (see the worked example in the Write section)."
+        },
+        {
+          "type": "check",
+          "q": "Store the number of lines in `classlist` in a variable `n`.",
+          "a": "`n=$(wc -l < classlist)` (the `<` makes `wc` print only the number, without the filename)."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- Assign with `name=value`: **no spaces** around `=`. Use `$name` or `${name}` to get the value.\n- Concatenate by writing values side by side: `str3=$str1$str2`.\n- Unset variables expand to the empty string, silently. Use `${name}` when the next character could be part of a name (`\"${in}_.bak\"`).\n- Quote expansions used as arguments: `\"$var\"`. Unquoted values are split at spaces.\n- `var=$(command)` stores a command's output; brace and glob expansion do not happen in assignments."
+        }
+      ]
+    },
+    {
+      "id": "d4-strings",
+      "title": "String operations with parameter expansion",
+      "notebook": "bash/strings.ipynb",
+      "priority": "high",
+      "examNote": "Quiz 1 Q3A (2 marks): print the first half of `s` with `${s:offset:len}` and `${#s}`. Quiz 1 Q5 (10 marks) needed `dir=${pathname%/*}`. Assignment 3 used `${#seq1}` and `${seq2:i:1}`; renaming extensions (`chext.sh`) uses `${f%.*}`.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "Bash has no string functions like Java's `substring`. Instead, string operations are special forms of **parameter expansion**, written inside `${ }`. None of them change the variable: they produce a new string.\n\n### Length: `${#s}`"
+        },
+        {
+          "type": "code",
+          "code": "$ str=\"cisc220\"\n$ echo \"${#str}\"\n7"
+        },
+        {
+          "type": "md",
+          "text": "### Substrings: `${s:offset}` and `${s:offset:length}`\n\nCharacters are numbered from **0**. `${s:offset}` is everything from index `offset` to the end; `${s:offset:length}` is `length` characters starting at `offset`."
+        },
+        {
+          "type": "code",
+          "code": "$ s=\"abcdefghij\"\n$ echo \"${s:2}\"\ncdefghij\n$ echo \"${s:3:4}\"\ndefg\n$ echo \"${s:1:0}\"\n\n$ echo \"${s: -3}\"\nhij\n$ echo \"${s:1:-2}\"\nbcdefgh"
+        },
+        {
+          "type": "md",
+          "text": "- A **negative offset** counts from the end, but needs a **space** before the minus: `${s: -3}`. Without it, `${s:-3}` is a different expansion (a default value, below) and gives the whole string.\n- A **negative length** means \"stop before this many characters from the end\": `${s:1:-2}` goes from index 1 up to but not including the second-last character.\n- The offset and length are arithmetic, so they can be variables or expressions: `${s:n}` and `${s:0:n}` work with or without `$` on `n`.\n\nQuiz 1 Q3A: print the first half of `s` (even length):\n\n```bash\nn=$(( ${#s} / 2 ))\necho \"${s:0:n}\"\n```\n\nand `echo \"${s:n}\"` would print the second half."
+        },
+        {
+          "type": "check",
+          "q": "`s=\"hello\"`. What do `${s:1:3}` and `${s: -2}` give?",
+          "a": "`ell` (3 characters starting at index 1) and `lo` (the last 2 characters)."
+        },
+        {
+          "type": "md",
+          "text": "### Removing a prefix or suffix: `#`, `##`, `%`, `%%`\n\nThese remove part of the string that matches a **pattern**. Patterns are the glob patterns from Day 2: `*` matches any characters, `?` one character, `[...]` one character from a set.\n\n| Expansion | Removes |\n|---|---|\n| `${s#pattern}` | the **shortest** matching part from the **front** |\n| `${s##pattern}` | the **longest** matching part from the **front** |\n| `${s%pattern}` | the **shortest** matching part from the **end** |\n| `${s%%pattern}` | the **longest** matching part from the **end** |\n\nMemory aid: on the keyboard `#` (Shift-3) is to the **left** of `%` (Shift-5), so `#` cuts from the left (front) and `%` from the right (end). Doubling the symbol makes it greedy (longest match)."
+        },
+        {
+          "type": "code",
+          "code": "$ f=\"file.txt.zip\"\n$ echo \"${f#*.}\"      # shortest front part matching *.  is \"file.\"\ntxt.zip\n$ echo \"${f##*.}\"     # longest front part matching *.  is \"file.txt.\"\nzip\n$ echo \"${f%.*}\"      # shortest end part matching .*  is \".zip\"\nfile.txt\n$ echo \"${f%%.*}\"     # longest end part matching .*  is \".txt.zip\"\nfile"
+        },
+        {
+          "type": "md",
+          "text": "The same idea splits a **pathname** into its directory and its filename, because the pieces are separated by `/`:"
+        },
+        {
+          "type": "code",
+          "code": "$ p=\"/home/user1/somedir/myfile\"\n$ echo \"${p%/*}\"      # remove the last /name: the directory\n/home/user1/somedir\n$ echo \"${p##*/}\"     # remove everything up to the last /: the filename\nmyfile"
+        },
+        {
+          "type": "md",
+          "text": "This is exactly Step 1 of Quiz 1 Q5: `dir=${pathname%/*}`. The notebook's `scriptname.sh` uses `script=${0##*/}` to get the script's own name without its directory: run as `./scripts/strings/scriptname.sh`, it prints `script name : scriptname.sh`.\n\nCommon recipes:\n\n| Want | Expansion | `f=dir/report.final.txt` gives |\n|---|---|---|\n| filename only | `${f##*/}` | `report.final.txt` |\n| directory only | `${f%/*}` | `dir` |\n| drop last extension | `${f%.*}` | `dir/report.final` |\n| last extension | `${f##*.}` | `txt` |"
+        },
+        {
+          "type": "pitfall",
+          "text": "If the pattern does not match, nothing is removed. With `p=myfile` (no `/`), `${p%/*}` is still `myfile`, not `.`. That is why Quiz 1 Q5 promised the pathname always includes the directory (`./myfile`, where `${p%/*}` is `.`)."
+        },
+        {
+          "type": "check",
+          "q": "`p=/home/user1/a.b.c`. Give the expansions that produce `/home/user1` and `a.b`.",
+          "a": "`${p%/*}` gives `/home/user1`. For `a.b`, take the filename and drop the last extension: `name=${p##*/}` then `${name%.*}`."
+        },
+        {
+          "type": "md",
+          "text": "### Replacing: `${s/pattern/repl}` and `${s//pattern/repl}`\n\nOne slash replaces the **first** match; two slashes replace **all** matches. An empty replacement deletes."
+        },
+        {
+          "type": "code",
+          "code": "$ s=\"sparring with a purple porpoise\"\n$ echo \"${s/p/t}\"\nstarring with a purple porpoise\n$ echo \"${s//p/t}\"\nstarring with a turtle tortoise\n$ echo \"${s//p/}\"\nsarring with a urle oroise\n$ f=\"lab 1.txt\"\n$ echo \"${f// /_}\"\nlab_1.txt"
+        },
+        {
+          "type": "check",
+          "q": "`f=\"my big file.txt\"`. Which expansion gives `my_big_file.txt`?",
+          "a": "`${f// /_}` (two slashes: replace every space with `_`)."
+        },
+        {
+          "type": "md",
+          "text": "### Case conversion (less likely on the test)\n\n`${s^}` uppercases the first character, `${s^^}` all characters; `${s,}` lowercases the first character, `${s,,}` all. An optional pattern limits which characters convert (`${s,,[A-C]}`)."
+        },
+        {
+          "type": "code",
+          "code": "$ s=\"xyz\"\n$ echo \"${s^}\" \"${s^^}\"\nXyz XYZ\n$ t=\"ABCXYZ\"\n$ echo \"${t,,}\"\nabcxyz"
+        },
+        {
+          "type": "md",
+          "text": "### Default values for unset or empty variables\n\nFour pairs of expansions deal with variables that are **unset** (never assigned, or `unset`) or **empty** (`var=\"\"`). The forms **with a colon** treat empty the same as unset.\n\n| Expansion | `str` unset | `str` empty | `str` non-empty |\n|---|---|---|---|\n| `${str-word}` | `word` | empty | `$str` |\n| `${str:-word}` | `word` | `word` | `$str` |\n| `${str=word}` | `word`, and assigns it to `str` | empty | `$str` |\n| `${str:=word}` | `word`, and assigns it | `word`, and assigns it | `$str` |\n| `${str+word}` | empty | `word` | `word` |\n| `${str:+word}` | empty | empty | `word` |\n| `${str?word}` | prints `word` to stderr, script exits | empty | `$str` |\n| `${str:?word}` | prints `word` to stderr, script exits | prints `word`, exits | `$str` |\n\nThe one to know well is `:-`, a **default value**:\n\n```bash\nname=${1:-world}     # world if no (or an empty) first argument\necho \"Hello, $name!\"\n```\n\nYou cannot use `=` or `:=` on positional parameters (`${1:=x}` is an error); use `:-` with an ordinary variable instead."
+        },
+        {
+          "type": "code",
+          "code": "$ unset v\n$ echo \"[${v-none}] [${v:-none}]\"\n[none] [none]\n$ v=\"\"\n$ echo \"[${v-none}] [${v:-none}]\"\n[] [none]",
+          "caption": "The colon makes the empty string count as missing."
+        },
+        {
+          "type": "check",
+          "q": "Write an assignment that sets `dir` to the first argument, or to `.` if no first argument (or an empty one) was given.",
+          "a": "`dir=${1:-.}`"
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- `${#s}` is the length; `${s:off:len}` a substring (index from 0); `${s: -n}` the last `n` characters (space needed).\n- `#`/`##` remove from the front, `%`/`%%` from the end; single = shortest, double = longest match.\n- Directory of a path: `${p%/*}`; filename: `${p##*/}`; drop extension: `${f%.*}`; extension: `${f##*.}`.\n- `${s/pat/rep}` replaces the first match, `${s//pat/rep}` every match.\n- `${var:-default}` gives a default when `var` is unset or empty."
+        }
+      ]
+    },
+    {
+      "id": "d4-arithmetic",
+      "title": "Integer arithmetic: (( )) and $(( ))",
+      "notebook": "bash/arithmetic.ipynb",
+      "priority": "high",
+      "examNote": "Quiz 1 Q3A needed `$(( ${#s} / 2 ))`. Quiz 2's Bash question used `(( ))` loops and comparisons, and every Assignment 3 script checked `$#` with `(( ))`. Expect output questions on integer division and `%`.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "Bash does **signed integer arithmetic** only (typically 64-bit). There are no decimals: `7 / 2` is `3`. The operators are like Java's, plus `**` for powers:\n\n| Operator | Meaning | Example | Result |\n|---|---|---|---|\n| `+ - *` | add, subtract, multiply | `2 + 3 * 4` | `14` |\n| `/` | integer division (drops the fraction) | `17 / 5` | `3` |\n| `%` | remainder | `17 % 5` | `2` |\n| `**` | power | `2 ** 10` | `1024` |\n| `( )` | grouping | `(2 + 3) * 4` | `20` |\n| `== != < <= > >=` | comparisons: 1 if true, 0 if false | `3 > 2` | `1` |\n\nDivision truncates toward zero, so `-7 / 2` is `-3` and `-7 % 2` is `-1`. Dividing by zero is an error.\n\n### The `(( ))` command\n\n`(( expression ))` evaluates an arithmetic expression. Inside it you can assign, and you **do not need `$`** in front of variable names; spaces are allowed and make it readable:"
+        },
+        {
+          "type": "code",
+          "code": "$ (( x = 1 + 2 ))\n$ echo \"$x\"\n3\n$ y=5\n$ (( z = x * y ))\n$ echo \"$z\"\n15\n$ (( z++ ))\n$ (( z += 10 ))\n$ echo \"$z\"\n26"
+        },
+        {
+          "type": "md",
+          "text": "Inside `(( ))`, a name whose value is not a number, an empty variable, or an unset variable all count as **0**:\n\n```bash\nx=abc; y=5\n(( z = x + y ))    # z is 5\n```"
+        },
+        {
+          "type": "check",
+          "q": "After `a=17; b=5; (( q = a / b )); (( r = a % b ))`, what are `q` and `r`?",
+          "a": "`q` is `3` and `r` is `2`."
+        },
+        {
+          "type": "md",
+          "text": "### Arithmetic expansion `$(( ))`\n\n`$(( expression ))` (with a `$`) is replaced by the **value** of the expression, just like `$( )` is replaced by a command's output. Use it anywhere you need the number as text:"
+        },
+        {
+          "type": "code",
+          "code": "$ x=7\n$ echo $(( x / 2 )) $(( x % 2 )) $(( x ** 2 ))\n3 1 49\n$ half=$(( x / 2 ))\n$ echo \"$half\"\n3\n$ n=$(( $(wc -l < classlist) * 3 ))"
+        },
+        {
+          "type": "pitfall",
+          "text": "A plain assignment does no arithmetic. `x=5; x=$x+1; echo $x` prints `5+1`, because the value is just the string `5+1`. Write `x=$(( x + 1 ))` or `(( x++ ))`."
+        },
+        {
+          "type": "why",
+          "q": "Why is `$((` needed in `half=$(( x / 2 ))` but not in `(( half = x / 2 ))`?",
+          "a": "`(( ))` is a command: it does the arithmetic and the assignment itself, producing no text. `$(( ))` is an expansion that produces text (the value), which the plain `half=` assignment then stores."
+        },
+        {
+          "type": "md",
+          "text": "### `(( ))` as a condition\n\n`(( ))` is a command, so it has an exit status:\n\n- if the expression's value is **not 0**, the exit status is **0** (success, \"true\");\n- if the value **is 0**, the exit status is **1** (failure, \"false\")."
+        },
+        {
+          "type": "code",
+          "code": "$ (( 0 + 0 ))\n$ echo $?\n1\n$ (( 2 > 1 ))\n$ echo $?\n0"
+        },
+        {
+          "type": "md",
+          "text": "That is why `(( ))` works as the condition of an `if` (covered fully tomorrow). The arithmetic notebook's argument checks:\n\n```bash\nif (( $# != 1 )); then\n    echo \"Script requires 1 argument\" >&2\n    exit 1\nfi\n```\n\nand its `iseven.sh`, which **exits 0 for an even number and 1 for an odd one** (no argument, or a non-number, counts as 0, which is even):\n\n```bash\n#!/bin/bash\n\n# iseven.sh\n\nif (( $# != 0 )); then\n    val=$1\n    if (( val % 2 != 0 )); then\n        exit 1\n    fi\nfi\n```"
+        },
+        {
+          "type": "code",
+          "code": "$ ./iseven.sh 2\n$ echo $?\n0\n$ ./iseven.sh 3\n$ echo $?\n1"
+        },
+        {
+          "type": "check",
+          "q": "What exit status does `(( 5 - 5 ))` give, and why?",
+          "a": "`1`, because the expression's value is 0, and a zero value means \"false\"."
+        },
+        {
+          "type": "md",
+          "text": "### Random numbers: `$RANDOM`\n\nEach time you use `$RANDOM` it expands to a random integer from 0 to 32767. Use `%` to bring it into a range: `$(( RANDOM % n ))` is from `0` to `n-1`, and `$(( RANDOM % (hi - lo) + lo ))` is from `lo` to `hi-1`. The notebook's `rand.sh`:\n\n```bash\n#!/bin/bash\n\n# rand.sh\n\nif (( $# > 2 )); then\n    echo \"rand.sh: Wrong number of arguments\" >&2\n    exit 1\nfi\nif (( $# == 0 )); then\n    echo $RANDOM\nelif (( $# == 1 )); then\n    n=$(( $RANDOM % $1 ))\n    echo $n\nelse\n    n=$(( $RANDOM % ($2 - $1) + $1 ))\n    echo $n\nfi\n```\n\n`./rand.sh 10` prints a number from 0 to 9; `./rand.sh 30 40` prints one from 30 to 39."
+        },
+        {
+          "type": "check",
+          "q": "Write an expression that gives a random die roll from 1 to 6.",
+          "a": "`$(( RANDOM % 6 + 1 ))`"
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- Integers only: `/` drops the fraction, `%` is the remainder, `**` is power.\n- `(( x = expr ))` does arithmetic and assignment; no `$` needed on names inside.\n- `$(( expr ))` produces the value as text: `echo $(( a + b ))`, `n=$(( ${#s} / 2 ))`.\n- `(( expr ))` succeeds (status 0) when `expr` is non-zero, so `if (( $# != 2 )); then ...` works.\n- `$RANDOM % n` gives 0 to n-1."
+        }
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "id": "d4-fc-01",
+      "topic": "d4-scripts",
+      "front": "What must the first line of a Bash script be, and what is it called?",
+      "back": "`#!/bin/bash`, the **shebang** (hash-bang). It names the program that interprets the script."
+    },
+    {
+      "id": "d4-fc-02",
+      "topic": "d4-scripts",
+      "front": "How do you make `go.sh` executable for yourself and run it from its directory?",
+      "back": "`chmod u+x go.sh` then `./go.sh`"
+    },
+    {
+      "id": "d4-fc-03",
+      "topic": "d4-scripts",
+      "front": "How can you run `go.sh` without execute permission?",
+      "back": "`bash go.sh` (Bash only needs to read the file)."
+    },
+    {
+      "id": "d4-fc-04",
+      "topic": "d4-scripts",
+      "front": "Why `./go.sh` and not just `go.sh`?",
+      "back": "Bare names are looked up only in the directories on the path, which normally does not include the current directory. `./go.sh` is a pathname to the file."
+    },
+    {
+      "id": "d4-fc-05",
+      "topic": "d4-scripts",
+      "front": "What character starts a comment, and where does the comment end?",
+      "back": "`#`; it runs to the end of the line. A quoted or escaped `#` is not a comment."
+    },
+    {
+      "id": "d4-fc-06",
+      "topic": "d4-scripts",
+      "front": "`$0`",
+      "back": "The pathname used to run the script, e.g. `./trash.sh`."
+    },
+    {
+      "id": "d4-fc-07",
+      "topic": "d4-scripts",
+      "front": "`$1`, `$2`, ..., `$9`",
+      "back": "The first, second, ..., ninth command line argument (empty if not given)."
+    },
+    {
+      "id": "d4-fc-08",
+      "topic": "d4-scripts",
+      "front": "How do you get the tenth argument? What does `$10` mean?",
+      "back": "`${10}`. `$10` is `$1` followed by the character `0`."
+    },
+    {
+      "id": "d4-fc-09",
+      "topic": "d4-scripts",
+      "front": "`$#`",
+      "back": "The number of command line arguments (not counting `$0`). Quiz 1: print it with `echo $#`."
+    },
+    {
+      "id": "d4-fc-10",
+      "topic": "d4-scripts",
+      "front": "`\"$@\"`",
+      "back": "All the command line arguments, each as a separate word, exactly as given: `\"$1\" \"$2\" ...`"
+    },
+    {
+      "id": "d4-fc-11",
+      "topic": "d4-scripts",
+      "front": "`\"$*\"` vs `\"$@\"`",
+      "back": "`\"$*\"` joins all arguments into one string separated by spaces; `\"$@\"` keeps them as separate words."
+    },
+    {
+      "id": "d4-fc-12",
+      "topic": "d4-scripts",
+      "front": "`$?`",
+      "back": "The exit status of the most recently completed command (0 = success, 1-255 = failure)."
+    },
+    {
+      "id": "d4-fc-13",
+      "topic": "d4-scripts",
+      "front": "How does a script print a message to standard error?",
+      "back": "`echo \"message\" >&2`"
+    },
+    {
+      "id": "d4-fc-14",
+      "topic": "d4-scripts",
+      "front": "What does `exit 3` do in a script?",
+      "back": "Stops the script immediately with exit status 3."
+    },
+    {
+      "id": "d4-fc-15",
+      "topic": "d4-scripts",
+      "front": "What is a script's exit status if it never calls `exit`?",
+      "back": "The exit status of the last command it ran."
+    },
+    {
+      "id": "d4-fc-16",
+      "topic": "d4-scripts",
+      "front": "Is using an argument that was not given (e.g. `$3` with 2 arguments) an error?",
+      "back": "No. It expands to the empty string."
+    },
+    {
+      "id": "d4-fc-17",
+      "topic": "d4-variables",
+      "front": "Assign the string `hello world` to variable `msg`.",
+      "back": "`msg=\"hello world\"` (no spaces around `=`; quotes keep the space)."
+    },
+    {
+      "id": "d4-fc-18",
+      "topic": "d4-variables",
+      "front": "What does `x = 5` do?",
+      "back": "Runs a command named `x` with arguments `=` and `5` (usually `x: command not found`)."
+    },
+    {
+      "id": "d4-fc-19",
+      "topic": "d4-variables",
+      "front": "Concatenate `str1` and `str2` into `str3` (Quiz 1).",
+      "back": "`str3=$str1$str2`"
+    },
+    {
+      "id": "d4-fc-20",
+      "topic": "d4-variables",
+      "front": "When must you write `${var}` instead of `$var`?",
+      "back": "When the next character could be part of a name (letter, digit, `_`), e.g. `\"${in}_.bak\"`; and for positional parameters 10 and up."
+    },
+    {
+      "id": "d4-fc-21",
+      "topic": "d4-variables",
+      "front": "Why does `out=\"$in_.bak\"` give `.bak`?",
+      "back": "Bash reads the variable name `in_`, which is unset, so it expands to empty."
+    },
+    {
+      "id": "d4-fc-22",
+      "topic": "d4-variables",
+      "front": "What does an unset variable expand to?",
+      "back": "The empty string (no error)."
+    },
+    {
+      "id": "d4-fc-23",
+      "topic": "d4-variables",
+      "front": "How do you remove a variable?",
+      "back": "`unset var`"
+    },
+    {
+      "id": "d4-fc-24",
+      "topic": "d4-variables",
+      "front": "Why write `cp \"$in\" \"$out\"` rather than `cp $in $out`?",
+      "back": "Unquoted expansions are split at spaces (and globbed), so a filename like `my file` becomes two arguments."
+    },
+    {
+      "id": "d4-fc-25",
+      "topic": "d4-variables",
+      "front": "Store the octal permissions of the file named in `src` in `perm`.",
+      "back": "`perm=$(stat -c %a \"$src\")`"
+    },
+    {
+      "id": "d4-fc-26",
+      "topic": "d4-variables",
+      "front": "Which expansions happen on the right of an assignment, and which do not?",
+      "back": "Tilde, parameter, command substitution and arithmetic do; brace and filename (glob) expansion do not."
+    },
+    {
+      "id": "d4-fc-27",
+      "topic": "d4-variables",
+      "front": "Does Bash have floating-point arithmetic?",
+      "back": "No. Values are strings; digit strings can be used as integers."
+    },
+    {
+      "id": "d4-fc-28",
+      "topic": "d4-strings",
+      "front": "`${#s}`",
+      "back": "The length of the string in `s`."
+    },
+    {
+      "id": "d4-fc-29",
+      "topic": "d4-strings",
+      "front": "`${s:offset}`",
+      "back": "The substring of `s` from index `offset` (0-based) to the end."
+    },
+    {
+      "id": "d4-fc-30",
+      "topic": "d4-strings",
+      "front": "`${s:offset:length}`",
+      "back": "`length` characters of `s` starting at index `offset`."
+    },
+    {
+      "id": "d4-fc-31",
+      "topic": "d4-strings",
+      "front": "Last 3 characters of `s`?",
+      "back": "`${s: -3}` (the space before `-` is required)."
+    },
+    {
+      "id": "d4-fc-32",
+      "topic": "d4-strings",
+      "front": "Print the first half of `s` (even length) (Quiz 1).",
+      "back": "`n=$(( ${#s} / 2 ))` then `echo \"${s:0:n}\"`"
+    },
+    {
+      "id": "d4-fc-33",
+      "topic": "d4-strings",
+      "front": "`${s#pattern}`",
+      "back": "Remove the **shortest** front part of `s` matching `pattern`."
+    },
+    {
+      "id": "d4-fc-34",
+      "topic": "d4-strings",
+      "front": "`${s##pattern}`",
+      "back": "Remove the **longest** front part of `s` matching `pattern`."
+    },
+    {
+      "id": "d4-fc-35",
+      "topic": "d4-strings",
+      "front": "`${s%pattern}`",
+      "back": "Remove the **shortest** end part of `s` matching `pattern`."
+    },
+    {
+      "id": "d4-fc-36",
+      "topic": "d4-strings",
+      "front": "`${s%%pattern}`",
+      "back": "Remove the **longest** end part of `s` matching `pattern`."
+    },
+    {
+      "id": "d4-fc-37",
+      "topic": "d4-strings",
+      "front": "Directory part of pathname `p` (Quiz 1 Q5)?",
+      "back": "`${p%/*}`"
+    },
+    {
+      "id": "d4-fc-38",
+      "topic": "d4-strings",
+      "front": "Filename part of pathname `p` (also the script name from `$0`)?",
+      "back": "`${p##*/}`, e.g. `${0##*/}`"
+    },
+    {
+      "id": "d4-fc-39",
+      "topic": "d4-strings",
+      "front": "Filename `f` without its last extension? Just the extension?",
+      "back": "`${f%.*}`; `${f##*.}`"
+    },
+    {
+      "id": "d4-fc-40",
+      "topic": "d4-strings",
+      "front": "`${s/pat/rep}` vs `${s//pat/rep}`",
+      "back": "One slash replaces the first match; two slashes replace every match. Empty `rep` deletes."
+    },
+    {
+      "id": "d4-fc-41",
+      "topic": "d4-strings",
+      "front": "`${s^^}` and `${s,,}`",
+      "back": "`s` in all uppercase; `s` in all lowercase. (`${s^}` / `${s,}` change only the first character.)"
+    },
+    {
+      "id": "d4-fc-42",
+      "topic": "d4-strings",
+      "front": "`${var:-word}`",
+      "back": "`word` if `var` is unset or empty, otherwise the value of `var` (`var` is not changed)."
+    },
+    {
+      "id": "d4-fc-43",
+      "topic": "d4-strings",
+      "front": "`${var-word}` (no colon)",
+      "back": "`word` only if `var` is unset; an empty `var` stays empty."
+    },
+    {
+      "id": "d4-fc-44",
+      "topic": "d4-strings",
+      "front": "`${var:=word}`",
+      "back": "Like `:-`, but also assigns `word` to `var`. Not allowed on positional parameters."
+    },
+    {
+      "id": "d4-fc-45",
+      "topic": "d4-strings",
+      "front": "`${var:+word}`",
+      "back": "`word` if `var` is set and non-empty, otherwise nothing."
+    },
+    {
+      "id": "d4-fc-46",
+      "topic": "d4-strings",
+      "front": "`${var:?word}`",
+      "back": "If `var` is unset or empty, print `word` to stderr and exit the script; otherwise the value."
+    },
+    {
+      "id": "d4-fc-47",
+      "topic": "d4-arithmetic",
+      "front": "`(( x = a + b ))` vs `x=$(( a + b ))`",
+      "back": "Both set `x` to the sum. `(( ))` is a command that does the assignment; `$(( ))` is an expansion that produces the value as text."
+    },
+    {
+      "id": "d4-fc-48",
+      "topic": "d4-arithmetic",
+      "front": "`$(( 17 / 5 ))`, `$(( 17 % 5 ))`, `$(( 2 ** 5 ))`",
+      "back": "`3`, `2`, `32`"
+    },
+    {
+      "id": "d4-fc-49",
+      "topic": "d4-arithmetic",
+      "front": "Value of an unset, empty, or non-numeric variable inside `(( ))`?",
+      "back": "0"
+    },
+    {
+      "id": "d4-fc-50",
+      "topic": "d4-arithmetic",
+      "front": "Exit status of `(( expr ))`?",
+      "back": "0 if `expr` is non-zero (true); 1 if `expr` is 0 (false)."
+    },
+    {
+      "id": "d4-fc-51",
+      "topic": "d4-arithmetic",
+      "front": "Check that a script got exactly 2 arguments.",
+      "back": "`if (( $# != 2 )); then echo \"Usage: s.sh a b\" >&2; exit 1; fi`"
+    },
+    {
+      "id": "d4-fc-52",
+      "topic": "d4-arithmetic",
+      "front": "`$RANDOM`",
+      "back": "A random integer 0 to 32767 each time it is used. `$(( RANDOM % n ))` is 0 to n-1."
+    },
+    {
+      "id": "d4-fc-53",
+      "topic": "d4-arithmetic",
+      "front": "What does `x=5; x=$x+1; echo $x` print?",
+      "back": "`5+1`. Assignment does no arithmetic; use `x=$(( x + 1 ))` or `(( x++ ))`."
+    }
+  ],
+  "quiz": [
+    {
+      "id": "d4-q-01",
+      "topic": "d4-scripts",
+      "type": "mcq",
+      "q": "You just saved `hello.sh` (permissions `rw-r--r--`) in the current directory. Which command runs it **without** changing its permissions?",
+      "options": [
+        "`./hello.sh`",
+        "`hello.sh`",
+        "`bash hello.sh`",
+        "`run hello.sh`"
+      ],
+      "answer": 2,
+      "explain": "`bash hello.sh` only needs read permission. `./hello.sh` fails with `Permission denied` until you `chmod u+x hello.sh`. Plain `hello.sh` is searched for on the path (not the current directory). `run` is not a command."
+    },
+    {
+      "id": "d4-q-02",
+      "topic": "d4-scripts",
+      "type": "output",
+      "q": "`args.sh` contains:\n\n```bash\n#!/bin/bash\necho \"$#: $1 | $2\"\n```\n\nWhat does `./args.sh \"a b\" c` print?",
+      "code": "./args.sh \"a b\" c",
+      "answer": "2: a b | c",
+      "explain": "The quotes make `a b` a single argument, so there are 2 arguments, `$1` is `a b`, and `$2` is `c`."
+    },
+    {
+      "id": "d4-q-03",
+      "topic": "d4-scripts",
+      "type": "output",
+      "q": "`ten.sh` contains:\n\n```bash\n#!/bin/bash\necho \"$10 ${10}\"\n```\n\nWhat does this print?",
+      "code": "./ten.sh a b c d e f g h i j",
+      "answer": "a0 j",
+      "explain": "`$10` is `$1` (`a`) followed by the character `0`. Only `${10}` gives the tenth argument, `j`."
+    },
+    {
+      "id": "d4-q-04",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "`hi.sh` is in the directory `scripts` and contains:\n\n```bash\n#!/bin/bash\necho \"$0\"\necho \"${0##*/}\"\n```\n\nWhat is printed?",
+      "code": "./scripts/hi.sh",
+      "answer": "./scripts/hi.sh\nhi.sh",
+      "explain": "`$0` is exactly the path used to run the script. `${0##*/}` removes the longest front part ending in `/`, leaving the script name."
+    },
+    {
+      "id": "d4-q-05",
+      "topic": "d4-scripts",
+      "type": "mcq",
+      "q": "Which line in a script prints `error` to **standard error**?",
+      "options": [
+        "`echo error 2>&1`",
+        "`echo error >&2`",
+        "`echo error > 2`",
+        "`echo >&2 error > /dev/null`"
+      ],
+      "answer": 1,
+      "explain": "`>&2` sends stdout into stderr. `2>&1` does the opposite (stderr into stdout). `> 2` writes to a file named `2`. The last one redirects stdout again to `/dev/null` after `>&2`, so the message is lost (the later redirection wins)."
+    },
+    {
+      "id": "d4-q-06",
+      "topic": "d4-scripts",
+      "type": "short",
+      "q": "From inside a script, how do you print the number of command line arguments? (Quiz 1)",
+      "answer": "`echo $#`",
+      "explain": "Accept `echo \"$#\"` or `echo ${#}`."
+    },
+    {
+      "id": "d4-q-07",
+      "topic": "d4-scripts",
+      "type": "short",
+      "q": "Write the two lines a script uses to print `Usage: go.sh file` to standard error and stop with exit status 1.",
+      "answer": "```bash\necho \"Usage: go.sh file\" >&2\nexit 1\n```",
+      "explain": "The `>&2` can also come first: `>&2 echo ...`. Any non-zero status signals failure, but use the one the question asks for."
+    },
+    {
+      "id": "d4-q-08",
+      "topic": "d4-variables",
+      "type": "mcq",
+      "q": "Which line stores the value 5 in variable `x`?",
+      "options": [
+        "`x = 5`",
+        "`x=5`",
+        "`$x=5`",
+        "`x =5`"
+      ],
+      "answer": 1,
+      "explain": "No spaces around `=`, and no `$` on the left. `x = 5` and `x =5` run a command named `x`; `$x=5` expands `x` first and tries to run the result as a command."
+    },
+    {
+      "id": "d4-q-09",
+      "topic": "d4-variables",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "a=2\nb=\"some string\"\nc=$a$b\necho \"$c\"",
+      "answer": "2some string",
+      "explain": "Writing two expansions side by side concatenates them."
+    },
+    {
+      "id": "d4-q-10",
+      "topic": "d4-variables",
+      "type": "output",
+      "q": "What does this print? (The variable `in_` has never been assigned.)",
+      "code": "in=\"my file\"\nout=\"$in_.bak\"\necho \"[$out]\"\nout=\"${in}_.bak\"\necho \"[$out]\"",
+      "answer": "[.bak]\n[my file_.bak]",
+      "explain": "`$in_` is the unset variable `in_`, which expands to empty. Braces end the name: `${in}_.bak`. This is the notebook's `bad_backup.sh` bug."
+    },
+    {
+      "id": "d4-q-11",
+      "topic": "d4-variables",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "yrs={2020..2029..3}\necho \"$yrs\"\nsum=$(( 5 + 3 ))\necho \"$sum\"",
+      "answer": "{2020..2029..3}\n8",
+      "explain": "Brace expansion does not happen in an assignment, so `yrs` holds the literal text. Arithmetic expansion does happen."
+    },
+    {
+      "id": "d4-q-12",
+      "topic": "d4-variables",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "name=Sam\necho \"Hello, ${name}!\"\necho 'Hello, ${name}!'",
+      "answer": "Hello, Sam!\nHello, ${name}!",
+      "explain": "Double quotes allow parameter expansion; single quotes turn all expansion off."
+    },
+    {
+      "id": "d4-q-13",
+      "topic": "d4-variables",
+      "type": "mcq",
+      "q": "A script runs `cp $1 $2` and is called as `./c.sh \"my notes\" backup`. What happens?",
+      "options": [
+        "It copies `my notes` to `backup`",
+        "`cp` receives three arguments `my`, `notes`, `backup`, so it tries to copy two files named `my` and `notes` into a directory `backup`",
+        "Bash reports a syntax error",
+        "It copies `my notes` to a file named `$2`"
+      ],
+      "answer": 1,
+      "explain": "Unquoted `$1` is split at the space. Write `cp \"$1\" \"$2\"`."
+    },
+    {
+      "id": "d4-q-14",
+      "topic": "d4-variables",
+      "type": "short",
+      "q": "How can you concatenate two strings stored in `str1` and `str2` and store the result in `str3`? (Quiz 1)",
+      "answer": "`str3=$str1$str2`",
+      "explain": "Also correct: `str3=\"$str1$str2\"` or `str3=${str1}${str2}`."
+    },
+    {
+      "id": "d4-q-15",
+      "topic": "d4-variables",
+      "type": "short",
+      "q": "Write one line that stores the octal permissions of the file whose name is in `src` in a variable `perm` (use `stat -c %a`).",
+      "answer": "`perm=$(stat -c %a \"$src\")`",
+      "explain": "Command substitution `$( )` captures the output. The quotes around `$src` are required in case the name has spaces."
+    },
+    {
+      "id": "d4-q-16",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "s=\"abcdefghij\"\necho \"${s:2:3}\"\necho \"${s: -3}\"\necho \"${s:1:-2}\"",
+      "answer": "cde\nhij\nbcdefgh",
+      "explain": "Indexes start at 0. `${s:2:3}` is 3 characters from index 2. `${s: -3}` is the last 3. A negative length stops that many characters before the end."
+    },
+    {
+      "id": "d4-q-17",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print? (Notice there is no space after the colon.)",
+      "code": "s=\"abcdefghij\"\necho \"${s:-3}\"",
+      "answer": "abcdefghij",
+      "explain": "`:-` is the default-value expansion: `s` is set and non-empty, so its value is used. For the last 3 characters you need `${s: -3}`."
+    },
+    {
+      "id": "d4-q-18",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "f=\"file.txt.zip\"\necho \"${f#*.}\"\necho \"${f##*.}\"\necho \"${f%.*}\"\necho \"${f%%.*}\"",
+      "answer": "txt.zip\nzip\nfile.txt\nfile",
+      "explain": "`#` removes from the front, `%` from the end; one symbol = shortest match, two = longest."
+    },
+    {
+      "id": "d4-q-19",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "p=\"/home/user1/somedir/myfile\"\necho \"${p%/*}\"\necho \"${p##*/}\"",
+      "answer": "/home/user1/somedir\nmyfile",
+      "explain": "`${p%/*}` removes the shortest end part matching `/*` (`/myfile`). `${p##*/}` removes the longest front part matching `*/`."
+    },
+    {
+      "id": "d4-q-20",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "p=\"./myfile\"\ndir=${p%/*}\necho \"$dir/.trash\"\np=\"myfile\"\necho \"${p%/*}\"",
+      "answer": "./.trash\nmyfile",
+      "explain": "With `./myfile`, the directory is `.`. With no `/` at all, the pattern does not match and nothing is removed."
+    },
+    {
+      "id": "d4-q-21",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "s=\"sparring with a purple porpoise\"\necho \"${s/p/t}\"\necho \"${s//p/}\"\necho \"$s\"",
+      "answer": "starring with a purple porpoise\nsarring with a urle oroise\nsparring with a purple porpoise",
+      "explain": "One slash replaces the first `p`; two slashes with an empty replacement delete every `p`. The variable itself is never changed."
+    },
+    {
+      "id": "d4-q-22",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "s=abcdef\nn=$(( ${#s} / 2 ))\necho \"${s:0:n}\" \"${s:n}\"",
+      "answer": "abc def",
+      "explain": "`${#s}` is 6, so `n` is 3. `${s:0:n}` is the first 3 characters and `${s:n}` the rest. (Quiz 1 Q3A.)"
+    },
+    {
+      "id": "d4-q-23",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "unset v\necho \"[${v-none}] [${v:-none}]\"\nv=\"\"\necho \"[${v-none}] [${v:-none}]\"",
+      "answer": "[none] [none]\n[] [none]",
+      "explain": "Without a colon only *unset* triggers the default; with a colon, *empty* does too."
+    },
+    {
+      "id": "d4-q-24",
+      "topic": "d4-strings",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "unset v\necho \"${v:=hello}\"\necho \"$v\"\nw=abc\necho \"[${w:+set}]\"",
+      "answer": "hello\nhello\n[set]",
+      "explain": "`:=` substitutes and also assigns the default, so `v` keeps `hello`. `:+` gives the alternate word because `w` is non-empty."
+    },
+    {
+      "id": "d4-q-25",
+      "topic": "d4-strings",
+      "type": "mcq",
+      "q": "`f=\"photo.backup.jpg\"`. Which expansion gives `photo.backup.png`?",
+      "options": [
+        "`${f%%.*}.png`",
+        "`${f%.*}.png`",
+        "`${f#*.}.png`",
+        "`${f/jpg/.png}`"
+      ],
+      "answer": 1,
+      "explain": "`${f%.*}` removes only the last extension (`photo.backup`). `%%` removes `.backup.jpg` (gives `photo.png`). `#*.` removes the front (`backup.jpg.png`). The last gives `photo.backup..png`."
+    },
+    {
+      "id": "d4-q-26",
+      "topic": "d4-arithmetic",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "x=7; y=2\necho $(( x / y )) $(( x % y )) $(( x ** y ))",
+      "answer": "3 1 49",
+      "explain": "Integer division drops the fraction; `%` is the remainder; `**` is power."
+    },
+    {
+      "id": "d4-q-27",
+      "topic": "d4-arithmetic",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "x=5\nx=$x+1\necho $x\nx=5\nx=$(( x + 1 ))\necho $x",
+      "answer": "5+1\n6",
+      "explain": "A plain assignment just builds a string. Only `$(( ))` (or `(( ))`) does arithmetic."
+    },
+    {
+      "id": "d4-q-28",
+      "topic": "d4-arithmetic",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "x=abc; y=5\n(( z = x + y ))\necho $z\n(( z++ ))\n(( z *= 2 ))\necho $z",
+      "answer": "5\n12",
+      "explain": "A non-numeric value counts as 0, so `z` is 5; then 6; then 12."
+    },
+    {
+      "id": "d4-q-29",
+      "topic": "d4-arithmetic",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "(( 0 + 0 ))\necho $?\n(( 2 - 1 ))\necho $?",
+      "answer": "1\n0",
+      "explain": "`(( ))` succeeds (status 0) when the value is non-zero and fails (status 1) when it is 0."
+    },
+    {
+      "id": "d4-q-30",
+      "topic": "d4-arithmetic",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "echo $(( 2 + 3 * 4 )) $(( (2 + 3) * 4 ))\necho $(( 10 / 3 * 3 )) $(( 10 * 3 / 3 ))",
+      "answer": "14 20\n9 10",
+      "explain": "Normal precedence (`*` before `+`). `10 / 3` is 3, so `10 / 3 * 3` is 9: the fraction is lost before multiplying."
+    },
+    {
+      "id": "d4-q-31",
+      "topic": "d4-arithmetic",
+      "type": "mcq",
+      "q": "Which line prints a random integer from 1 to 10 inclusive?",
+      "options": [
+        "`echo $(( RANDOM % 10 ))`",
+        "`echo $(( RANDOM % 10 + 1 ))`",
+        "`echo $(( RANDOM % 11 ))`",
+        "`echo $RANDOM % 10 + 1`"
+      ],
+      "answer": 1,
+      "explain": "`RANDOM % 10` is 0 to 9, plus 1 gives 1 to 10. `% 11` gives 0 to 10. The last has no arithmetic expansion, so it prints a number followed by the literal text `% 10 + 1`."
+    },
+    {
+      "id": "d4-q-32",
+      "topic": "d4-arithmetic",
+      "type": "short",
+      "q": "Write the start of a script that requires **at least** 2 arguments: if fewer are given it prints `need 2 args` to standard error and exits with status 1.",
+      "answer": "```bash\n#!/bin/bash\n\nif (( $# < 2 )); then\n    echo \"need 2 args\" >&2\n    exit 1\nfi\n```",
+      "explain": "Also correct: `[[ $# -lt 2 ]]` (conditionals, next day). `(( $# < 2 ))` compares numbers."
+    }
+  ],
+  "write": [
+    {
+      "id": "d4-w-01",
+      "topic": "d4-variables",
+      "stage": "worked",
+      "marks": 4,
+      "prompt": "**Quiz 1, Question 4 (4 marks).** Write a script that accepts two command line arguments that are both file names. The first argument is the name of the source file, and the second is the name of the destination file.\n\nThe script sets the permissions of the destination file to be equal to the permissions of the source file (it copies the permissions from the source to the destination).\n\nNo error checking is required: two arguments are always given and both files exist. Recall that `stat -c %a filename` prints the three-digit octal permissions of `filename`.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# copyperm.sh: copy the permissions of file $1 to file $2\n\nsrc=$1\ndest=$2\n\n# permissions of src, e.g. 640\nperm=$(stat -c %a \"$src\")\n\nchmod \"$perm\" \"$dest\"",
+      "explain": "1. `#!/bin/bash` makes it a Bash script.\n2. `src=$1` and `dest=$2` give the arguments readable names. (Quoting the right side of a plain assignment is optional.)\n3. `$(stat -c %a \"$src\")` runs `stat` and is replaced by its output, e.g. `640`. Storing it in `perm` is **command substitution into a variable**.\n4. `chmod` accepts an octal mode (Day 2), so `chmod \"$perm\" \"$dest\"` sets exactly the same permissions.\n\nThe posted solution marks the quotes around `\"$src\"` and `\"$dest\"` as **required**: without them a filename such as `my notes.txt` is split into two arguments. Quoting `\"$perm\"` is harmless and a good habit.\n\nA one-line version is also correct: `chmod \"$(stat -c %a \"$1\")\" \"$2\"`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash` and using `$1` / `$2` for source and destination"
+        },
+        {
+          "marks": 1,
+          "item": "Gets the source permissions with command substitution `$(stat -c %a ...)`"
+        },
+        {
+          "marks": 1,
+          "item": "Applies them with `chmod PERM dest`"
+        },
+        {
+          "marks": 1,
+          "item": "Filename expansions quoted: `\"$src\"` and `\"$dest\"`"
+        }
+      ],
+      "pitfalls": [
+        "Forgetting `$( )`: `perm=stat -c %a $src` is not command substitution.",
+        "Unquoted `$src` / `$dest` break on filenames with spaces.",
+        "Using `ls -l` and trying to parse the output instead of `stat -c %a`."
+      ]
+    },
+    {
+      "id": "d4-w-02",
+      "topic": "d4-strings",
+      "stage": "worked",
+      "marks": 10,
+      "prompt": "**Quiz 1, Question 5 (10 marks).** Create a script `trash.sh` that moves a single file into a hidden trashcan directory by performing these steps:\n\n1. finds the name of the directory `dir` that the file is located in\n2. creates a directory named `.trash` in `dir`\n3. changes the permissions of `.trash` so that the owner has all permissions and all other users have none\n4. prints the message `moving filename to the trashcan` where `filename` is the first command line argument\n5. moves the file into the `.trash` directory created in Step 2\n\nNo error checking is required: one argument is always given, it is the pathname of a file you own, and the pathname always includes the directory (for example `./myfile` or `/home/user1/somedir/myfile`). Ignore the error from Step 2 if `.trash` already exists.\n\nHint: `${str%pattern}` removes the shortest trailing part of `str` that matches `pattern`.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# trash.sh: move a file into a hidden .trash directory next to it\n\npathname=$1\n\n# Step 1: the directory part of the pathname\ndir=${pathname%/*}\n\n# Step 2\ntrashdir=$dir/.trash\nmkdir \"$trashdir\"\n\n# Step 3\nchmod 700 \"$trashdir\"        # or: chmod u=rwx,go= \"$trashdir\"\n\n# Step 4\necho \"moving $pathname to the trashcan\"\n\n# Step 5\nmv \"$pathname\" \"$trashdir\"",
+      "explain": "- **Step 1.** `${pathname%/*}` removes the shortest end part matching `/*`, that is, the last `/` and the filename. `./myfile` gives `.` and `/home/user1/somedir/myfile` gives `/home/user1/somedir`. This is why the question guarantees the pathname contains a `/`.\n- **Step 2.** Building `trashdir=$dir/.trash` once avoids typing it three times. `mkdir \"$trashdir\"` creates it.\n- **Step 3.** Owner `rwx`, group and others nothing is `700` in octal, or symbolically `u=rwx,go=`.\n- **Step 4.** Double quotes let `$pathname` expand inside the message.\n- **Step 5.** `mv FILE DIR` moves the file into the directory.\n\n**Watch out for the typo in the posted solution:** it ends with `mv \"$pathname $trashdir\"`. Those quotes make the two expansions **one** argument (`./myfile ./.trash`), so `mv` complains about a missing destination. The correct line quotes each expansion separately: `mv \"$pathname\" \"$trashdir\"`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash` and uses `$1` as the pathname"
+        },
+        {
+          "marks": 2,
+          "item": "Step 1: `dir=${pathname%/*}` (or equivalent)"
+        },
+        {
+          "marks": 1,
+          "item": "Step 2: `mkdir \"$dir/.trash\"`"
+        },
+        {
+          "marks": 2,
+          "item": "Step 3: `chmod 700` or `chmod u=rwx,go=` on `.trash`"
+        },
+        {
+          "marks": 1,
+          "item": "Step 4: `echo \"moving $pathname to the trashcan\"` with the exact message"
+        },
+        {
+          "marks": 2,
+          "item": "Step 5: `mv \"$pathname\" \"$dir/.trash\"`"
+        },
+        {
+          "marks": 1,
+          "item": "All pathnames quoted as separate arguments"
+        }
+      ],
+      "pitfalls": [
+        "`mv \"$pathname $trashdir\"` (one quoted string) is wrong: quote each argument on its own.",
+        "`${pathname#*/}` or `${pathname%%/*}` remove the wrong part. Test your expansion on `/home/user1/somedir/myfile`.",
+        "`chmod 600` is not \"all permissions\" for the owner: a directory needs `x` to be entered.",
+        "Single quotes around the message would print `$pathname` literally."
+      ]
+    },
+    {
+      "id": "d4-w-03",
+      "topic": "d4-strings",
+      "stage": "faded",
+      "marks": 4,
+      "prompt": "Write `newext.sh FILE EXT` that renames `FILE` so that its **last** extension is replaced by `EXT`. For example `./newext.sh report.txt md` renames `report.txt` to `report.md`, and `./newext.sh archive.tar.gz zip` renames `archive.tar.gz` to `archive.tar.zip`. Filenames may contain spaces. No error checking is required. Fill in the blanks.",
+      "starter": "#!/bin/bash\n\n# newext.sh: replace the last extension of $1 with $2\n\nf=____\next=____\n\nbase=${f____}\nmv ____ ____",
+      "solution": "#!/bin/bash\n\n# newext.sh: replace the last extension of $1 with $2\n\nf=$1\next=$2\n\nbase=${f%.*}\nmv \"$f\" \"$base.$ext\"",
+      "explain": "`${f%.*}` removes the **shortest** end part matching `.*`, which is only the last extension. `${f%%.*}` would remove `.tar.gz` and give `archive.zip`. In the `mv` destination, `\"$base.$ext\"` is safe without braces because `.` cannot be part of a variable name.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Arguments stored from `$1` and `$2`"
+        },
+        {
+          "marks": 1,
+          "item": "`${f%.*}` (shortest match from the end)"
+        },
+        {
+          "marks": 1,
+          "item": "New name built as base, `.`, extension"
+        },
+        {
+          "marks": 1,
+          "item": "`mv` with both names quoted"
+        }
+      ],
+      "pitfalls": [
+        "Using `%%` removes every extension, not just the last.",
+        "Forgetting the `.` between base and extension gives `reportmd`."
+      ]
+    },
+    {
+      "id": "d4-w-04",
+      "topic": "d4-strings",
+      "stage": "faded",
+      "marks": 3,
+      "prompt": "Write `swap.sh STRING` that prints the second half of `STRING` followed immediately by the first half, on one line. The first half has `${#s} / 2` characters (integer division). Examples: `./swap.sh abcdef` prints `defabc`; `./swap.sh abcde` prints `cdeab`. Fill in the blanks.",
+      "starter": "#!/bin/bash\n\n# swap.sh: print the second half of $1 then the first half\n\ns=$1\nn=____\nfirst=${s:____}\nsecond=${s:____}\necho \"____\"",
+      "solution": "#!/bin/bash\n\n# swap.sh: print the second half of $1 then the first half\n\ns=$1\nn=$(( ${#s} / 2 ))\nfirst=${s:0:n}\nsecond=${s:n}\necho \"$second$first\"",
+      "explain": "Same idea as Quiz 1 Q3A. `${s:0:n}` is the first `n` characters, `${s:n}` is everything from index `n` to the end. Concatenation is just writing `$second$first` side by side.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`n=$(( ${#s} / 2 ))`"
+        },
+        {
+          "marks": 1,
+          "item": "`${s:0:n}` and `${s:n}` for the two halves"
+        },
+        {
+          "marks": 1,
+          "item": "Prints them concatenated in the right order, quoted"
+        }
+      ],
+      "pitfalls": [
+        "`n=${#s} / 2` is not arithmetic; you need `$(( ))`.",
+        "`${s:n:n}` drops the last character when the length is odd."
+      ]
+    },
+    {
+      "id": "d4-w-05",
+      "topic": "d4-arithmetic",
+      "stage": "faded",
+      "marks": 5,
+      "prompt": "Write `avg.sh A B` for two integers. If the script does not get **exactly** two arguments, it prints `Usage: avg.sh a b` to **standard error** and exits with status 1. Otherwise it prints one line, `average: Q remainder: R`, where `Q` and `R` are the quotient and remainder of `(A + B)` divided by 2. Example: `./avg.sh 7 4` prints `average: 5 remainder: 1`. Fill in the blanks.",
+      "starter": "#!/bin/bash\n\n# avg.sh: integer average of two numbers\n\nif (( ____ )); then\n    echo \"Usage: avg.sh a b\" ____\n    exit ____\nfi\n\nsum=____\necho \"average: ____ remainder: ____\"",
+      "solution": "#!/bin/bash\n\n# avg.sh: integer average of two numbers\n\nif (( $# != 2 )); then\n    echo \"Usage: avg.sh a b\" >&2\n    exit 1\nfi\n\nsum=$(( $1 + $2 ))\necho \"average: $(( sum / 2 )) remainder: $(( sum % 2 ))\"",
+      "explain": "`$#` is the number of arguments, and `(( $# != 2 ))` is true when it is not 2. `>&2` sends the usage message to standard error and `exit 1` stops the script. Arithmetic expansions can go straight inside the double-quoted message.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Tests `$#` against 2 with `(( $# != 2 ))` (or equivalent)"
+        },
+        {
+          "marks": 1,
+          "item": "Usage message to standard error with `>&2`"
+        },
+        {
+          "marks": 1,
+          "item": "`exit 1` on error"
+        },
+        {
+          "marks": 1,
+          "item": "Sum computed with arithmetic expansion"
+        },
+        {
+          "marks": 1,
+          "item": "Quotient with `/` and remainder with `%` printed in the exact format"
+        }
+      ],
+      "pitfalls": [
+        "`echo \"Usage...\"` without `>&2` goes to standard output.",
+        "`(( $# < 2 ))` lets 3 arguments through; the question says exactly two."
+      ]
+    },
+    {
+      "id": "d4-w-06",
+      "topic": "d4-strings",
+      "stage": "blank",
+      "marks": 8,
+      "prompt": "Write a script `mkbackup.sh` that takes one command line argument, the pathname of a file. The pathname always includes the directory the file is in (for example `./notes.txt` or `/home/user1/docs/my notes.txt`).\n\n1. If the script does not get exactly one argument, print `Usage: mkbackup.sh pathname` to standard error and exit with status 1.\n2. Find the directory `dir` that the file is in, and the file's name `name` (without the directory).\n3. Create a directory named `backup` inside `dir`.\n4. Copy the file into `backup`, naming the copy `name.bak` (so `my notes.txt` is copied to `my notes.txt.bak`).\n5. Make the copy read-only for the owner and give no permissions to anyone else.\n6. Print `backed up NAME to DIR/backup` where `NAME` is the file's name and `DIR` is the directory.\n\nIgnore the error if `backup` already exists.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# mkbackup.sh: copy a file into a backup directory next to it\n\nif (( $# != 1 )); then\n    echo \"Usage: mkbackup.sh pathname\" >&2\n    exit 1\nfi\n\npathname=$1\ndir=${pathname%/*}\nname=${pathname##*/}\n\nbackupdir=$dir/backup\nmkdir \"$backupdir\"\ncp \"$pathname\" \"$backupdir/$name.bak\"\nchmod 400 \"$backupdir/$name.bak\"\necho \"backed up $name to $backupdir\"",
+      "explain": "Running `./mkbackup.sh \"pics/old stuff/cat 1.jpg\"` prints `backed up cat 1.jpg to pics/old stuff/backup` and creates `pics/old stuff/backup/cat 1.jpg.bak` with permissions `r--------`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks `$#` is exactly 1"
+        },
+        {
+          "marks": 1,
+          "item": "Usage message to stderr and `exit 1`"
+        },
+        {
+          "marks": 1,
+          "item": "`dir=${pathname%/*}`"
+        },
+        {
+          "marks": 1,
+          "item": "`name=${pathname##*/}`"
+        },
+        {
+          "marks": 1,
+          "item": "`mkdir` of `dir/backup`"
+        },
+        {
+          "marks": 1,
+          "item": "`cp` to `backup/name.bak`"
+        },
+        {
+          "marks": 1,
+          "item": "`chmod 400` (or `u=r,go=`) on the copy"
+        },
+        {
+          "marks": 1,
+          "item": "Correct message, and all pathnames quoted"
+        }
+      ],
+      "pitfalls": [
+        "Swapping `%` and `##`: test them on `/home/user1/docs/a.txt` before you hand in.",
+        "Forgetting the quotes: the example name has spaces in both the directory and the file.",
+        "`chmod 400` must be applied to the copy, not the original or the directory."
+      ]
+    },
+    {
+      "id": "d4-w-07",
+      "topic": "d4-strings",
+      "stage": "blank",
+      "marks": 5,
+      "prompt": "Write `userid.sh FIRST LAST` that prints a user id made of the **first letter of FIRST** followed by **at most the first 7 characters of LAST**, all in lowercase. If it does not get exactly 2 arguments, it prints `Usage: userid.sh first last` to standard error and exits with status 1.\n\nExamples: `./userid.sh Barry Cade` prints `bcade`; `./userid.sh Holly Fitzgerald` prints `hfitzger`.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# userid.sh: make a user id from a first and last name\n\nif (( $# != 2 )); then\n    echo \"Usage: userid.sh first last\" >&2\n    exit 1\nfi\n\nfirst=$1\nlast=$2\nid=${first:0:1}${last:0:7}\necho \"${id,,}\"",
+      "explain": "`${last:0:7}` is safe for short names: asking for more characters than exist just gives the whole string (`Cade`). `${id,,}` converts every character to lowercase.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Argument count check with `$#`"
+        },
+        {
+          "marks": 1,
+          "item": "Usage to stderr and `exit 1`"
+        },
+        {
+          "marks": 1,
+          "item": "`${first:0:1}` for the first letter"
+        },
+        {
+          "marks": 1,
+          "item": "`${last:0:7}` for at most 7 characters"
+        },
+        {
+          "marks": 1,
+          "item": "Concatenates and lowercases with `${id,,}`"
+        }
+      ],
+      "pitfalls": [
+        "`${last:1:7}` starts at the second character: indexes start at 0.",
+        "`${id^^}` is uppercase; lowercase is `,,`."
+      ]
+    },
+    {
+      "id": "d4-w-08",
+      "topic": "d4-arithmetic",
+      "stage": "blank",
+      "marks": 5,
+      "prompt": "Write `hms.sh SECONDS` that converts a number of seconds into hours, minutes and seconds and prints them in the form `1h 2m 5s` (for `./hms.sh 3725`). If it does not get exactly one argument it prints `Usage: hms.sh seconds` to standard error and exits with status 1. Use integer arithmetic only.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# hms.sh: convert a number of seconds to hours, minutes and seconds\n\nif (( $# != 1 )); then\n    echo \"Usage: hms.sh seconds\" >&2\n    exit 1\nfi\n\ntotal=$1\nh=$(( total / 3600 ))\nm=$(( total % 3600 / 60 ))\ns=$(( total % 60 ))\necho \"${h}h ${m}m ${s}s\"",
+      "explain": "`3725 / 3600` is 1 hour. The leftover `3725 % 3600` is 125 seconds, and `125 / 60` is 2 minutes. `3725 % 60` is 5 seconds. The braces in `${h}h` are **required**: `$hh` would be the unset variable `hh`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Argument count check, usage to stderr, `exit 1`"
+        },
+        {
+          "marks": 1,
+          "item": "Hours with `/ 3600`"
+        },
+        {
+          "marks": 1,
+          "item": "Minutes with `% 3600 / 60` (or equivalent)"
+        },
+        {
+          "marks": 1,
+          "item": "Seconds with `% 60`"
+        },
+        {
+          "marks": 1,
+          "item": "Output in the exact format, using `${h}h` style braces"
+        }
+      ],
+      "pitfalls": [
+        "`echo \"$hh $mm $ss\"` prints three empty values: braces are needed before the letters.",
+        "`total / 60` alone gives total minutes (62), not the minutes part (2)."
+      ]
+    }
+  ]
+}

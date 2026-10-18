@@ -1,0 +1,1098 @@
+{
+ "day": 1,
+ "title": "Find your way: the shell, the filesystem, and commands",
+ "goal": "Navigate the Linux filesystem with pwd, cd and ls using absolute and relative pathnames, read the structure of a command, and explain directories, inodes and exit status.",
+ "topics": [
+  {
+   "id": "d1-start",
+   "title": "Before you start: terminal, shell, and a little history",
+   "notebook": "bash/history.ipynb, bash/rules_of_the_unix_philosophy.ipynb",
+   "priority": "low",
+   "examNote": "The history and the 17 rules have not been asked on past tests; skim them. The **vocabulary** in the first half of this lesson (terminal, shell, prompt, command, option, argument) is used in every other lesson, so learn it well.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Welcome\n\nThis course asks you to control a Linux computer by **typing commands** instead of clicking. Today you learn the words people use for this, how files are organised, and your first commands. Everything here is also practised in a **real Ubuntu terminal**: on Ubuntu press **Ctrl+Alt+T** (or search for *Terminal*) and type the examples yourself. Reading is not enough; your fingers must learn the commands too, because the midterm is handwritten with no aids.\n\n### Five words you need\n\n- A **terminal** is the window you type into. Long ago it was a real machine (a keyboard plus a printer or screen). Today it is a program called a *terminal emulator*.\n- A **shell** is the program running inside the terminal. It reads the text you type, works out what it means, and runs it. Our shell is **Bash**.\n- The **prompt** is the text the shell prints when it is ready for you, often ending in `$`. In these notes a line that starts with `$ ` is something *you* type; lines without it are what the computer prints back. Do not type the `$`.\n- A **command** is the first word you type: the name of the thing to run, such as `echo` or `ls`.\n- An **argument** is a word after the command that tells it *what to act on*. Words are separated by spaces. An **option** is a special argument that starts with `-` and changes *how* the command behaves.\n\nYou press **Enter** to run what you typed."
+    },
+    {
+     "type": "code",
+     "code": "$ echo Hello there\nHello there\n$ ls\nanimals.txt  courses  fruits.txt",
+     "caption": "Two commands. `echo` is the command and `Hello` and `there` are its two arguments. `ls` has no arguments."
+    },
+    {
+     "type": "check",
+     "q": "In `echo Hello there`, which word is the command and which words are arguments?",
+     "a": "`echo` is the command; `Hello` and `there` are two arguments (the shell splits words at spaces)."
+    },
+    {
+     "type": "check",
+     "q": "What is the difference between the terminal and the shell?",
+     "a": "The terminal is the window/program you type into and read from. The shell (Bash) is the program inside it that interprets what you type and runs the commands."
+    },
+    {
+     "type": "md",
+     "text": "### A very short history\n\nAn **operating system** (OS) is the system software that manages the hardware and gives other programs an interface to it (Windows and macOS are examples). The **kernel** is the core of the OS that sits between the hardware and applications.\n\n- **UNIX** was developed at Bell Labs. It was one of the first *portable* operating systems because it was written mostly in **C** instead of machine-specific assembly language.\n- In **1983** Richard Stallman started the **GNU** project to build a free, UNIX-like OS. GNU produced the tools but its kernel (Hurd) was never finished.\n- In **1991** Linus Torvalds announced a free kernel, **Linux**, built using GNU tools. Together they make **GNU/Linux** (usually just \"Linux\"). Strictly, *Linux is the kernel*.\n- Linux dominates servers, the cloud and supercomputers; Android is derived from it.\n- **POSIX** is a set of standards that keeps UNIX-like systems compatible.\n- **Bash** stands for **Bourne Again SHell**; it replaced the older UNIX Bourne shell and is the default shell on many Linux distributions."
+    },
+    {
+     "type": "check",
+     "q": "Strictly speaking, what part of GNU/Linux is \"Linux\"?",
+     "a": "The kernel. GNU supplied most of the tools around it."
+    },
+    {
+     "type": "md",
+     "text": "### The Unix philosophy (skim)\n\nEric Raymond lists 17 rules. Four of them explain how the commands you will meet behave:\n\n- **Modularity / Composition**: write small, simple programs that can be connected to other programs. This is why we build answers by joining small commands (for example with a pipe `|`).\n- **Silence**: when a program has nothing surprising to say, it says nothing. `cd` and `mkdir` print nothing when they succeed.\n- **Repair**: when you must fail, fail noisily and as soon as possible. A failing command prints an error message and reports failure through its *exit status* (Lesson 4)."
+    },
+    {
+     "type": "why",
+     "q": "Why does `cd courses` print nothing at all when it works?",
+     "a": "The Rule of Silence: success is the unsurprising case, so the command stays quiet. You learn about failure from an error message and a non-zero exit status instead."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Terminal = window you type in; shell = program that interprets your typing; Bash = Bourne Again SHell.\n- Command line: `command -options arguments`, words separated by spaces, run with Enter.\n- Linux is the kernel; GNU/Linux is the whole OS; UNIX came from Bell Labs and was written in C.\n- Unix programs are small, combinable, quiet on success and noisy on failure."
+    }
+   ]
+  },
+  {
+   "id": "d1-cli",
+   "title": "First commands at the command line",
+   "notebook": "bash/cli_intro.ipynb",
+   "priority": "medium",
+   "examNote": "`echo` and `cat` appear constantly in exam answers (Quiz 1 asked how to overwrite a file using `echo` and a redirection; Assignment 1 Q3 asked you to `cat` a file using a relative path). Pipes return in the streams lesson.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "Bash gives you a **command line interface** (CLI): you type a command and press Enter. A Linux system has thousands of commands, and each has options and inputs. This lesson tries a few. For the examples, suppose the current directory contains two small text files from the course notebooks:\n\n- `animals.txt` with the lines `cat`, `zebra`, `dog`, `armadillo`\n- `fruits.txt` with the lines `strawberry`, `mango`, `pineapple`, `apple`\n\n### `echo`: print its arguments\n\n`echo` prints its arguments, separated by single spaces, followed by a newline. Quotes group words into one argument and are not printed."
+    },
+    {
+     "type": "code",
+     "code": "$ echo \"Hello, world!\"\nHello, world!\n$ echo one   two     three\none two three\n$ echo \"one   two\"\none   two"
+    },
+    {
+     "type": "why",
+     "q": "Why does `echo one   two     three` print the words with only single spaces between them?",
+     "a": "The shell splits the line into words at spaces before running `echo`, so `echo` receives three separate arguments and joins them with one space. With quotes, `\"one   two\"` is one argument that contains the spaces, so they are kept."
+    },
+    {
+     "type": "md",
+     "text": "### `ls`: list files\n\n`ls` lists the files in the current working directory (the directory you are \"in\"; more in the next lesson)."
+    },
+    {
+     "type": "code",
+     "code": "$ ls\nanimals.txt  courses  fruits.txt"
+    },
+    {
+     "type": "md",
+     "text": "### `cat`: concatenate and print files\n\n`cat` (short for *concatenate*) prints the contents of each file named as an argument, one after another."
+    },
+    {
+     "type": "code",
+     "code": "$ cat animals.txt\ncat\nzebra\ndog\narmadillo\n$ cat animals.txt fruits.txt\ncat\nzebra\ndog\narmadillo\nstrawberry\nmango\npineapple\napple"
+    },
+    {
+     "type": "check",
+     "q": "What single command prints `fruits.txt` and then `animals.txt` (in that order)?",
+     "a": "`cat fruits.txt animals.txt`. `cat` prints its files in the order given."
+    },
+    {
+     "type": "md",
+     "text": "### `sort` and the pipe `|`\n\n`sort` prints the lines of a file in sorted order. It does **not** change the file.\n\nA **pipe** `|` sends the output of the command on its left into the input of the command on its right. This is the Rule of Composition in action: two small commands combined."
+    },
+    {
+     "type": "code",
+     "code": "$ sort animals.txt\narmadillo\ncat\ndog\nzebra\n$ cat animals.txt fruits.txt | sort\napple\narmadillo\ncat\ndog\nmango\npineapple\nstrawberry\nzebra"
+    },
+    {
+     "type": "check",
+     "q": "In `cat animals.txt fruits.txt | sort`, where does `sort` get its input from?",
+     "a": "From the pipe: the output of `cat` (both files joined) becomes the input of `sort`. `sort` is given no filename argument."
+    },
+    {
+     "type": "md",
+     "text": "### `grep`, `date`, `cal` and friends\n\n`grep PATTERN FILE` prints the lines of FILE that match a pattern (a *regular expression*, covered in a later lesson). `^a` means \"starts with a\"."
+    },
+    {
+     "type": "code",
+     "code": "$ grep ^a animals.txt\narmadillo\n$ grep p fruits.txt\npineapple\napple"
+    },
+    {
+     "type": "md",
+     "text": "- `date` prints the current date and time; with the option `-Idate` it prints only the date, like `2026-10-18`.\n- `cal` prints a calendar of this month; `cal -y` prints the whole year.\n- Silly ones from the notebook (install them on Ubuntu with `sudo apt install fortune cowsay toilet` if you want to try): `fortune` prints a random saying, `fortune | cowsay` makes a cow say it, `fortune | toilet` prints it in big letters.\n\nThe point: most commands accept **options** that change what they do, and the output of one command can be fed to another."
+    },
+    {
+     "type": "pitfall",
+     "text": "The command is `ls` (ell ess), not `1s` (one ess). And Bash is case sensitive: `LS`, `Echo` and `CAT` are not commands, and `Animals.txt` is a different file from `animals.txt`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `echo ARGS` prints its arguments separated by single spaces; quotes keep spaces inside one argument.\n- `cat FILE...` prints files in the order given; `sort FILE` prints lines sorted (file unchanged).\n- `cmd1 | cmd2` feeds cmd1's output into cmd2.\n- `grep PATTERN FILE` prints matching lines; `^a` = starts with `a`.\n- Everything is case sensitive."
+    }
+   ]
+  },
+  {
+   "id": "d1-filesystem",
+   "title": "The filesystem, paths, cd and pwd",
+   "notebook": "bash/filesystem.ipynb",
+   "priority": "high",
+   "examNote": "Very high. Quiz 1 Q1 (6 marks) drew a directory tree and asked: the symbol for the root directory (`/`), an absolute pathname, and several \"what single command would you use\" parts using relative paths. Quiz 1 Q2A asked what a directory contains (**the mapping of filenames to inodes**). Assignment 1 Q0-Q5 were `pwd`, absolute and relative pathnames, `cat` with a relative path, `ls . ../../exam/c_src`, and `cd ../../../marking/A1`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "A **filesystem** is the part of the OS that controls how data is stored on a device (disk, USB drive, ...) and found again. Data is stored in **files**, files have **names**, and files are grouped into **directories** (what a GUI calls folders). Directories can contain other directories, giving a tree.\n\nA Unix file is \"just a big bag of bytes\". Even hardware devices appear as special files (*device special files*), so programs can read and write them like any other file.\n\n### Inodes: where a file's information lives\n\nFor every file, Unix keeps an **inode** that stores information *about* the file:\n\n- the device it is on, the **file type**, the **owner** (user ID), the **size**\n- times of creation, last modification and last access\n- where to find the file's contents on the device\n\nEach inode has an **inode number**, unique on its device (two different devices can reuse the same number).\n\nNotice what is **missing**: the inode does **not** store the file's name."
+    },
+    {
+     "type": "md",
+     "text": "### A directory maps filenames to inodes\n\nFilenames are stored in **directories**. A directory is itself a file whose contents are basically a table **mapping filenames to inode numbers**:\n\n| inode number | filename |\n|---|---|\n| 662400 | `images/` |\n| 662411 | `animals.txt` |\n| 661257 | `cli_intro.ipynb` |\n\nEach row (a name pointing at an inode) is called a **hard link**. Every file has at least one hard link; a file can have several names (several hard links), but Linux does not allow extra hard links to a directory.\n\nOrdinary files holding data are called **regular files**. Directories are files too, but they are **not** regular files."
+    },
+    {
+     "type": "check",
+     "q": "In Linux, a directory is a file that contains what information?",
+     "a": "The mapping of filenames to inodes (inode numbers). This exact question was Quiz 1 Q2A."
+    },
+    {
+     "type": "why",
+     "q": "Why can one file have two different names?",
+     "a": "Because the name is not stored in the file's inode. Names live in directories as entries pointing to an inode number, so two directory entries (hard links) can point to the same inode. Edit through one name and the other name shows the change, since there is only one file."
+    },
+    {
+     "type": "md",
+     "text": "### The root directory `/` and the standard layout\n\nThe Linux tree has one top directory, called **root** or **slash**, and its name is the single character **`/`**. Every other directory is inside it. The *Filesystem Hierarchy Standard* says what goes where. A few you should recognise:\n\n| Directory | Holds |\n|---|---|\n| `/bin` | essential command programs (e.g. `ls`) |\n| `/etc` | system configuration |\n| `/home` | users' home directories, e.g. `/home/user1` |\n| `/tmp` | temporary files |\n| `/usr` | secondary hierarchy (many more programs) |\n| `/dev` | device files |\n\n### Where am I? `pwd`, `cd`, `ls`\n\nThe shell always has a **current working directory** (cwd): the directory you are \"in\".\n\n- `pwd` (*print working directory*) prints the absolute pathname of the cwd.\n- `cd DIR` (*change directory*) makes DIR the cwd. It prints nothing on success.\n- `ls DIR` lists the files in DIR; `ls` alone lists the cwd."
+    },
+    {
+     "type": "code",
+     "code": "$ cd /\n$ pwd\n/\n$ ls home\nuser1  user2\n$ cd home/user1\n$ pwd\n/home/user1"
+    },
+    {
+     "type": "check",
+     "q": "What symbol is the name of the root directory?",
+     "a": "`/` (slash). Quiz 1 Q1A."
+    },
+    {
+     "type": "md",
+     "text": "For the rest of this lesson, use this tree (it is the same one the drills use):\n\n```\n/\n└── home\n    ├── user1\n    │   ├── animals.txt\n    │   ├── fruits.txt\n    │   └── courses\n    │       ├── CISC204\n    │       │   └── a1.txt\n    │       └── CISC220\n    │           ├── .draft\n    │           ├── lab1.sh\n    │           └── notes.txt\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n                └── readme.txt\n```\n\n### Absolute pathnames\n\nA **pathname** names a file by its location. An **absolute pathname** starts at the root, so it **begins with `/`**, and lists every directory on the way, separated by `/`:\n\n- `/home/user1/courses/CISC220/notes.txt`\n- `/home/user2/courses/CISC352`\n\nAn absolute pathname means the same file no matter what the current directory is.\n\n### Relative pathnames\n\nA **relative pathname** does **not** start with `/`. It is read starting **from the current working directory**. If the cwd is `/home/user1`, then `courses/CISC220/notes.txt` means `/home/user1/courses/CISC220/notes.txt`. If the cwd is `/home/user1/courses`, then the same file is just `CISC220/notes.txt`."
+    },
+    {
+     "type": "check",
+     "q": "Using the tree above, what is the absolute pathname of `readme.txt`?",
+     "a": "`/home/user2/courses/CISC352/readme.txt`"
+    },
+    {
+     "type": "check",
+     "q": "The cwd is `/home/user1`. Give a relative pathname for `a1.txt`.",
+     "a": "`courses/CISC204/a1.txt` (no leading `/`)."
+    },
+    {
+     "type": "md",
+     "text": "### `.` `..` and `~`\n\nThree special names make relative paths powerful:\n\n| Name | Means |\n|---|---|\n| `.` | the current directory |\n| `..` | the **parent** of the current directory (one level up) |\n| `~` | your **home directory** (e.g. `/home/user1`) |\n\nEvery directory contains the entries `.` and `..`, so they can be used in the middle of a path too: `../..` goes up two levels, and `../../user2` goes up two levels and then down into `user2`.\n\nTo get from one directory to another with a relative path: go **up** with `..` until you reach a directory the two have in common, then go **down** by names."
+    },
+    {
+     "type": "code",
+     "code": "$ pwd\n/home/user1/courses/CISC220\n$ cd ..\n$ pwd\n/home/user1/courses\n$ cd ../../user2/courses/CISC352\n$ pwd\n/home/user2/courses/CISC352\n$ cat ../../../user1/courses/CISC204/a1.txt\nAssignment 1: due Friday",
+     "caption": "From CISC352 we go up three times (courses, user2, home) and then down to user1's file."
+    },
+    {
+     "type": "check",
+     "q": "The cwd is `/home/user2/courses/CISC352`. Write a relative pathname for `/home/user2/courses/CISC204`.",
+     "a": "`../CISC204`. Up one level to `courses`, then down into `CISC204`."
+    },
+    {
+     "type": "md",
+     "text": "### More about `cd`\n\n| Command | Effect |\n|---|---|\n| `cd` | go to your home directory |\n| `cd ~` | same: `~` expands to your home directory |\n| `cd .` | stay where you are |\n| `cd ..` | go to the parent directory |\n| `cd ../..` | go up two levels |\n| `cd -` | go back to the **previous** working directory and print its absolute path |\n| `cd ~-` | same as `cd -` but prints nothing |\n\nYou can always use either kind of path: `cd /home/user2` (absolute) works from anywhere; `cd ../user2` (relative) works only from a directory whose parent contains `user2`."
+    },
+    {
+     "type": "code",
+     "code": "$ cd /usr\n$ cd\n$ pwd\n/home/user1\n$ cd -\n/usr\n$ pwd\n/usr"
+    },
+    {
+     "type": "check",
+     "q": "You type `cd /tmp` and then `cd /etc`. What does `cd -` do now?",
+     "a": "It goes back to `/tmp` (the previous working directory) and prints `/tmp`."
+    },
+    {
+     "type": "md",
+     "text": "### Built-in commands and getting help\n\n`cd` and `pwd` are **built-in shell commands**: they are part of Bash itself. `ls` is a separate **program** that Bash runs (the file `/usr/bin/ls`). This matters for documentation:\n\n- `help cd`, `help pwd` describe built-ins (also `man builtins`).\n- `man ls` shows the manual page of a program."
+    },
+    {
+     "type": "pitfall",
+     "text": "Do not start a relative pathname with `/`. `/courses/CISC220` means a directory `courses` directly inside the root, which does not exist. If the path is relative to where you are, its first character is a name, `.` or `..`, never `/`."
+    },
+    {
+     "type": "pitfall",
+     "text": "`..` is the parent of the **current** directory, not of the file you are thinking about. Before writing a relative path, write down the cwd and count the levels up from *there*."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- A directory is a file containing the **mapping of filenames to inodes**; the inode stores everything else (type, owner, size, times, where the data is) but **not the name**.\n- The root directory is `/`. Absolute pathnames start with `/`; relative pathnames start from the cwd.\n- `.` = here, `..` = parent, `~` = home; `cd` alone goes home, `cd -` goes back.\n- `pwd` prints the absolute pathname of the cwd.\n- `cd` and `pwd` are built-ins (`help cd`); `ls` is a program (`man ls`)."
+    }
+   ]
+  },
+  {
+   "id": "d1-commands",
+   "title": "Commands: types, options, help, lists, exit status",
+   "notebook": "bash/commands.ipynb",
+   "priority": "high",
+   "examNote": "Quiz 1 Q2B: \"If a command completes without errors, what is its exit status?\" (**0**). Assignment 1 Q6-Q9 needed `ls` options such as `-1`, `-d`, `-l`, `-S`, `-r` and `-a`/`-A` on the right files; Quiz 1 Q1F used `ls -a`. Expect several short \"what single command\" parts that test exactly one option.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Four kinds of command\n\nThe word you type first can be one of four things:\n\n1. a **shell built-in** (part of Bash): `cd`, `pwd`, `echo`, `help`, `history`, `type`\n2. an **executable program** stored in a file: `ls`, `cal` (a compiled C program or a script)\n3. an **alias**: a shortcut name for a longer command\n4. a **shell function**: a function written in the shell language (a later lesson)\n\n`type NAME` tells you which kind a command is. `which NAME` prints the pathname of an executable program (and prints nothing for a built-in like `cd`, because there is no file)."
+    },
+    {
+     "type": "code",
+     "code": "$ type cd\ncd is a shell builtin\n$ type cal\ncal is /usr/bin/cal\n$ which ls\n/usr/bin/ls\n$ which cd\n$",
+     "caption": "In an interactive Ubuntu terminal `type ls` prints ls is aliased to `ls --color=auto' because Ubuntu defines an alias for ls; inside a script it prints ls is /usr/bin/ls."
+    },
+    {
+     "type": "check",
+     "q": "What single command tells you whether `pwd` is a built-in or a program?",
+     "a": "`type pwd` (it prints `pwd is a shell builtin`)."
+    },
+    {
+     "type": "md",
+     "text": "### Command structure: `command -options arguments`\n\n- **command**: the name of the program (or built-in) to run\n- **-options**: optional flags that modify the behaviour, written with a leading `-`\n- **arguments**: a space-separated list of things the command acts on (often optional)\n\n`ls` lists *information about files*. Its argument can be a directory (list what is inside) or a regular file (list that file).\n\n- `ls -s ls` (run in `/usr/bin`): option `-s` (size in blocks), argument `ls`.\n- `ls -s -h ls`: two options; `-h` means human-readable sizes (K, M, G).\n- `ls -sh ls`: the same, because most commands let you **combine** single-letter options after one `-`.\n- **Long options** start with two hyphens and are separated by spaces: `ls --almost-all --human-readable --size -1`."
+    },
+    {
+     "type": "check",
+     "q": "Are `ls -l -a` and `ls -la` the same? Why?",
+     "a": "Yes. Single-letter options can be combined behind one hyphen, so `-la` is `-l` plus `-a`."
+    },
+    {
+     "type": "md",
+     "text": "### `ls` options to know\n\n| Option | Long option | Meaning |\n|---|---|---|\n| `-a` | `--all` | list **all** files, including hidden ones (names starting with `.`), and `.` and `..` |\n| `-A` | `--almost-all` | like `-a` but without `.` and `..` |\n| `-d` | `--directory` | list the directory **itself**, not its contents |\n| `-F` | `--classify` | add a character showing the type (`/` directory, `*` executable) |\n| `-h` | `--human-readable` | with `-l` or `-s`, sizes like `4.0K` |\n| `-l` | | **long** format (permissions, owner, size, date, name) |\n| `-r` | `--reverse` | reverse the sort order |\n| `-s` | `--size` | print size in blocks |\n| `-t` | | sort by modification time, newest first |\n| `-1` | | **one** file per line (the digit one) |\n| `-S` | | sort by size, **largest first** (from `man ls`; used in Assignment 1) |\n\nA **hidden file** is just a file whose name starts with `.`; plain `ls` does not show it.\n\nWith the tree from the last lesson, cwd `/home/user1/courses`:"
+    },
+    {
+     "type": "code",
+     "code": "$ ls CISC220\nlab1.sh  notes.txt\n$ ls -a CISC220\n.  ..  .draft  lab1.sh  notes.txt\n$ ls -A CISC220\n.draft  lab1.sh  notes.txt\n$ ls -1 CISC220\nlab1.sh\nnotes.txt\n$ ls -d CISC220\nCISC220\n$ ls CISC204 CISC220\nCISC204:\na1.txt\n\nCISC220:\nlab1.sh  notes.txt",
+     "caption": "Given several directories, ls lists each one under a heading."
+    },
+    {
+     "type": "check",
+     "q": "Why would you ever want `ls -d CISC220`, which just prints `CISC220`?",
+     "a": "Combined with `-l` it shows the *directory's own* information (`ls -ld CISC220`: its permissions, owner, date) instead of a long listing of every file inside it. Without `-d`, `ls` always opens a directory argument and lists its contents."
+    },
+    {
+     "type": "code",
+     "code": "$ ls -S CISC220\nnotes.txt  lab1.sh\n$ ls -1Sr CISC220\nlab1.sh\nnotes.txt",
+     "caption": "notes.txt (58 bytes) is bigger than lab1.sh (25 bytes). -S puts the largest first; -r reverses that to smallest first."
+    },
+    {
+     "type": "check",
+     "q": "What single command lists the files in CISC220 in long format, smallest first?",
+     "a": "`ls -lSr CISC220` (any order of the letters works, e.g. `ls -l -S -r CISC220`)."
+    },
+    {
+     "type": "md",
+     "text": "### Getting help\n\n- `ls --help`: many programs print a usage summary with `--help`.\n- `help cd`: documentation for a **built-in**.\n- `man ls`: the **manual page** of a program. It is a reference, not a tutorial. The **SYNOPSIS** section shows the usage: anything in `[ ]` is optional and `...` means \"one or more\". For `ls` it reads `ls [OPTION]... [FILE]...`.\n\nIn a terminal `man` shows the page with the viewer `less`: press `f` (forward) and `b` (back) to move a page, `h` for help, `q` to quit.\n\nManual pages are grouped in **sections**, because one name can have several pages: **1** general commands, 2 system calls, 3 C library functions, 4 special files, 5 file formats, 6 games, **7** miscellaneous, 8 system administration. Put the section number before the name: `man 7 man` shows section 7's page about `man`, while `man man` shows the command."
+    },
+    {
+     "type": "check",
+     "q": "What does `[OPTION]... [FILE]...` in a SYNOPSIS tell you?",
+     "a": "Options are optional and you may give several; filenames are optional and you may give several."
+    },
+    {
+     "type": "md",
+     "text": "### History and Tab completion (time savers)\n\n- **Up/Down arrows** cycle through the commands you typed before. `history` lists them with numbers.\n- **Tab** completes a partly typed command or filename: type `cd /u` then Tab and Bash fills in `cd /usr/`. If several names match, press Tab twice to see them all. Use Tab constantly; it prevents typos in long paths."
+    },
+    {
+     "type": "md",
+     "text": "### Exit status\n\nEvery command, when it finishes, sets an **exit status**: a number that says whether it worked.\n\n- **0 means success.**\n- A non-zero value (1 to 255) means some kind of failure.\n\nThe exit status of the most recent command is stored in the special parameter `?`; you read it with `$?`."
+    },
+    {
+     "type": "code",
+     "code": "$ ls courses\nCISC204  CISC220\n$ echo $?\n0\n$ ls missing\nls: cannot access 'missing': No such file or directory\n$ echo $?\n2\n$ cd missing\nbash: cd: missing: No such file or directory\n$ echo $?\n1"
+    },
+    {
+     "type": "check",
+     "q": "A command finished without any errors. What is its exit status, and how do you print it?",
+     "a": "0. Print it with `echo $?` straight after the command."
+    },
+    {
+     "type": "why",
+     "q": "Why does `echo $?` typed twice in a row print 0 the second time even if the first printed 2?",
+     "a": "`$?` is the status of the *most recent* command. The second `echo $?` reports on the first `echo`, which succeeded."
+    },
+    {
+     "type": "md",
+     "text": "### Lists of commands: `;` `&` `&&` `||`\n\n| Form | Meaning |\n|---|---|\n| `cmd1; cmd2` | run cmd1, wait, then run cmd2 (always) |\n| `cmd &` | run cmd in the **background**; the shell does not wait |\n| `cmd1 && cmd2` | run cmd2 **only if cmd1 succeeded** (exit status 0) |\n\nAnd the fourth operator, two pipe characters:\n\n- `cmd1 || cmd2`: run cmd2 **only if cmd1 failed** (non-zero exit status).\n\nThe status of a list is the status of the last command that ran."
+    },
+    {
+     "type": "code",
+     "code": "$ cd ~; pwd\n/home/user1\n$ cd missing && ls\nbash: cd: missing: No such file or directory\n$ cd drafts || mkdir drafts; cd drafts; pwd\nbash: cd: drafts: No such file or directory\n/home/user1/drafts",
+     "caption": "`ls` is skipped because `cd missing` failed. In the last line `mkdir` runs because `cd drafts` failed, then the new directory is entered."
+    },
+    {
+     "type": "check",
+     "q": "Write one line that changes into `courses` and, only if that works, lists it.",
+     "a": "`cd courses && ls`"
+    },
+    {
+     "type": "pitfall",
+     "text": "`&&` means \"if it succeeded\", not \"and also always\". Use `;` when the second command should run no matter what."
+    },
+    {
+     "type": "pitfall",
+     "text": "`ls -a` and `ls -A` differ only in `.` and `..`. If a question says \"including hidden files\", `-a` is the standard answer (Quiz 1 accepted `ls -a`); `-A` is also correct unless `.`/`..` must be excluded or included explicitly."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Kinds of command: built-in, executable program, alias, function. Check with `type`; `which` finds programs.\n- Structure: `command -options arguments`; short options combine (`-lSr`), long options use `--`.\n- Know `ls -a -A -d -l -1 -r -S -t -s -h -F`.\n- Help: `help` for built-ins, `man` (sections: 1 commands, 7 misc) and `--help` for programs.\n- Exit status **0 = success**, non-zero = failure; read it with `$?`. `&&` runs on success, `||` on failure, `;` always."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "d1-fc-01",
+   "topic": "d1-start",
+   "front": "What is a terminal (today)?",
+   "back": "A program (terminal emulator) that gives you a window to type commands into and read output from."
+  },
+  {
+   "id": "d1-fc-02",
+   "topic": "d1-start",
+   "front": "What is a shell?",
+   "back": "The program that interprets the text you type into the terminal and runs the commands. Ours is Bash."
+  },
+  {
+   "id": "d1-fc-03",
+   "topic": "d1-start",
+   "front": "What does Bash stand for?",
+   "back": "Bourne Again SHell (it replaced the UNIX Bourne shell)."
+  },
+  {
+   "id": "d1-fc-04",
+   "topic": "d1-start",
+   "front": "In `ls -l courses`, name the command, the option and the argument.",
+   "back": "Command `ls`, option `-l`, argument `courses`."
+  },
+  {
+   "id": "d1-fc-05",
+   "topic": "d1-start",
+   "front": "What is the prompt?",
+   "back": "The text the shell prints (often ending in `$`) to show it is ready for a command. In notes, don't type the `$`."
+  },
+  {
+   "id": "d1-fc-06",
+   "topic": "d1-start",
+   "front": "Strictly, what is Linux?",
+   "back": "The kernel of the GNU/Linux operating system (the part between hardware and applications)."
+  },
+  {
+   "id": "d1-fc-07",
+   "topic": "d1-start",
+   "front": "Rule of Silence / Rule of Repair?",
+   "back": "Silence: say nothing when there is nothing surprising (`cd` prints nothing on success). Repair: when you must fail, fail noisily and as soon as possible."
+  },
+  {
+   "id": "d1-fc-08",
+   "topic": "d1-cli",
+   "front": "What does `echo a    b` print, and why?",
+   "back": "`a b`. The shell splits the line into two arguments; echo joins them with one space."
+  },
+  {
+   "id": "d1-fc-09",
+   "topic": "d1-cli",
+   "front": "What does `cat` stand for and do?",
+   "back": "Concatenate: prints the contents of each file argument, in the order given."
+  },
+  {
+   "id": "d1-fc-10",
+   "topic": "d1-cli",
+   "front": "What does the pipe in `cmd1 | cmd2` do?",
+   "back": "Sends the output of cmd1 into the input of cmd2."
+  },
+  {
+   "id": "d1-fc-11",
+   "topic": "d1-cli",
+   "front": "Does `sort animals.txt` change animals.txt?",
+   "back": "No. It prints the sorted lines; the file is unchanged."
+  },
+  {
+   "id": "d1-fc-12",
+   "topic": "d1-cli",
+   "front": "What does `grep ^a animals.txt` print?",
+   "back": "The lines of animals.txt that start with `a`."
+  },
+  {
+   "id": "d1-fc-13",
+   "topic": "d1-filesystem",
+   "front": "In Linux, a directory is a file that contains what?",
+   "back": "The mapping of filenames to inodes (inode numbers)."
+  },
+  {
+   "id": "d1-fc-14",
+   "topic": "d1-filesystem",
+   "front": "Name four things an inode stores. What does it NOT store?",
+   "back": "Device, file type, owner (user ID), size, creation/modification/access times, where the contents are. It does **not** store the filename."
+  },
+  {
+   "id": "d1-fc-15",
+   "topic": "d1-filesystem",
+   "front": "Is an inode number unique across the whole filesystem?",
+   "back": "No, only on a given device; different devices can use the same inode number."
+  },
+  {
+   "id": "d1-fc-16",
+   "topic": "d1-filesystem",
+   "front": "What is a hard link?",
+   "back": "A directory entry mapping a filename to a file (inode). Every file has at least one."
+  },
+  {
+   "id": "d1-fc-17",
+   "topic": "d1-filesystem",
+   "front": "What is a regular file? Is a directory one?",
+   "back": "An ordinary file holding data. A directory is a file but not a regular file."
+  },
+  {
+   "id": "d1-fc-18",
+   "topic": "d1-filesystem",
+   "front": "Name of the root directory?",
+   "back": "`/` (slash)."
+  },
+  {
+   "id": "d1-fc-19",
+   "topic": "d1-filesystem",
+   "front": "Absolute vs relative pathname?",
+   "back": "Absolute starts with `/` and gives the full path from the root. Relative does not start with `/` and is read from the current working directory."
+  },
+  {
+   "id": "d1-fc-20",
+   "topic": "d1-filesystem",
+   "front": "`.` `..` `~` mean?",
+   "back": "Current directory; parent directory; your home directory."
+  },
+  {
+   "id": "d1-fc-21",
+   "topic": "d1-filesystem",
+   "front": "What does `pwd` print?",
+   "back": "The absolute pathname of the current working directory."
+  },
+  {
+   "id": "d1-fc-22",
+   "topic": "d1-filesystem",
+   "front": "What does `cd` with no argument do?",
+   "back": "Changes to your home directory (same as `cd ~`)."
+  },
+  {
+   "id": "d1-fc-23",
+   "topic": "d1-filesystem",
+   "front": "`cd -` vs `cd ~-`?",
+   "back": "Both go back to the previous working directory; `cd -` prints its absolute path, `cd ~-` prints nothing."
+  },
+  {
+   "id": "d1-fc-24",
+   "topic": "d1-filesystem",
+   "front": "Cwd `/home/user1/courses/CISC220`. Relative path to `/home/user2`?",
+   "back": "`../../../user2`"
+  },
+  {
+   "id": "d1-fc-25",
+   "topic": "d1-filesystem",
+   "front": "What lives in `/home`, `/bin`, `/etc`, `/tmp`?",
+   "back": "Users' home directories; essential command programs; system configuration; temporary files."
+  },
+  {
+   "id": "d1-fc-26",
+   "topic": "d1-commands",
+   "front": "Four kinds of command?",
+   "back": "Shell built-in, executable program, alias, shell function."
+  },
+  {
+   "id": "d1-fc-27",
+   "topic": "d1-commands",
+   "front": "`type` vs `which`?",
+   "back": "`type NAME` says what kind of command NAME is. `which NAME` prints the pathname of an executable program (nothing for a built-in)."
+  },
+  {
+   "id": "d1-fc-28",
+   "topic": "d1-commands",
+   "front": "General structure of a command line?",
+   "back": "`command -options arguments`"
+  },
+  {
+   "id": "d1-fc-29",
+   "topic": "d1-commands",
+   "front": "`ls -a` vs `ls -A`?",
+   "back": "Both show hidden files; `-a` also lists `.` and `..`, `-A` does not."
+  },
+  {
+   "id": "d1-fc-30",
+   "topic": "d1-commands",
+   "front": "`ls -d DIR` does what?",
+   "back": "Lists the directory DIR itself instead of its contents (useful with `-l`)."
+  },
+  {
+   "id": "d1-fc-31",
+   "topic": "d1-commands",
+   "front": "`ls -1`?",
+   "back": "One file per line (the digit one)."
+  },
+  {
+   "id": "d1-fc-32",
+   "topic": "d1-commands",
+   "front": "`ls -S` and `ls -Sr`?",
+   "back": "Sort by size, largest first; with `-r`, smallest first."
+  },
+  {
+   "id": "d1-fc-33",
+   "topic": "d1-commands",
+   "front": "`ls -l`, `ls -t`, `ls -r`?",
+   "back": "Long format; sort by modification time (newest first); reverse the order."
+  },
+  {
+   "id": "d1-fc-34",
+   "topic": "d1-commands",
+   "front": "`ls -s -h` (or `-sh`)?",
+   "back": "Size of each file (`-s`) in human-readable units (`-h`)."
+  },
+  {
+   "id": "d1-fc-35",
+   "topic": "d1-commands",
+   "front": "What is a hidden file?",
+   "back": "A file whose name starts with `.`; `ls` shows it only with `-a` or `-A`."
+  },
+  {
+   "id": "d1-fc-36",
+   "topic": "d1-commands",
+   "front": "How do you get documentation for the built-in `cd`? For the program `ls`?",
+   "back": "`help cd` (or `man builtins`); `man ls` (or `ls --help`)."
+  },
+  {
+   "id": "d1-fc-37",
+   "topic": "d1-commands",
+   "front": "In a SYNOPSIS, what do `[ ]` and `...` mean?",
+   "back": "`[ ]` = optional; `...` = one or more may be given."
+  },
+  {
+   "id": "d1-fc-38",
+   "topic": "d1-commands",
+   "front": "Man page sections 1 and 7? How to pick a section?",
+   "back": "1 = general commands, 7 = miscellaneous. Put the number first: `man 7 man`."
+  },
+  {
+   "id": "d1-fc-39",
+   "topic": "d1-commands",
+   "front": "Keys in `less` (man pages)?",
+   "back": "`f` forward a page, `b` back a page, `h` help, `q` quit."
+  },
+  {
+   "id": "d1-fc-40",
+   "topic": "d1-commands",
+   "front": "Exit status of a command that succeeds? How to print the last one?",
+   "back": "0. `echo $?`"
+  },
+  {
+   "id": "d1-fc-41",
+   "topic": "d1-commands",
+   "front": "`cmd1 && cmd2` vs `cmd1 || cmd2` vs `cmd1; cmd2`?",
+   "back": "`&&`: cmd2 only if cmd1 succeeded (status 0). `||`: cmd2 only if cmd1 failed. `;`: cmd2 always, after cmd1."
+  },
+  {
+   "id": "d1-fc-42",
+   "topic": "d1-commands",
+   "front": "What does `cmd &` do?",
+   "back": "Runs cmd in the background: the shell does not wait for it to finish."
+  },
+  {
+   "id": "d1-fc-43",
+   "topic": "d1-commands",
+   "front": "How do you complete a long filename quickly?",
+   "back": "Type the first few characters and press Tab (Tab twice lists all matches)."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "d1-q-01",
+   "topic": "d1-filesystem",
+   "type": "mcq",
+   "q": "In Linux, a directory is a file that contains what information?",
+   "options": [
+    "The contents of every file inside it",
+    "The mapping of filenames to inodes",
+    "Each file's owner, size and permissions",
+    "The pathname of its parent directory only"
+   ],
+   "answer": 1,
+   "explain": "A directory is basically a table of filename → inode number. Owner, size and permissions are stored in each file's **inode**, not in the directory, and file contents are stored on the device where the inode points."
+  },
+  {
+   "id": "d1-q-02",
+   "topic": "d1-filesystem",
+   "type": "short",
+   "q": "Using the same tree, what is the absolute pathname of the file `Q1.sh`?\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```",
+   "answer": "`/home/cisc220/tests/midterm/src/Q1.sh`",
+   "explain": "An absolute pathname starts at `/` and names every directory on the way."
+  },
+  {
+   "id": "d1-q-03",
+   "topic": "d1-commands",
+   "type": "mcq",
+   "q": "Every command produces an exit status. If a command completes without encountering any errors, what is its exit status?",
+   "options": [
+    "1",
+    "0",
+    "255",
+    "It has none until you run `echo $?`"
+   ],
+   "answer": 1,
+   "explain": "0 means success; any value from 1 to 255 means failure. The exit status is always set; `echo $?` only displays it."
+  },
+  {
+   "id": "d1-q-04",
+   "topic": "d1-filesystem",
+   "type": "mcq",
+   "q": "Which of these is a **relative** pathname?",
+   "options": [
+    "/home/user1",
+    "/",
+    "../user2/courses",
+    "/tmp/../home"
+   ],
+   "answer": 2,
+   "explain": "A relative pathname does not start with `/`. All the others start with `/`, so they are absolute (even `/tmp/../home`, which contains `..`)."
+  },
+  {
+   "id": "d1-q-05",
+   "topic": "d1-filesystem",
+   "type": "mcq",
+   "q": "The current working directory is `/home/user1/courses/CISC220`. Which path names `/home/user2`?",
+   "options": [
+    "../user2",
+    "../../user2",
+    "../../../user2",
+    "~/user2"
+   ],
+   "answer": 2,
+   "explain": "Up three levels: `..` = courses, `../..` = user1, `../../..` = home; then down into user2. `~/user2` would be `/home/user1/user2`."
+  },
+  {
+   "id": "d1-q-06",
+   "topic": "d1-filesystem",
+   "type": "mcq",
+   "q": "What information does an inode **not** store?",
+   "options": [
+    "The file's size",
+    "The file's owner",
+    "The file's name",
+    "When the file was last modified"
+   ],
+   "answer": 2,
+   "explain": "Filenames are stored in directories, which map names to inode numbers. That is why one file can have several names (hard links)."
+  },
+  {
+   "id": "d1-q-07",
+   "topic": "d1-commands",
+   "type": "mcq",
+   "q": "Which command lists the files in `CISC220`, including hidden files, but **not** `.` and `..`?",
+   "options": [
+    "ls -a CISC220",
+    "ls -A CISC220",
+    "ls -d CISC220",
+    "ls -h CISC220"
+   ],
+   "answer": 1,
+   "explain": "`-A` (almost all) shows hidden files but leaves out `.` and `..`. `-a` includes them; `-d` lists the directory itself; `-h` only changes size units."
+  },
+  {
+   "id": "d1-q-08",
+   "topic": "d1-commands",
+   "type": "mcq",
+   "q": "Which is true about `cd` and `ls`?",
+   "options": [
+    "Both are built-in shell commands",
+    "`cd` is a built-in; `ls` is an executable program",
+    "`ls` is a built-in; `cd` is an executable program",
+    "Both are aliases"
+   ],
+   "answer": 1,
+   "explain": "`type cd` says *cd is a shell builtin*; `type ls` (in a script) says *ls is /usr/bin/ls*. That is why you use `help cd` but `man ls`."
+  },
+  {
+   "id": "d1-q-09",
+   "topic": "d1-commands",
+   "type": "mcq",
+   "q": "After `cd nosuchdir && pwd`, where `nosuchdir` does not exist, what happens?",
+   "options": [
+    "pwd prints the current directory",
+    "pwd prints nosuchdir",
+    "cd prints an error and pwd does not run",
+    "Bash creates nosuchdir"
+   ],
+   "answer": 2,
+   "explain": "`&&` runs the second command only if the first succeeded (status 0). `cd` failed, so `pwd` is skipped."
+  },
+  {
+   "id": "d1-q-10",
+   "topic": "d1-commands",
+   "type": "mcq",
+   "q": "You want the manual page about `man` that is in section 7 (miscellaneous). Which command?",
+   "options": [
+    "man man 7",
+    "man -7 man",
+    "man 7 man",
+    "help 7 man"
+   ],
+   "answer": 2,
+   "explain": "The section number goes before the name: `man 7 man`."
+  },
+  {
+   "id": "d1-q-11",
+   "topic": "d1-cli",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "echo Shell     scripts   are    fun",
+   "answer": "Shell scripts are fun",
+   "explain": "The shell splits the line into four arguments; `echo` prints them separated by single spaces."
+  },
+  {
+   "id": "d1-q-12",
+   "topic": "d1-cli",
+   "type": "output",
+   "q": "`animals.txt` contains the lines `cat`, `zebra`, `dog`, `armadillo` (in that order). What does this print?",
+   "code": "sort animals.txt",
+   "answer": "armadillo\ncat\ndog\nzebra",
+   "explain": "`sort` prints the lines in alphabetical order. The file itself is unchanged."
+  },
+  {
+   "id": "d1-q-13",
+   "topic": "d1-cli",
+   "type": "output",
+   "q": "`animals.txt` contains `cat`, `zebra`, `dog`, `armadillo`; `fruits.txt` contains `strawberry`, `mango`, `pineapple`, `apple` (one per line). What does this print?",
+   "code": "cat fruits.txt animals.txt | grep ^a",
+   "answer": "apple\narmadillo",
+   "explain": "`cat` prints fruits.txt then animals.txt; `grep ^a` keeps only lines starting with `a`, in the order they arrive (apple comes from fruits.txt first)."
+  },
+  {
+   "id": "d1-q-14",
+   "topic": "d1-filesystem",
+   "type": "output",
+   "q": "Use this tree:\n\n```\n/\n└── home\n    ├── user1\n    │   ├── animals.txt\n    │   ├── fruits.txt\n    │   └── courses\n    │       ├── CISC204\n    │       │   └── a1.txt\n    │       └── CISC220\n    │           ├── .draft\n    │           ├── lab1.sh\n    │           └── notes.txt\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n                └── readme.txt\n```\n\nWhat does this print?",
+   "code": "cd /home/user1/courses/CISC220\ncd ../..\npwd",
+   "answer": "/home/user1",
+   "explain": "From CISC220, `..` is courses and `../..` is user1."
+  },
+  {
+   "id": "d1-q-15",
+   "topic": "d1-filesystem",
+   "type": "output",
+   "q": "Use this tree:\n\n```\n/\n└── home\n    ├── user1\n    │   ├── animals.txt\n    │   ├── fruits.txt\n    │   └── courses\n    │       ├── CISC204\n    │       │   └── a1.txt\n    │       └── CISC220\n    │           ├── .draft\n    │           ├── lab1.sh\n    │           └── notes.txt\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n                └── readme.txt\n```\n\nWhat does this print?",
+   "code": "cd /home/user2/courses\ncd ../../user1/courses/CISC204\ncat a1.txt\npwd",
+   "answer": "Assignment 1: due Friday\n/home/user1/courses/CISC204",
+   "explain": "Up two levels from `/home/user2/courses` is `/home`; then down to user1/courses/CISC204. `a1.txt` contains *Assignment 1: due Friday*."
+  },
+  {
+   "id": "d1-q-16",
+   "topic": "d1-filesystem",
+   "type": "output",
+   "q": "Use this tree:\n\n```\n/\n└── home\n    ├── user1\n    │   ├── animals.txt\n    │   ├── fruits.txt\n    │   └── courses\n    │       ├── CISC204\n    │       │   └── a1.txt\n    │       └── CISC220\n    │           ├── .draft\n    │           ├── lab1.sh\n    │           └── notes.txt\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n                └── readme.txt\n```\n\nWhat does this print?",
+   "code": "cd /home/user1/courses\ncd /tmp\ncd -",
+   "answer": "/home/user1/courses",
+   "explain": "`cd -` returns to the previous working directory and prints its absolute pathname."
+  },
+  {
+   "id": "d1-q-17",
+   "topic": "d1-commands",
+   "type": "output",
+   "q": "Use this tree:\n\n```\n/\n└── home\n    ├── user1\n    │   ├── animals.txt\n    │   ├── fruits.txt\n    │   └── courses\n    │       ├── CISC204\n    │       │   └── a1.txt\n    │       └── CISC220\n    │           ├── .draft\n    │           ├── lab1.sh\n    │           └── notes.txt\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n                └── readme.txt\n```\n\nThe current directory is `/home/user1/courses`. What does this print?",
+   "code": "ls -1 -a CISC220",
+   "answer": ".\n..\n.draft\nlab1.sh\nnotes.txt",
+   "explain": "`-a` includes the hidden file `.draft` and the entries `.` and `..`; `-1` prints one name per line."
+  },
+  {
+   "id": "d1-q-18",
+   "topic": "d1-commands",
+   "type": "output",
+   "q": "Use this tree:\n\n```\n/\n└── home\n    ├── user1\n    │   ├── animals.txt\n    │   ├── fruits.txt\n    │   └── courses\n    │       ├── CISC204\n    │       │   └── a1.txt\n    │       └── CISC220\n    │           ├── .draft\n    │           ├── lab1.sh\n    │           └── notes.txt\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n                └── readme.txt\n```\n\nThe current directory is `/home/user1`. What does this print?",
+   "code": "ls -d courses",
+   "answer": "courses",
+   "explain": "`-d` lists the directory itself, not its contents."
+  },
+  {
+   "id": "d1-q-19",
+   "topic": "d1-commands",
+   "type": "output",
+   "q": "The current directory has no file or directory named `ghost`. What does this print to standard output? (Ignore the error message.)",
+   "code": "ls ghost\necho $?\necho $?",
+   "answer": "2\n0",
+   "explain": "`ls` fails with status 2 (GNU ls uses 2 for \"cannot access\"; any non-zero means failure). The second `echo $?` reports the status of the first `echo`, which succeeded: 0."
+  },
+  {
+   "id": "d1-q-20",
+   "topic": "d1-commands",
+   "type": "output",
+   "q": "The current directory has no file or directory named `ghost`, and does have `courses`. What does this print to standard output? (Ignore error messages.)",
+   "code": "cd ghost || echo no ghost\ncd courses && echo in courses\ncd ghost; echo done",
+   "answer": "no ghost\nin courses\ndone",
+   "explain": "`||` runs echo because cd failed. `&&` runs echo because cd succeeded. `;` runs echo no matter what."
+  },
+  {
+   "id": "d1-q-21",
+   "topic": "d1-filesystem",
+   "type": "short",
+   "q": "Use this tree:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\nThe current working directory is `cisc220`. What single command would you use to list the files in the directories `A1` and `A2`?",
+   "answer": "`ls assignments/A1 assignments/A2`",
+   "explain": "Give `ls` two relative pathnames. Absolute paths (`ls /home/cisc220/assignments/A1 /home/cisc220/assignments/A2`) are also correct."
+  },
+  {
+   "id": "d1-q-22",
+   "topic": "d1-filesystem",
+   "type": "short",
+   "q": "Use this tree:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\nThe current working directory is `midterm`. What single command would you use to print the contents of `Q1.sh` without changing directory?",
+   "answer": "`cat src/Q1.sh`",
+   "explain": "Relative to `midterm`, the file is `src/Q1.sh`. `cat /home/cisc220/tests/midterm/src/Q1.sh` is also correct."
+  },
+  {
+   "id": "d1-q-23",
+   "topic": "d1-filesystem",
+   "type": "short",
+   "q": "Use this tree:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\nThe current working directory is `src`. What single command would you use to list the files in the current directory **and** in `c_src`, using `.` and `..`?",
+   "answer": "`ls . ../../quiz/c_src`",
+   "explain": "`.` is `src`; from `src`, `..` is midterm and `../..` is tests, then down into quiz/c_src."
+  },
+  {
+   "id": "d1-q-24",
+   "topic": "d1-filesystem",
+   "type": "short",
+   "q": "Use this tree:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\nThe current working directory is `src`. What single command would you use to change into `A1` using a **relative** pathname?",
+   "answer": "`cd ../../../assignments/A1`",
+   "explain": "Up three levels (midterm, tests, cisc220), then down into assignments/A1."
+  },
+  {
+   "id": "d1-q-25",
+   "topic": "d1-commands",
+   "type": "short",
+   "q": "Use this tree:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\nThe current working directory is `assignments`. What single command would you use to list **all** the files in `A1`, including hidden files?",
+   "answer": "`ls -a A1`",
+   "explain": "`ls -A A1` also shows hidden files (without `.` and `..`) and is also acceptable."
+  },
+  {
+   "id": "d1-q-26",
+   "topic": "d1-commands",
+   "type": "short",
+   "q": "Use this tree:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\nThe current working directory is `tests`. What single command would you use to show a long listing of the directory `midterm` **itself** (not its contents)?",
+   "answer": "`ls -ld midterm`",
+   "explain": "`-l` is long format and `-d` stops `ls` from listing the directory's contents. `ls -l -d midterm` and `ls -dl midterm` are the same."
+  },
+  {
+   "id": "d1-q-27",
+   "topic": "d1-commands",
+   "type": "short",
+   "q": "The current directory contains several files. What single command would you use to list them one per line, sorted by size from smallest to largest?",
+   "answer": "`ls -1Sr`",
+   "explain": "`-1` one per line, `-S` by size (largest first), `-r` reverse. Any order of the letters, or separate options (`ls -1 -S -r`), is fine."
+  },
+  {
+   "id": "d1-q-28",
+   "topic": "d1-commands",
+   "type": "short",
+   "q": "Write one line that tries to change into the directory `backup`, and if that fails, creates it.",
+   "answer": "`cd backup || mkdir backup`",
+   "explain": "`||` runs the right side only when the left side fails (non-zero exit status). This is the notebook's example."
+  }
+ ],
+ "write": [
+  {
+   "id": "d1-w-01",
+   "topic": "d1-filesystem",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Consider a filesystem with this directory structure:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\nAnswer each part very briefly.\n\n**A)** `???` is the root directory. What symbol is used for its name?\n\n**B)** What is the absolute pathname of the directory `c_src`?\n\n**C)** The current working directory is `cisc220`. What single command would you use to list the files in the directories `A1` and `bash`?\n\n**D)** The current working directory is `A2`. What single command would you use to print the contents of `A1.txt`?",
+   "starter": "",
+   "solution": "A) /\nB) /home/cisc220/tests/quiz/c_src\nC) ls assignments/A1 notes/bash\nD) cat ../A1/A1.txt",
+   "explain": "**A)** The root is named `/`.\n\n**B)** Start at `/` and write every directory on the way down: home, cisc220, tests, quiz, c_src.\n\n**C)** From `cisc220`, both directories are reachable by going *down*: `assignments/A1` and `notes/bash`. `ls` accepts several directory arguments and lists each one.\n\n**D)** From `A2`, go up one (`..` is `assignments`) then down into `A1`. Absolute pathnames are also correct: `cat /home/cisc220/assignments/A1/A1.txt`.\n\nNow cover the solution and write all four answers from memory.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "A) `/`"
+    },
+    {
+     "marks": 1,
+     "item": "B) correct absolute pathname starting with `/`"
+    },
+    {
+     "marks": 1,
+     "item": "C) one `ls` with both directories"
+    },
+    {
+     "marks": 1,
+     "item": "D) `cat` with a correct relative or absolute path"
+    }
+   ],
+   "pitfalls": [
+    "Writing a relative pathname that starts with `/` (e.g. `/assignments/A1`).",
+    "Using two commands when the question says *single command*."
+   ]
+  },
+  {
+   "id": "d1-w-02",
+   "topic": "d1-commands",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Use the same tree:\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```\n\n**A)** The current working directory is `src`. What single command prints the absolute pathname of the current working directory, and what does it print?\n\n**B)** The current working directory is `src`. Using `.` and `..`, what single command lists the files in the current directory and in `quiz`?\n\n**C)** The current working directory is `src`. What single command changes into `bash` using a relative pathname?\n\n**D)** Right after C), what single command takes you back to `src` without typing its name?",
+   "starter": "",
+   "solution": "A) pwd      (prints /home/cisc220/tests/midterm/src)\nB) ls . ../../quiz\nC) cd ../../../notes/bash\nD) cd -",
+   "explain": "**A)** `pwd` prints the absolute pathname of the cwd.\n\n**B)** `.` is the cwd. From `src`: `..` = midterm, `../..` = tests, and `quiz` is inside tests.\n\n**C)** Count levels up from `src` until you reach a directory that contains `notes`: midterm (1), tests (2), cisc220 (3). Then go down `notes/bash`.\n\n**D)** `cd -` returns to the previous working directory (and prints it). `cd ~-` does the same silently.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "A) `pwd` (and the correct path)"
+    },
+    {
+     "marks": 1,
+     "item": "B) `ls . ../../quiz`"
+    },
+    {
+     "marks": 1,
+     "item": "C) `cd ../../../notes/bash`"
+    },
+    {
+     "marks": 1,
+     "item": "D) `cd -` (or `cd ~-`)"
+    }
+   ],
+   "pitfalls": [
+    "Counting `..` from the wrong directory: always start counting from the current working directory."
+   ]
+  },
+  {
+   "id": "d1-w-03",
+   "topic": "d1-commands",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Use this tree; `.playlist` is a hidden file.\n\n```\n/\n└── home\n    └── kim\n        ├── music\n        │   ├── jazz\n        │   │   └── solo.mp3\n        │   └── rock\n        │       ├── .playlist\n        │       └── riff.mp3\n        └── photos\n            ├── 2025\n            └── 2026\n                └── lake.jpg\n```\n\nFill in the blanks.\n\n**A)** cwd `music`: list all files in `rock` including hidden files.\n\n**B)** cwd `kim`: long listing of the directory `photos` itself, not its contents.\n\n**C)** cwd `jazz`: print the contents of `.playlist` using a relative path.\n\n**D)** cwd `2025`: change into `2026` and, only if that succeeds, list it.",
+   "starter": "A) ls ____ rock\nB) ls ____ photos\nC) cat ____/rock/.playlist\nD) cd ____ ____ ls",
+   "solution": "A) ls -a rock\nB) ls -ld photos\nC) cat ../rock/.playlist\nD) cd ../2026 && ls",
+   "explain": "A) `-a` shows hidden files (`-A` is also fine). B) `-l` long format plus `-d` for the directory itself. C) From `jazz`, `..` is `music`. D) `&&` runs `ls` only if `cd` returned exit status 0.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "A) `-a` or `-A`"
+    },
+    {
+     "marks": 1,
+     "item": "B) `-ld` (or `-l -d`)"
+    },
+    {
+     "marks": 1,
+     "item": "C) `..`"
+    },
+    {
+     "marks": 1,
+     "item": "D) `../2026` and `&&`"
+    }
+   ],
+   "pitfalls": [
+    "Forgetting `-d`: `ls -l photos` lists the files inside photos."
+   ]
+  },
+  {
+   "id": "d1-w-04",
+   "topic": "d1-filesystem",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Use the same tree:\n\n```\n/\n└── home\n    └── kim\n        ├── music\n        │   ├── jazz\n        │   │   └── solo.mp3\n        │   └── rock\n        │       ├── .playlist\n        │       └── riff.mp3\n        └── photos\n            ├── 2025\n            └── 2026\n                └── lake.jpg\n```\n\n**A)** What is the absolute pathname of `riff.mp3`?\n\n**B)** cwd `photos`: list the files in `jazz` and `rock` with one command.\n\n**C)** cwd `2026`: change into `jazz` using a relative pathname.\n\n**D)** Any cwd: change into kim's home directory (assume you are kim) without typing a path.",
+   "starter": "A) ____/kim/music/rock/riff.mp3\nB) ls ____/music/jazz ____/music/rock\nC) cd ____/music/jazz\nD) ____",
+   "solution": "A) /home/kim/music/rock/riff.mp3\nB) ls ../music/jazz ../music/rock\nC) cd ../../music/jazz\nD) cd",
+   "explain": "A) Absolute paths start at `/`. B) From photos, `..` is kim. C) From 2026, `..` is photos and `../..` is kim. D) `cd` alone (or `cd ~`) goes home.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "A) `/home`"
+    },
+    {
+     "marks": 1,
+     "item": "B) `..` twice"
+    },
+    {
+     "marks": 1,
+     "item": "C) `../..`"
+    },
+    {
+     "marks": 1,
+     "item": "D) `cd` or `cd ~`"
+    }
+   ],
+   "pitfalls": []
+  },
+  {
+   "id": "d1-w-05",
+   "topic": "d1-filesystem",
+   "stage": "blank",
+   "marks": 6,
+   "prompt": "Consider a filesystem with this directory structure:\n\n```\n???\n└── home\n    ├── ana\n    │   └── labs\n    │       ├── lab1\n    │       │   └── report.txt\n    │       └── lab2\n    └── ben\n        └── labs\n            ├── lab1\n            └── lab3\n```\n\nEach answer should be very brief.\n\n**A)** `???` is the root directory. What symbol is its name?\n\n**B)** What is the absolute pathname of `lab3`?\n\n**C)** The current working directory is `home`. What single command would you use to list the files in ana's `lab2` and ben's `lab3`?\n\n**D)** The current working directory is ben's `lab1`. What single command would you use to print the contents of `report.txt`, using a relative pathname?\n\n**E)** The current working directory is ana's `labs`. What single command would you use to list all files, including hidden files, in `lab1`, one per line?\n\n**F)** The current working directory is ana's `lab2`. What single command would you use to change into ben's `lab3` using a relative pathname?",
+   "starter": "",
+   "solution": "A) /\nB) /home/ben/labs/lab3\nC) ls ana/labs/lab2 ben/labs/lab3\nD) cat ../../../ana/labs/lab1/report.txt\nE) ls -a1 lab1\nF) cd ../../../ben/labs/lab3",
+   "explain": "D) From ben's lab1: `..` = labs, `../..` = ben, `../../..` = home, then down into ana. E) `ls -1 -a lab1` or `ls -A1 lab1` are also correct. F) Same three levels up as D.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "A) `/`"
+    },
+    {
+     "marks": 1,
+     "item": "B) `/home/ben/labs/lab3`"
+    },
+    {
+     "marks": 1,
+     "item": "C) one `ls` with both relative paths (or absolute paths)"
+    },
+    {
+     "marks": 1,
+     "item": "D) `cat ../../../ana/labs/lab1/report.txt`"
+    },
+    {
+     "marks": 1,
+     "item": "E) `ls` with `-a` (or `-A`) and `-1` on `lab1`"
+    },
+    {
+     "marks": 1,
+     "item": "F) `cd ../../../ben/labs/lab3`"
+    }
+   ],
+   "pitfalls": [
+    "Answering D with an absolute path when the question asks for a relative one.",
+    "Writing `-l` (ell, long format) instead of `-1` (one, one per line)."
+   ]
+  },
+  {
+   "id": "d1-w-06",
+   "topic": "d1-commands",
+   "stage": "blank",
+   "marks": 6,
+   "prompt": "Answer each part very briefly.\n\n**A)** In Linux, a directory is a file that contains what information?\n\n**B)** If a command completes without encountering any errors, what is the expected value of its exit status?\n\n**C)** How do you print the exit status of the command that just finished?\n\n**D)** What single command tells you whether `echo` is a built-in command or an executable program?\n\n**E)** The current directory has many files. What single command would you use to give a long listing of them sorted by size, largest first?\n\n**F)** Write one line that changes into the directory `results` and, only if that succeeds, prints the absolute pathname of the new working directory.",
+   "starter": "",
+   "solution": "A) The mapping of filenames to inodes\nB) 0\nC) echo $?\nD) type echo\nE) ls -lS\nF) cd results && pwd",
+   "explain": "A) Quiz 1 Q2A. B) Quiz 1 Q2B. E) `-S` sorts largest first; adding `-r` would reverse it. F) `&&` runs `pwd` only if `cd` returns 0.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "A) filenames mapped to inodes (inode numbers)"
+    },
+    {
+     "marks": 1,
+     "item": "B) 0"
+    },
+    {
+     "marks": 1,
+     "item": "C) `echo $?`"
+    },
+    {
+     "marks": 1,
+     "item": "D) `type echo`"
+    },
+    {
+     "marks": 1,
+     "item": "E) `ls -lS` (or `ls -l -S`)"
+    },
+    {
+     "marks": 1,
+     "item": "F) `cd results && pwd`"
+    }
+   ],
+   "pitfalls": [
+    "Saying a directory contains the *files themselves* or their contents.",
+    "Using `;` in F: `pwd` would then run even if `cd` failed."
+   ]
+  }
+ ]
+}

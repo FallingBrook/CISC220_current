@@ -1,0 +1,749 @@
+{
+ "exams": [
+  {
+   "id": "mockA",
+   "title": "Mock midterm A",
+   "minutes": 50,
+   "instructions": "This mock is **50 minutes** long. There are **5 questions** worth a total of **30 marks**. No aids are allowed. Write every answer by hand on paper first, then mark it with the rubric.\n\n- Short answers should be very brief (usually one command).\n- In scripts, double quote your variable expansions (`\"$var\"`): markers take marks off for missing quotes.\n- Error checking is required only where the question asks for it.\n- Afterwards, type your answers into the Day 7 drills (`./drill.sh start 7`) to test them.",
+   "questions": [
+    {
+     "id": "mockA-1",
+     "title": "Question 1",
+     "marks": 6,
+     "prompt": "**1 mark each, 6 marks total.** Consider a filesystem with the directory structure shown below (`trip` is a directory; `.draft` is a hidden file). Your answer to each part should be very brief.\n\n```text\n/\n└── home\n    └── user1\n        ├── grades.csv\n        ├── notes\n        │   ├── .draft\n        │   ├── lec01.txt\n        │   ├── lec02.txt\n        │   └── todo.md\n        ├── photos\n        │   ├── img1.jpg\n        │   ├── img2.JPG\n        │   ├── logo.png\n        │   └── trip\n        └── scripts\n            ├── backup.sh\n            ├── run.sh\n            └── tidy.sh\n```",
+     "parts": [
+      {
+       "id": "mockA-1a",
+       "label": "A",
+       "marks": 1,
+       "prompt": "What is the absolute pathname of the file `backup.sh`?",
+       "solution": "`/home/user1/scripts/backup.sh`",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Starts at the root `/` and names every directory in order; no `.` or `..`"
+        }
+       ],
+       "topics": [
+        "paths"
+       ]
+      },
+      {
+       "id": "mockA-1b",
+       "label": "B",
+       "marks": 1,
+       "prompt": "Suppose that the current working directory is `photos`. What is the relative pathname of the file `lec02.txt`?",
+       "solution": "`../notes/lec02.txt`",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Goes up with `..` to `user1` and then down into `notes`; must not start with `/`"
+        }
+       ],
+       "topics": [
+        "paths"
+       ]
+      },
+      {
+       "id": "mockA-1c",
+       "label": "C",
+       "marks": 1,
+       "prompt": "Suppose that the current working directory is `trip`. What single command would you use to change the current working directory to `notes` using a **relative** pathname?",
+       "solution": "```bash\ncd ../../notes\n```\n\n`trip` → `..` is `photos` → `../..` is `user1` → then into `notes`.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`cd ../../notes` (a trailing `/` is fine; an absolute path earns 0 because the question asks for relative)"
+        }
+       ],
+       "topics": [
+        "paths"
+       ]
+      },
+      {
+       "id": "mockA-1d",
+       "label": "D",
+       "marks": 1,
+       "prompt": "Suppose that the current working directory is `user1`. What single command would you use to copy all of the files in `notes` whose names end in `.txt` into the `scripts` directory?",
+       "solution": "```bash\ncp notes/*.txt scripts\n```\n\nThe glob expands to `notes/lec01.txt notes/lec02.txt`; with several sources, the last argument of `cp` must be a directory.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`cp` with the glob `notes/*.txt` and destination `scripts` (`notes/*` is wrong: it would also copy `todo.md`)"
+        }
+       ],
+       "topics": [
+        "files",
+        "globs"
+       ]
+      },
+      {
+       "id": "mockA-1e",
+       "label": "E",
+       "marks": 1,
+       "prompt": "Suppose that the current working directory is `photos`. What single command would you use to list all of the files whose names end in `.jpg`, where each of the letters `j`, `p`, `g` may be uppercase or lowercase?",
+       "solution": "```bash\nls *.[jJ][pP][gG]\n```\n\nAlso accepted for this tree: `ls *.jpg *.JPG` (but it would miss a name like `x.Jpg`).",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Uses bracket expressions (or an equivalent list of globs) that match both `img1.jpg` and `img2.JPG` but not `logo.png`"
+        }
+       ],
+       "topics": [
+        "globs",
+        "commands"
+       ]
+      },
+      {
+       "id": "mockA-1f",
+       "label": "F",
+       "marks": 1,
+       "prompt": "Suppose that the current working directory is `user1`. What single command would you use to remove the directory `photos` and everything inside it?",
+       "solution": "```bash\nrm -r photos\n```\n\n`rmdir photos` fails because the directory is not empty.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`rm -r photos` (`-rf` also fine); `rmdir` earns 0"
+        }
+       ],
+       "topics": [
+        "files"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "mockA-2",
+     "title": "Question 2",
+     "marks": 6,
+     "prompt": "**1 mark each, 6 marks total.** Parts B and C use the `scripts` directory from Question 1. Your answer to each part should be very brief.",
+     "parts": [
+      {
+       "id": "mockA-2a",
+       "label": "A",
+       "marks": 1,
+       "prompt": "The long listing of a regular file shows `2` in the hard-link column. What does this tell you about the file?",
+       "solution": "Two filenames (directory entries) map to the same inode, i.e. the same file data has two names. Removing one name leaves the data reachable through the other.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Two names / directory entries refer to the same inode (file)"
+        }
+       ],
+       "topics": [
+        "files"
+       ]
+      },
+      {
+       "id": "mockA-2b",
+       "label": "B",
+       "marks": 1,
+       "prompt": "The current working directory is `scripts`. Using an **octal** value, what command sets the permissions of `backup.sh` to `rwxr-x--x`?",
+       "solution": "```bash\nchmod 751 backup.sh\n```\n\n`rwx` = 4+2+1 = 7, `r-x` = 4+1 = 5, `--x` = 1.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`chmod 751 backup.sh` (all three digits correct)"
+        }
+       ],
+       "topics": [
+        "permissions"
+       ]
+      },
+      {
+       "id": "mockA-2c",
+       "label": "C",
+       "marks": 1,
+       "prompt": "The current working directory is `scripts`. Using **symbolic** permissions in a single `chmod` command, remove write permission for the group and others and add execute permission for the owner on every file whose name ends in `.sh`, leaving all other permissions unchanged.",
+       "solution": "```bash\nchmod u+x,go-w *.sh\n```\n\nUse `+`/`-` (not `=`) so the other permissions are left as they were. An octal value cannot do this because the files start with different permissions.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`u+x,go-w` (comma, no spaces) applied to `*.sh`; `=` or an octal value earns 0"
+        }
+       ],
+       "topics": [
+        "permissions",
+        "globs"
+       ]
+      },
+      {
+       "id": "mockA-2d",
+       "label": "D",
+       "marks": 1,
+       "prompt": "The current working directory is `user1`. Show how to run `ls notes missing` so that its normal output is saved in `out.txt` and its error messages are saved in `err.txt`.",
+       "solution": "```bash\nls notes missing > out.txt 2> err.txt\n```",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`>` (or `1>`) for standard output **and** `2>` for standard error, each to the right file"
+        }
+       ],
+       "topics": [
+        "streams"
+       ]
+      },
+      {
+       "id": "mockA-2e",
+       "label": "E",
+       "marks": 1,
+       "prompt": "What exactly does the following command print?\n\n```bash\necho '$HOME is \"home\"'\n```",
+       "solution": "```text\n$HOME is \"home\"\n```\n\nInside single quotes every character is literal: no parameter expansion, and the double quotes are printed.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Exactly `$HOME is \"home\"` (not the home directory path, and the double quotes are kept)"
+        }
+       ],
+       "topics": [
+        "quoting"
+       ]
+      },
+      {
+       "id": "mockA-2f",
+       "label": "F",
+       "marks": 1,
+       "prompt": "Using a brace expansion, write one short command that creates the 12 directories `week01`, `week02`, ..., `week12` in the current directory.",
+       "solution": "```bash\nmkdir week{01..12}\n```\n\nThe leading zero in `01` makes Bash pad every number to two digits.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`mkdir` with the sequence expression `{01..12}` (`{1..12}` gives `week1`..., earns 0)"
+        }
+       ],
+       "topics": [
+        "expansions",
+        "files"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "mockA-3",
+     "title": "Question 3",
+     "marks": 4,
+     "prompt": "**2 marks each, 4 marks total.**",
+     "parts": [
+      {
+       "id": "mockA-3a",
+       "label": "A",
+       "marks": 2,
+       "prompt": "Recall that `${s##pattern}` removes the **longest** leading match of `pattern` from the value of `s`, and `${s%pattern}` removes the **shortest** trailing match.\n\nA variable `path` holds a pathname that contains at least one `/`, for example `/home/user1/notes/lec01.txt`. Using parameter expansions (no other commands except `echo`), print the filename part (`lec01.txt`) on one line and the directory part (`/home/user1/notes`) on the next line.",
+       "solution": "```bash\necho \"${path##*/}\"     # lec01.txt\necho \"${path%/*}\"      # /home/user1/notes\n```",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`${path##*/}` for the filename (`#` alone removes only up to the first `/`: 0)"
+        },
+        {
+         "marks": 1,
+         "item": "`${path%/*}` for the directory (`%%` would remove everything after the first `/`: 0)"
+        }
+       ],
+       "topics": [
+        "strings"
+       ]
+      },
+      {
+       "id": "mockA-3b",
+       "label": "B",
+       "marks": 2,
+       "prompt": "The file `grades.csv` contains one line per student: student number, last name, and grade separated by commas, for example:\n\n```text\n3100025,Cade,78\n2999999,day,85\n3001111,Friese,91\n```\n\nWrite a **single pipeline** that extracts the last names, converts them to uppercase using `tr`, sorts them alphabetically, saves the sorted names in a file named `names.txt`, and prints the first 5 sorted names.",
+       "solution": "```bash\ncut -d, -f2 grades.csv | tr 'a-z' 'A-Z' | sort | tee names.txt | head -n 5\n```\n\n`tr '[:lower:]' '[:upper:]'` and `head -5` are also fine. `tee` must come after `sort` so the file holds the sorted names.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`cut -d, -f2` (comma delimiter, field 2) then `tr` lower→upper then `sort`, in that order"
+        },
+        {
+         "marks": 1,
+         "item": "`tee names.txt` after `sort` and `head -n 5` at the end"
+        }
+       ],
+       "topics": [
+        "streams",
+        "tr"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "mockA-4",
+     "title": "Question 4",
+     "marks": 4,
+     "prompt": "**4 marks.**",
+     "parts": [
+      {
+       "id": "mockA-4",
+       "label": "A",
+       "marks": 4,
+       "prompt": "Write a script named `mkscript.sh` that creates a new, empty Bash script. The script takes one command line argument *NAME*.\n\n1. If the number of command line arguments is not exactly 1, print `Usage: mkscript.sh name` to standard error and exit with status 1.\n2. If a file named *NAME*`.sh` already exists, print `mkscript.sh: `*NAME*`.sh already exists` to standard error and exit with status 2.\n3. Otherwise, create the file *NAME*`.sh` whose only line is `#!/bin/bash`, and set its permissions so that the owner can read, write and execute it and no one else has any permission.\n\nExample: `./mkscript.sh hello` creates `hello.sh` with permissions `rwx------`.",
+       "solution": "```bash\n#!/bin/bash\n\n# mkscript.sh: create an empty, executable Bash script named NAME.sh\n\nif (( $# != 1 )); then\n    echo \"Usage: mkscript.sh name\" >&2\n    exit 1\nfi\n\nfile=\"$1.sh\"\nif [[ -e $file ]]; then\n    echo \"mkscript.sh: $file already exists\" >&2\n    exit 2\nfi\n\necho '#!/bin/bash' > \"$file\"\nchmod 700 \"$file\"\n```\n\n`chmod u=rwx,go= \"$file\"` is equivalent to `chmod 700`. Single quotes around `#!/bin/bash` keep the `!` literal.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Argument count test (`(( $# != 1 ))` or `[[ $# -ne 1 ]]`) with the message sent to standard error (`>&2`) and `exit 1`"
+        },
+        {
+         "marks": 1,
+         "item": "Existence test `[[ -e ... ]]` (or `-f`) on *NAME*`.sh` with the message to standard error and `exit 2`"
+        },
+        {
+         "marks": 1,
+         "item": "Writes `#!/bin/bash` into `\"$1.sh\"` with `>`; the filename expansion is quoted"
+        },
+        {
+         "marks": 1,
+         "item": "`chmod 700` (or `u=rwx,go=`) on the quoted filename"
+        }
+       ],
+       "topics": [
+        "scripts",
+        "conditionals",
+        "permissions",
+        "streams",
+        "quoting"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "mockA-5",
+     "title": "Question 5",
+     "marks": 10,
+     "prompt": "**10 marks.**",
+     "parts": [
+      {
+       "id": "mockA-5",
+       "label": "A",
+       "marks": 10,
+       "prompt": "Instead of deleting files, we want a command that tidies files away into a hidden stash directory sorted by extension. Write a script named `stash.sh` that accepts one or more pathnames of files as command line arguments and, **for each argument**:\n\n1. If the argument is not the name of a regular file, prints `stash.sh: `*PATH*` is not a regular file` to standard error (where *PATH* is the argument) and goes on to the next argument.\n2. Finds the name of the directory *DIR* that the file is in. If the pathname contains no `/`, *DIR* is `.`.\n3. Finds the extension *EXT* of the filename: the part after the **last** `.` in the filename. If the filename contains no `.`, *EXT* is `other`.\n4. Creates the directory *DIR*`/.stash/`*EXT* (including `.stash` if needed); no error may be printed if it already exists.\n5. Sets the permissions of *DIR*`/.stash` so that the owner has all permissions and everyone else has none.\n6. Prints `stashing `*PATH*` in `*DIR*`/.stash/`*EXT*.\n7. Moves the file into *DIR*`/.stash/`*EXT*.\n\nIf no arguments are given, print `Usage: stash.sh file...` to standard error and exit with status 1. The script exits with status 2 if any argument was not a regular file, and 0 otherwise. Arguments may contain spaces.\n\nExamples:\n\n```text\n$ ./stash.sh notes/lec01.txt data.tar.gz\nstashing notes/lec01.txt in notes/.stash/txt\nstashing data.tar.gz in ./.stash/gz\n$ ./stash.sh /home/user1/Makefile\nstashing /home/user1/Makefile in /home/user1/.stash/other\n```\n\nHint: `${str%pattern}` removes the shortest trailing match of `pattern`; `${str##pattern}` removes the longest leading match.",
+       "solution": "```bash\n#!/bin/bash\n\n# stash.sh: move each file into DIR/.stash/EXT where DIR is the directory\n# containing the file and EXT is the file's extension\n\nif (( $# == 0 )); then\n    echo \"Usage: stash.sh file...\" >&2\n    exit 1\nfi\n\nstatus=0\nfor path in \"$@\"; do\n    # skip anything that is not a regular file\n    if [[ ! -f $path ]]; then\n        echo \"stash.sh: $path is not a regular file\" >&2\n        status=2\n        continue\n    fi\n\n    # directory that the file is in\n    if [[ $path == */* ]]; then\n        dir=${path%/*}\n    else\n        dir=.\n    fi\n\n    # extension of the filename (other if there is no .)\n    name=${path##*/}\n    if [[ $name == *.* ]]; then\n        ext=${name##*.}\n    else\n        ext=other\n    fi\n\n    mkdir -p \"$dir/.stash/$ext\"\n    chmod 700 \"$dir/.stash\"\n    echo \"stashing $path in $dir/.stash/$ext\"\n    mv \"$path\" \"$dir/.stash/$ext\"\ndone\nexit \"$status\"\n```\n\nWhy `##*.` and not `#*.`: for `data.tar.gz`, `${name#*.}` is `tar.gz` but the extension is the part after the **last** dot, `gz`. `[[ $path == */* ]]` is a pattern test (is there a `/` anywhere?). Without it, `${path%/*}` on `data.tar.gz` would return the whole name.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "No-argument check: usage message to standard error and `exit 1`"
+        },
+        {
+         "marks": 1,
+         "item": "`for path in \"$@\"` (quoted) over all arguments"
+        },
+        {
+         "marks": 1,
+         "item": "`[[ ! -f $path ]]` test, message to standard error, and `continue`"
+        },
+        {
+         "marks": 1,
+         "item": "Remembers that an error happened and exits with 2, otherwise 0"
+        },
+        {
+         "marks": 1,
+         "item": "Directory part with `${path%/*}`"
+        },
+        {
+         "marks": 1,
+         "item": "Uses `.` when the pathname has no `/` (e.g. `[[ $path == */* ]]`)"
+        },
+        {
+         "marks": 1,
+         "item": "Extension with `${name##*.}` on the filename, and `other` when there is no `.`"
+        },
+        {
+         "marks": 1,
+         "item": "`mkdir -p \"$dir/.stash/$ext\"` (the `-p` avoids the error and creates `.stash` too)"
+        },
+        {
+         "marks": 1,
+         "item": "`chmod 700` (or `u=rwx,go=`) on `\"$dir/.stash\"`"
+        },
+        {
+         "marks": 1,
+         "item": "Prints the message and runs `mv \"$path\" \"$dir/.stash/$ext\"`; every expansion is double quoted"
+        }
+       ],
+       "topics": [
+        "scripts",
+        "strings",
+        "loops",
+        "conditionals",
+        "files",
+        "permissions",
+        "quoting"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "mockB",
+   "title": "Mock midterm B",
+   "minutes": 50,
+   "instructions": "This mock is **50 minutes** long. There are **4 questions** worth a total of **30 marks**. No aids are allowed. It follows the format of Quiz 2 (Bash parts only).\n\n- Short answers should be very brief.\n- Write functions as `name() { ... }`, use `[[ ]]` for tests and `(( ))` for arithmetic, and double quote your expansions.\n- Afterwards, type your answers into the Day 8 drills (`./drill.sh start 8`) to test them.",
+   "questions": [
+    {
+     "id": "mockB-1",
+     "title": "Question 1",
+     "marks": 12,
+     "prompt": "**1 mark each, 12 marks total.** Your answer to each part should be very brief.",
+     "parts": [
+      {
+       "id": "mockB-1a",
+       "label": "A",
+       "marks": 1,
+       "prompt": "What does the metacharacter `+` mean in a regular expression?",
+       "solution": "The preceding atom (character, bracket expression or subexpression) must appear **one or more** times.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "One or more of the preceding element (atom)"
+        }
+       ],
+       "topics": [
+        "regex"
+       ]
+      },
+      {
+       "id": "mockB-1b",
+       "label": "B",
+       "marks": 1,
+       "prompt": "Provide a regular expression that matches exactly the strings made of four uppercase English letters followed by exactly three digits (for example `CISC220`, but not `CISC1240` or `cisc220`).",
+       "solution": "```bash\n^[A-Z]{4}[0-9]{3}$\n```\n\n`^[[:upper:]]{4}[[:digit:]]{3}$` is also correct.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Both anchors `^` and `$`, `[A-Z]{4}` and `[0-9]{3}` (writing the classes out four and three times is fine)"
+        }
+       ],
+       "topics": [
+        "regex"
+       ]
+      },
+      {
+       "id": "mockB-1c",
+       "label": "C",
+       "marks": 1,
+       "prompt": "Show how to create a Bash array `fruits` that contains the three values `red apple`, `green pear`, and `plum`.",
+       "solution": "```bash\nfruits=(\"red apple\" \"green pear\" \"plum\")\n```",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Parentheses, no spaces around `=`, and the two values with spaces quoted"
+        }
+       ],
+       "topics": [
+        "arrays",
+        "quoting"
+       ]
+      },
+      {
+       "id": "mockB-1d",
+       "label": "D",
+       "marks": 1,
+       "prompt": "Show how to append the value `kiwi` to the end of the array `fruits`.",
+       "solution": "```bash\nfruits+=(\"kiwi\")\n```\n\n`fruits[${#fruits[@]}]=kiwi` also works when the indexes are 0, 1, 2, ... with no gaps.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`fruits+=(kiwi)` (quotes optional here); `fruits+=kiwi` earns 0 because it appends to the string in element 0"
+        }
+       ],
+       "topics": [
+        "arrays"
+       ]
+      },
+      {
+       "id": "mockB-1e",
+       "label": "E",
+       "marks": 1,
+       "prompt": "What is the difference between `\"${arr[@]}\"` and `\"${arr[*]}\"`?",
+       "solution": "`\"${arr[@]}\"` expands to each element as a **separate word** (`\"${arr[0]}\" \"${arr[1]}\" ...`). `\"${arr[*]}\"` expands to **one single string** with all the elements joined by spaces.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`@` gives one word per element; `*` gives one combined word"
+        }
+       ],
+       "topics": [
+        "arrays",
+        "quoting"
+       ]
+      },
+      {
+       "id": "mockB-1f",
+       "label": "F",
+       "marks": 1,
+       "prompt": "A variable `f` stores the name of a file. Write a Bash `if` statement that prints the message `missing` to **standard error** if the file whose name is stored in `f` does not exist.",
+       "solution": "```bash\nif [[ ! -e $f ]]; then echo \"missing\" >&2; fi\n```",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`[[ ! -e $f ]]` (spaces inside the brackets), `then`/`fi`, and `>&2` (or `1>&2`)"
+        }
+       ],
+       "topics": [
+        "conditionals",
+        "streams"
+       ]
+      },
+      {
+       "id": "mockB-1g",
+       "label": "G",
+       "marks": 1,
+       "prompt": "What is the exit status of the command `(( 5 - 5 ))`?",
+       "solution": "`1`. The expression's value is 0, and `(( ))` sets exit status 1 when the expression equals 0 (false).",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "1"
+        }
+       ],
+       "topics": [
+        "arithmetic"
+       ]
+      },
+      {
+       "id": "mockB-1h",
+       "label": "H",
+       "marks": 1,
+       "prompt": "Write a C-style `for` loop that prints the even numbers 0, 2, 4, ..., 10, one per line.",
+       "solution": "```bash\nfor (( i = 0; i <= 10; i += 2 )); do\n    echo \"$i\"\ndone\n```",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`for (( init; condition; update ))` with `<= 10` and step 2, plus `do ... done`"
+        }
+       ],
+       "topics": [
+        "loops",
+        "arithmetic"
+       ]
+      },
+      {
+       "id": "mockB-1i",
+       "label": "I",
+       "marks": 1,
+       "prompt": "What does writing `local x=5` inside a Bash function do?",
+       "solution": "It creates a variable `x` that exists only while the function runs (it is visible in that function and any function it calls). The caller's variable `x`, if any, is not changed.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "The variable is limited to the function (and functions it calls) so the caller's variable is not changed"
+        }
+       ],
+       "topics": [
+        "functions"
+       ]
+      },
+      {
+       "id": "mockB-1j",
+       "label": "J",
+       "marks": 1,
+       "prompt": "A Bash function can only `return` an exit status between 0 and 255. How can a function give a string result to its caller?",
+       "solution": "Print the string to standard output in the function and capture it with command substitution, e.g. `result=$(myfunc arg)`. (Assigning the result to a non-local variable that the caller reads also works, because of dynamic scoping.)",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`echo` the result and use `$( )` command substitution (or set a global variable)"
+        }
+       ],
+       "topics": [
+        "functions",
+        "expansions"
+       ]
+      },
+      {
+       "id": "mockB-1k",
+       "label": "K",
+       "marks": 1,
+       "prompt": "Using `tr`, print the value of the variable `s` with every digit deleted.",
+       "solution": "```bash\nprintf %s \"$s\" | tr -d '0-9'\n```\n\n`echo \"$s\" | tr -d '[:digit:]'` is also fine.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Sends `$s` to `tr` through a pipe and uses `tr -d` with the digits"
+        }
+       ],
+       "topics": [
+        "tr",
+        "streams"
+       ]
+      },
+      {
+       "id": "mockB-1l",
+       "label": "L",
+       "marks": 1,
+       "prompt": "What does the following print?\n\n```bash\ns=banana.tar.gz\necho \"${s%%.*} ${s#*.}\"\n```",
+       "solution": "```text\nbanana tar.gz\n```\n\n`%%.*` removes the longest trailing part that starts with a dot (`.tar.gz`); `#*.` removes the shortest leading part that ends with a dot (`banana.`).",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Exactly `banana tar.gz`"
+        }
+       ],
+       "topics": [
+        "strings"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "mockB-2",
+     "title": "Question 2",
+     "marks": 4,
+     "prompt": "**2 marks each, 4 marks total.**",
+     "parts": [
+      {
+       "id": "mockB-2a",
+       "label": "A",
+       "marks": 2,
+       "prompt": "A variable `s` holds a string. Write an `if` statement that prints `S is a number` to standard output if `s` is made up only of digits (at least one), and otherwise prints `S is not a number` to standard error, where *S* is the value of `s`. Use a regular expression.",
+       "solution": "```bash\nif [[ $s =~ ^[0-9]+$ ]]; then\n    echo \"$s is a number\"\nelse\n    echo \"$s is not a number\" >&2\nfi\n```",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`[[ $s =~ ^[0-9]+$ ]]` with both anchors and the regex **not** quoted"
+        },
+        {
+         "marks": 1,
+         "item": "Correct `if/else/fi` with the second message sent to standard error"
+        }
+       ],
+       "topics": [
+        "regex",
+        "conditionals",
+        "streams"
+       ]
+      },
+      {
+       "id": "mockB-2b",
+       "label": "B",
+       "marks": 2,
+       "prompt": "Inside a script, use a `for` loop over the command line arguments to compute the sum of all of the arguments (assume they are integers) and print it. With no arguments the script prints `0`.",
+       "solution": "```bash\nsum=0\nfor n in \"$@\"; do\n    (( sum += n ))\ndone\necho \"$sum\"\n```",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`for n in \"$@\"` and `sum` initialised to 0"
+        },
+        {
+         "marks": 1,
+         "item": "Arithmetic update (`(( sum += n ))` or `sum=$(( sum + n ))`) and prints the sum after the loop"
+        }
+       ],
+       "topics": [
+        "loops",
+        "arithmetic",
+        "variables"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "mockB-3",
+     "title": "Question 3",
+     "marks": 4,
+     "prompt": "**4 marks.**",
+     "parts": [
+      {
+       "id": "mockB-3",
+       "label": "A",
+       "marks": 4,
+       "prompt": "Write a Bash function `count_char` that is called as `count_char` *CH* *STR*. It prints the number of times the single character *CH* appears in the string *STR*, and it **returns** exit status 0 if *CH* appears at least once and 1 otherwise. The function must not change any variables of its caller.\n\n```text\n$ count_char a banana; echo $?\n3\n0\n$ count_char z banana; echo $?\n0\n1\n```",
+       "solution": "```bash\n# countchar.sh: defines the function count_char (sourced, no shebang needed)\n\n# count_char ch str\n# prints the number of times the character ch appears in str;\n# returns 0 if ch appears at least once, 1 otherwise\ncount_char() {\n    local ch=$1\n    local str=$2\n    local count=0\n    local i\n    for (( i = 0; i < ${#str}; i++ )); do\n        if [[ ${str:i:1} == \"$ch\" ]]; then\n            (( count++ ))\n        fi\n    done\n    echo \"$count\"\n    if (( count > 0 )); then\n        return 0\n    else\n        return 1\n    fi\n}\n```\n\nThe right-hand side of `==` is quoted so that a character such as `*` is compared literally instead of being used as a pattern.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "Loop over the indexes 0 to `${#str}`-1 (C-style `for` with `${#str}`)"
+        },
+        {
+         "marks": 1,
+         "item": "Extracts one character with `${str:i:1}` and compares it to *CH* (right side quoted)"
+        },
+        {
+         "marks": 1,
+         "item": "Counts matches and prints the count; variables declared `local`"
+        },
+        {
+         "marks": 1,
+         "item": "`return 0` if the count is positive, `return 1` otherwise"
+        }
+       ],
+       "topics": [
+        "functions",
+        "strings",
+        "loops",
+        "arithmetic"
+       ]
+      }
+     ]
+    },
+    {
+     "id": "mockB-4",
+     "title": "Question 4",
+     "marks": 10,
+     "prompt": "**10 marks.**",
+     "parts": [
+      {
+       "id": "mockB-4",
+       "label": "A",
+       "marks": 10,
+       "prompt": "Complete the script `uniqrev.sh` below. It prints its command line arguments on a single line in **reverse order** with **repeated values removed** (keep the first occurrence of each value, counting from the left of the original arguments). Arguments may contain spaces or wildcard characters such as `*`.\n\n```text\n$ ./uniqrev.sh 3 1 3 2 1\n2 1 3\n$ ./uniqrev.sh \"a b\" c \"a b\"\nc a b\n$ ./uniqrev.sh\nUsage: uniqrev.sh value...        (on standard error, exit status 1)\n```\n\n```bash\n#!/bin/bash\n\n# returns 0 if $1 is an element of the array out, 1 otherwise\ncontains() {\n}\n\n# copies the elements of arr into the array out, skipping values already in out\ndedup() {\n}\n\n# reverses the order of the elements of out (swap elements; do not use another array)\nreverse() {\n}\n\n# if there are no command line arguments print the usage message and exit\n\narr=(\"$@\")\ndedup\nreverse\n\n# print the elements of out on a single line\n```\n\nImplement the three functions, the argument check, and the final print. No other error checking is required.",
+       "solution": "```bash\n#!/bin/bash\n\n# uniqrev.sh: prints the command line arguments in reverse order\n# with duplicates removed\n\n# returns 0 if $1 is an element of the array out, 1 otherwise\ncontains() {\n    local elem\n    for elem in \"${out[@]}\"; do\n        if [[ $elem == \"$1\" ]]; then\n            return 0\n        fi\n    done\n    return 1\n}\n\n# copies the elements of arr into out, skipping repeated values\ndedup() {\n    out=()\n    local elem\n    for elem in \"${arr[@]}\"; do\n        if ! contains \"$elem\"; then\n            out+=(\"$elem\")\n        fi\n    done\n}\n\n# reverses the order of the elements of out\nreverse() {\n    local n=${#out[@]}\n    local i tmp\n    for (( i = 0; i < n / 2; i++ )); do\n        tmp=${out[i]}\n        out[i]=${out[n - 1 - i]}\n        out[n - 1 - i]=$tmp\n    done\n}\n\nif (( $# == 0 )); then\n    echo \"Usage: uniqrev.sh value...\" >&2\n    exit 1\nfi\n\narr=(\"$@\")\ndedup\nreverse\necho \"${out[@]}\"\n```\n\nWhy the quotes matter: `for elem in ${out[@]}` (unquoted) splits `a b` into two words, so the duplicate `a b` is never found. `[[ $elem == $1 ]]` without quotes treats `$1` as a pattern, so `a*` would wrongly match `ab`.",
+       "rubric": [
+        {
+         "marks": 1,
+         "item": "`contains`: loops over `\"${out[@]}\"` (quoted)"
+        },
+        {
+         "marks": 1,
+         "item": "`contains`: compares each element with `\"$1\"` (right side quoted) and `return 0` when found"
+        },
+        {
+         "marks": 1,
+         "item": "`contains`: `return 1` after the loop"
+        },
+        {
+         "marks": 1,
+         "item": "`dedup`: starts `out` empty (`out=()`) and loops over `\"${arr[@]}\"`"
+        },
+        {
+         "marks": 1,
+         "item": "`dedup`: calls `contains` as an `if` condition (with `!`) and appends with `out+=(\"$elem\")`"
+        },
+        {
+         "marks": 1,
+         "item": "`reverse`: gets the size with `${#out[@]}`"
+        },
+        {
+         "marks": 1,
+         "item": "`reverse`: loop runs for `i < n / 2` only (looping to `n` reverses twice)"
+        },
+        {
+         "marks": 1,
+         "item": "`reverse`: correct swap of `out[i]` and `out[n - 1 - i]` using a temporary variable"
+        },
+        {
+         "marks": 1,
+         "item": "No-argument check `(( $# == 0 ))` with message to standard error and `exit 1`"
+        },
+        {
+         "marks": 1,
+         "item": "Prints with `echo \"${out[@]}\"`; loop variables declared `local`"
+        }
+       ],
+       "topics": [
+        "arrays",
+        "functions",
+        "loops",
+        "conditionals",
+        "quoting",
+        "arithmetic"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
