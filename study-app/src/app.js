@@ -211,19 +211,17 @@
   // ---------------------------------------------------------------- markdown
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   function inline(s) {
-    const parts = String(s).split(/(`+[^`]*?`+)/);
-    return parts.map((p, i) => {
-      if (i % 2 === 1) {
-        const m = p.match(/^(`+)([\s\S]*?)\1$/);
-        const inner = m ? m[2] : p.replace(/^`+|`+$/g, "");
-        return "<code>" + esc(inner.replace(/^ (.*\S.*) $/, "$1")) + "</code>";
-      }
-      let h = esc(p);
-      h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-      h = h.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
-      h = h.replace(/(^|[\s(>])\*([^*\s][^*]*?)\*(?=[\s).,;:!?<]|$)/g, "$1<em>$2</em>");
-      return h;
-    }).join("");
+    // Code spans become placeholders first so emphasis can wrap them (**`/`**) and never reaches inside them.
+    const codes = [];
+    const text = String(s).replace(/(`+)([\s\S]*?)\1/g, (_, ticks, inner) => {
+      codes.push("<code>" + esc(inner.replace(/^ (.*\S.*) $/, "$1")) + "</code>");
+      return "\u0000" + (codes.length - 1) + "\u0000";
+    });
+    let h = esc(text);
+    h = h.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    h = h.replace(/\*\*(?=\S)([\s\S]+?)\*\*/g, "<strong>$1</strong>");
+    h = h.replace(/(^|[\s(>])\*([^*\s][^*]*?)\*(?=[\s).,;:!?<]|$)/g, "$1<em>$2</em>");
+    return h.replace(/\u0000(\d+)\u0000/g, (_, k) => codes[+k]);
   }
   const BASH_KW = new Set(["if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "in", "function", "return", "local", "exit", "break", "continue", "shift", "source", "declare", "unset", "readonly", "export"]);
   function hlLine(s) {

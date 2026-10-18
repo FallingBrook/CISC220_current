@@ -1,0 +1,1242 @@
+{
+  "day": 2,
+  "title": "Globs, quoting, managing files, permissions",
+  "goal": "Select files with wildcard patterns, quote awkward filenames, create/copy/move/remove files and directories, and read and set permissions in both symbolic and octal form.",
+  "topics": [
+    {
+      "id": "d2-globs",
+      "title": "Filename expansion (globbing)",
+      "notebook": "bash/filename_expansion.ipynb",
+      "priority": "high",
+      "examNote": "Very common on tests. Quiz 1 Q1F asked for `ls -a */` (list all files, including hidden ones, in the subdirectories). Quiz 1 Q2C asked what you can conclude when `ls *` prints the same thing as `ls ?` (every filename is one character long). Assignment 1 Q6-Q9 and Q12/Q15 are all glob questions: `ls */A1answers.txt`, `ls -1d */[aA]1*`, `ls -1d */.late+[+x]`, `mv *.pdf notes`, `chmod ... *.[pP][dD][fF]`.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### What is filename expansion?\n\nMany commands (`ls`, `cp`, `mv`, `rm`, `cat`, `chmod`) accept a **list of filenames**. Typing every name by hand is slow, so the shell lets you write a **pattern** instead.\n\nIf a word on the command line contains an unquoted `*`, `?` or `[`, Bash treats the word as a **wildcard pattern**. Before the command runs, Bash **replaces the pattern with an alphabetically sorted list of the filenames that match it**. This is called **filename expansion** or **globbing**; the pattern is often called a **glob**, and `*`, `?` and `[` are called **wildcards**.\n\nThe key idea: **the shell does the expansion, not the command.** When you type `ls *.txt`, Bash turns it into `ls a.txt b.txt notes1.txt notes2.txt` and *then* runs `ls`. The `ls` program never sees the `*`. This is why `echo` is a great way to test a pattern: `echo` just prints the words it was given, so you see exactly what the pattern expanded to.\n\nThe examples below run in a directory containing these files (the hidden ones start with a dot):\n\n```\na.txt  b.txt  c.md  notes1.txt  notes2.txt  report.pdf  summary.PDF\nx1z  x9z  xaz  xbz  .hidden  .profile  music/   (music contains song.mp3 and .playlist)\n```"
+        },
+        {
+          "type": "code",
+          "code": "$ echo *\na.txt b.txt c.md music notes1.txt notes2.txt report.pdf summary.PDF x1z x9z xaz xbz\n$ echo *.txt\na.txt b.txt notes1.txt notes2.txt\n$ echo notes*\nnotes1.txt notes2.txt",
+          "caption": "Testing patterns with echo. Notice that * did not match .hidden or .profile."
+        },
+        {
+          "type": "check",
+          "q": "When you type `ls *.txt`, which program finds the files that end in `.txt`: `ls` or the shell?",
+          "a": "The **shell** (Bash). It expands `*.txt` into the list of matching names before `ls` starts, so `ls` only receives the list."
+        },
+        {
+          "type": "md",
+          "text": "### The three wildcards\n\n| Wildcard | Matches |\n|---|---|\n| `*` | any string of characters, **including the empty string** |\n| `?` | exactly **one** character (any character) |\n| `[`*characters*`]` | exactly one character that is **in** the set |\n| `[!`*characters*`]` | exactly one character that is **not in** the set |\n| `[[:`*class*`:]]` | exactly one character in a POSIX class such as `[:digit:]` |\n\nExamples from the notebook:\n\n| Pattern | Matches |\n|---|---|\n| `a*` | names starting with `a` (including the name `a` itself) |\n| `*.txt` | names ending with `.txt` |\n| `a*.txt` | names starting with `a` and ending with `.txt` |\n| `???` | any name exactly three characters long |\n| `x?z` | three characters: `x`, any one character, `z` |\n| `x[yY12]z` | exactly `xyz`, `xYz`, `x1z` or `x2z` |\n| `x[0-9]z` | `x`, one digit, `z` |\n| `[0-9][0-9].pdf` | two digits followed by `.pdf` (so `10.pdf` but **not** `100.pdf`) |\n\nRemember that a pattern must match the **whole** name. `x?z` does not match `xyz9`, because nothing in the pattern matches the final `9`."
+        },
+        {
+          "type": "code",
+          "code": "$ echo x?z\nx1z x9z xaz xbz\n$ echo ???\nx1z x9z xaz xbz\n$ echo ?.txt\na.txt b.txt\n$ echo x[a-z]z\nxaz xbz\n$ echo x[19]z\nx1z x9z"
+        },
+        {
+          "type": "check",
+          "q": "Which of these names does `?.txt` match: `a.txt`, `ab.txt`, `.txt`?",
+          "a": "Only `a.txt`. The `?` must match exactly one character, so `ab.txt` (two characters before `.txt`) and `.txt` (zero characters, and hidden) do not match."
+        },
+        {
+          "type": "md",
+          "text": "### Sets, ranges and negation: `[...]` and `[!...]`\n\nSquare brackets match **one single character** chosen from a set:\n\n- `[aA]` matches `a` or `A`. This is how you handle both cases: `*.[pP][dD][fF]` matches `.pdf`, `.PDF`, `.Pdf`, ...\n- A hyphen between two characters gives a **range**: `[0-9]` is any digit, `[a-z]` any lowercase letter, `[A-Z]` any uppercase letter.\n- An `!` right after `[` **negates** the set: `[!0-9]` is any one character that is *not* a digit.\n- Ordinary punctuation inside brackets is just a character: `[+x]` matches a `+` or an `x`. Assignment 1 Q9 used this: `.late+[+x]` matches `.late++` and `.late+x` but not `.late` or `.late+`.\n\n**POSIX character classes** are names for common sets. They can only be used *inside* square brackets, so you end up with two pairs of brackets:\n\n| Class | Characters |\n|---|---|\n| `[:digit:]` | 0-9 |\n| `[:lower:]` / `[:upper:]` | lowercase / uppercase letters |\n| `[:alpha:]` | letters |\n| `[:alnum:]` | letters and digits |\n| `[:space:]` | whitespace (space, tab, newline, ...) |\n| `[:punct:]` | punctuation such as `! # $ . , - _ @` |\n\nSo `[[:upper:]]*` means \"names starting with an uppercase letter\" and `[![:upper:]]*` means \"names **not** starting with an uppercase letter\".\n\nA note on ranges: in Bash 5 (the version on current Ubuntu) a range like `[a-z]` means only the lowercase letters a to z, in every locale. Very old shells sometimes let `[a-z]` match uppercase letters too; if you want to be completely safe, use `[[:lower:]]`."
+        },
+        {
+          "type": "code",
+          "code": "$ echo x[!a-z]z\nx1z x2z xYz x@z\n$ echo [0-9][0-9].pdf\n00.pdf 10.pdf 20.pdf 30.pdf 40.pdf 50.pdf 60.pdf 70.pdf 80.pdf 90.pdf\n$ echo x[[:digit:]]z\nx1z x2z\n$ echo [[:upper:]]?\nAB",
+          "caption": "These run in the notebook's directory bash/scripts/filename_expansion (files x1z, x2z, x@z, xYz, xaz, xyz, xyz9, 00.pdf ... 100.pdf, A, AB, ABC, ...). Sorted order shown is for an English locale such as en_US.UTF-8 or en_CA.UTF-8; with C.UTF-8 the order can differ (for example, all uppercase names come before all lowercase ones)."
+        },
+        {
+          "type": "check",
+          "q": "In the notebook's directory, `x[!a-z]z` matched `x1z x2z x@z xYz`. Why did it match `xYz` but not `xyz`?",
+          "a": "`[!a-z]` matches one character that is *not* a lowercase letter. `Y` is uppercase, so it is not in `a-z` and is accepted; `y` is lowercase, so `xyz` is rejected."
+        },
+        {
+          "type": "pitfall",
+          "text": "Each `[...]` matches exactly **one** character. `[abc]` alone only matches the one-character names `a`, `b` or `c`; to match names *starting* with a, b or c write `[abc]*`."
+        },
+        {
+          "type": "md",
+          "text": "### Hidden files are not matched by wildcards\n\nA filename that begins with a `.` is a **hidden file** (for example `.bashrc`, or `.late` in Assignment 1). Plain `ls` does not show them; `ls -a` does.\n\nGlobs follow the same rule: **a wildcard never matches a leading dot.** `*` and `?` do not match the `.` at the start of a name, and neither does `[...]`. A hidden name is only matched if the pattern itself **starts with a literal `.`**:\n\n- `*` matches every non-hidden name.\n- `.*` matches the hidden names. (In Bash 5.2 and later `.*` no longer matches `.` and `..`; in older Bash it does.)\n- `.[!.]*` matches hidden names whose second character is not a dot, which never includes `.` and `..`.\n- `*/.late` matches a file named `.late` inside each subdirectory: the dot is written literally."
+        },
+        {
+          "type": "code",
+          "code": "$ echo *\na.txt b.txt c.md music notes1.txt notes2.txt report.pdf summary.PDF x1z x9z xaz xbz\n$ echo .*\n.hidden .profile\n$ echo .[!.]*\n.hidden .profile\n$ ls music\nsong.mp3\n$ ls -a music\n.  ..  .playlist  song.mp3"
+        },
+        {
+          "type": "why",
+          "q": "Why is it useful that `*` skips hidden files?",
+          "a": "Hidden files are usually settings files (like `.bashrc`) or the special entries `.` and `..`. If `rm *` or `cp * dest` silently included them, you would delete or copy configuration by accident, and `..` would even point at the parent directory. Skipping them makes the everyday patterns safe."
+        },
+        {
+          "type": "md",
+          "text": "### Patterns with directories: `*/` and `*/file`\n\nA pattern can contain `/`. Each part between slashes is matched separately, one directory level at a time:\n\n- `*/` matches only the **directories** in the current directory (the trailing `/` can only match a directory).\n- `*/A1answers.txt` matches a file named `A1answers.txt` inside **any** (non-hidden) subdirectory, but only **one level down**: `Anita_Job/__MACOSX/A1answers.txt` is two levels down and is not matched.\n- `*/[aA]1*` matches names starting with `a1` or `A1` inside each subdirectory.\n\nTwo facts about `ls` matter here:\n\n1. When `ls` is given a **directory**, it lists the directory's **contents**, under a heading like `Rose/:`. When given a regular file, it just prints the file's name.\n2. `ls -d` lists a directory **itself** (its name) instead of its contents. Use it when a pattern might match directories and you only want the names (Assignment 1 Q7 and Q8).\n\nSo `ls -a */` (Quiz 1 Q1F) means: expand `*/` to every subdirectory, then list the contents of each one, including hidden files.\n\nThe examples below run in a directory like Assignment 1's `marking/A1`, containing `Anita_Job/` (with `A1answers.txt`, `a1notes.txt`, `__MACOSX/`), `Betty_Diddit/` (with `A1answers.txt`, `.late`), `Justin Case/` (with `A1answers.txt`, `.late++`), `Rose/` (with `a1.sh`, `.acc`, `.late+x`), and a regular file `notes.txt`."
+        },
+        {
+          "type": "code",
+          "code": "$ echo */\nAnita_Job/ Betty_Diddit/ Justin Case/ Rose/\n$ ls */A1answers.txt\n Anita_Job/A1answers.txt     'Justin Case/A1answers.txt'\n Betty_Diddit/A1answers.txt\n$ ls -1d */[aA]1*\nAnita_Job/A1answers.txt\nAnita_Job/a1notes.txt\nBetty_Diddit/A1answers.txt\n'Justin Case/A1answers.txt'\nRose/a1.sh\n$ ls -1 */.late+[+x]\n'Justin Case/.late++'\nRose/.late+x\n$ ls -a */\nAnita_Job/:\n.  ..  A1answers.txt  a1notes.txt  __MACOSX\n\nBetty_Diddit/:\n.  ..  A1answers.txt  .late\n\n'Justin Case/':\n.  ..  A1answers.txt  .late++\n\nRose/:\n.  ..  a1.sh  .acc  .late+x",
+          "caption": "When ls prints to a terminal it puts quotes around names that contain spaces ('Justin Case/'). The quotes are not part of the name. Sorted order shown is for an English locale such as en_US.UTF-8 or en_CA.UTF-8; with C.UTF-8 the order can differ (for example, all uppercase names come before all lowercase ones)."
+        },
+        {
+          "type": "check",
+          "q": "From the directory above, what does `ls -a */` list, and why is it different from `ls -a`?",
+          "a": "`ls -a */` lists the contents (including hidden files) of **every subdirectory**: `Anita_Job/`, `Betty_Diddit/`, `Justin Case/` and `Rose/`, each under its own heading. `ls -a` would list the current directory itself (its subdirectory names, `notes.txt`, `.` and `..`)."
+        },
+        {
+          "type": "md",
+          "text": "### `ls *` versus `ls ?` (Quiz 1 Q2C)\n\nSuppose the current directory has **no subdirectories** but has some non-hidden files. `ls *` lists every non-hidden file. `ls ?` lists only the files whose name is exactly **one character** long. If the two commands print exactly the same thing, then every (non-hidden) file was matched by `?`, so **every filename is a single character long**.\n\nIf there *were* subdirectories, `ls *` would also print their contents (see fact 1 above), which is why the question ruled them out."
+        },
+        {
+          "type": "check",
+          "q": "A directory contains only the files `a`, `b` and `cd`. Do `ls *` and `ls ?` print the same thing?",
+          "a": "No. `ls *` prints `a b cd`, but `ls ?` prints only `a b`, because `cd` is two characters long."
+        },
+        {
+          "type": "md",
+          "text": "### When a pattern matches nothing\n\nIf no filename matches a pattern, Bash **leaves the pattern unchanged** and passes it to the command as an ordinary word. `echo` then prints the pattern itself, and `ls` complains that it cannot find a file with that strange name:"
+        },
+        {
+          "type": "code",
+          "code": "$ echo *.xyz\n*.xyz\n$ ls *.xyz\nls: cannot access '*.xyz': No such file or directory\n$ echo $?\n2"
+        },
+        {
+          "type": "md",
+          "text": "This matters later when you loop over `*.txt` in a script (Assignment 3, `chext.sh`): if there are no `.txt` files, the loop runs once with the literal string `*.txt`. The fixes are to check that the file exists (`[[ -e $f ]] || continue`) or to run `shopt -s nullglob`, which makes a pattern with no matches expand to nothing.\n\n### Sorting\n\nThe list a pattern expands to is sorted **alphabetically according to your locale**. With an English locale (`en_US.UTF-8`, `en_CA.UTF-8`) upper and lowercase names are mixed together (`a A ab AB`); with `C.UTF-8` all uppercase names come first (`A AB a ab`). On a test, questions are about *which* files match, not their order."
+        },
+        {
+          "type": "pitfall",
+          "text": "Globs are **case-sensitive**: `*.pdf` does not match `REPORT.PDF`. To get both, use two patterns (`*.pdf *.PDF`) or bracket sets (`*.[pP][dD][fF]`)."
+        },
+        {
+          "type": "pitfall",
+          "text": "Quoting a pattern turns it off: `ls \"*.txt\"` looks for one file literally named `*.txt`. Only unquoted wildcards are expanded (see the next topic)."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- The **shell** expands unquoted `*`, `?`, `[...]` into a sorted list of matching names before the command runs.\n- `*` = any string (even empty), `?` = exactly one character, `[...]` = one character from a set, `[!...]` = one character not in the set; classes like `[[:digit:]]` go inside brackets.\n- Wildcards never match a leading `.`; write the dot yourself (`.*`, `*/.late`).\n- `*/` = subdirectories; `*/name` = `name` one level down. `ls dir` lists the contents; `ls -d dir` lists the name.\n- A pattern that matches nothing is left unchanged (`echo *.xyz` prints `*.xyz`)."
+        }
+      ]
+    },
+    {
+      "id": "d2-quoting",
+      "title": "Quoting",
+      "notebook": "bash/quoting.ipynb",
+      "priority": "high",
+      "examNote": "Quoting is marked in every script question: the Quiz 1 solutions write `stat -c %a \"$src\"` and `chmod $perm \"$dest\"` with the note *quotes required*, and the trash script needs `mv \"$pathname\" \"$trashdir\"`. Assignment 1 had student directories with spaces (`Justin Case`, `Molly Spancer-Downe`) and Assignment 3 tests scripts on a directory named `stu 3`.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### Why quoting exists\n\nSome characters have a special meaning to the shell:\n\n- **space** (and tab) separates words: `cat my file` means two arguments, `my` and `file`.\n- `*`, `?`, `[` are wildcards (previous topic).\n- `$` starts an expansion (`$HOME`, `$1`, `$(command)`).\n- `~` means your home directory, `>` redirects output, `;` separates commands, and so on.\n\n**Quoting** removes the special meaning so that the character is treated as plain text. There are three tools: the **backslash** `\\`, **single quotes** `'...'` and **double quotes** `\"...\"`.\n\nThe notebook's directory `bash/scripts/quoting` contains three awkwardly named files: `file with spaces in name`, `file_with_*_in_name` and `file_with_?_in_name`. Watch what happens without quoting:"
+        },
+        {
+          "type": "code",
+          "code": "$ ls\n'file_with_*_in_name'  'file_with_?_in_name'  'file with spaces in name'\n$ cat file with spaces in name\ncat: file: No such file or directory\ncat: with: No such file or directory\ncat: spaces: No such file or directory\ncat: in: No such file or directory\ncat: name: No such file or directory",
+          "caption": "Bash split the name into five words, so cat looked for five files. (ls adds quotes when it prints such names; they are not part of the names.) Sorted order shown is for an English locale such as en_US.UTF-8 or en_CA.UTF-8; with C.UTF-8 the order can differ (for example, all uppercase names come before all lowercase ones)."
+        },
+        {
+          "type": "check",
+          "q": "Why did `cat file with spaces in name` produce five error messages?",
+          "a": "Unquoted spaces separate words, so `cat` received five arguments (`file`, `with`, `spaces`, `in`, `name`) and tried to open each one as a separate file."
+        },
+        {
+          "type": "md",
+          "text": "### The backslash (escape character)\n\nAn unquoted backslash `\\` makes the **next single character** literal. (A backslash followed by a newline is the exception: it just continues the command on the next line.)"
+        },
+        {
+          "type": "code",
+          "code": "$ cat file\\ with\\ spaces\\ in\\ name\nAvoid using spaces in filenames\n$ cat file_with_\\*_in_name\nAvoid using * in filenames\n$ echo \\$HOME costs \\$5\n$HOME costs $5"
+        },
+        {
+          "type": "md",
+          "text": "### Single quotes: everything is literal\n\nSingle quotes preserve the literal value of **every** character between them. Nothing is special inside: not spaces, not `*`, not `$`, not even `\\`. The only thing you cannot put inside single quotes is a single quote itself."
+        },
+        {
+          "type": "code",
+          "code": "$ cat 'file with spaces in name'\nAvoid using spaces in filenames\n$ echo 'cost: $5 * 2 \\n'\ncost: $5 * 2 \\n\n$ echo 'It'\\''s'\nIt's",
+          "caption": "The last line glues three pieces together: 'It' then an escaped quote \\' then 's'."
+        },
+        {
+          "type": "check",
+          "q": "What does `echo '$HOME'` print?",
+          "a": "`$HOME`, literally. Single quotes stop the `$` from being special, so no expansion happens."
+        },
+        {
+          "type": "md",
+          "text": "### Double quotes: literal, except for `$`, `` ` `` and `\\`\n\nDouble quotes preserve the literal value of all characters **except** `$`, `` ` `` (backquote) and `\\` (and `!` when typing interactively). So inside double quotes:\n\n- **Still happens:** parameter/variable expansion (`$name`, `$1`), command substitution (`$(cmd)`) and arithmetic expansion (`$((2+3))`).\n- **Does not happen:** word splitting (spaces stay inside one word), filename expansion (globs), tilde expansion (`~`) and brace expansion (`{a,b}`).\n- A backslash only escapes `$`, `` ` ``, `\"`, `\\` and newline. Before any other character it stays a plain backslash: `\"a\\b\"` is the three characters `a\\b`.\n\n| | unquoted | `\"double\"` | `'single'` |\n|---|---|---|---|\n| `$var`, `$(cmd)`, `$((1+2))` | expanded | **expanded** | literal |\n| word splitting on spaces | yes | no | no |\n| globs `* ? [` | expanded | no | no |\n| `~` and `{a,b}` | expanded | no | no |\n\nThe example below uses a **variable**: `name=World` stores the text `World` under the name `name` (no spaces around `=`), and `$name` later expands to that text. Variables are covered properly on a later day."
+        },
+        {
+          "type": "code",
+          "code": "$ name=World\n$ echo 'Hello $name'\nHello $name\n$ echo \"Hello $name\"\nHello World\n$ echo \"Today: $((2+3)) files, home is ~\"\nToday: 5 files, home is ~\n$ echo \"*.txt\" *.txt\n*.txt a.txt b.txt notes1.txt notes2.txt\n$ echo \"a\\b\" a\\b\na\\b ab\n$ echo \"say \\\"hi\\\" for \\$5\"\nsay \"hi\" for $5"
+        },
+        {
+          "type": "check",
+          "q": "Inside double quotes, which of these still happen: variable expansion, filename expansion, word splitting, command substitution?",
+          "a": "Variable (parameter) expansion and command substitution still happen. Filename expansion and word splitting do **not** (nor do tilde and brace expansion)."
+        },
+        {
+          "type": "md",
+          "text": "### Why scripts must double-quote variables\n\nWhen a variable is used **unquoted**, its value is split into words at spaces and any wildcards in it are expanded. A filename like `meeting notes.txt` then turns into two arguments. Putting the variable in double quotes (`\"$f\"`) keeps the value as exactly one argument while still expanding it. This is why the course requires `\"$var\"` everywhere and why the Quiz 1 answer marks the quotes as required."
+        },
+        {
+          "type": "code",
+          "code": "$ echo agenda > 'meeting notes.txt'\n$ f='meeting notes.txt'\n$ cat $f\ncat: meeting: No such file or directory\ncat: notes.txt: No such file or directory\n$ cat \"$f\"\nagenda\n$ v=\"a    b\"\n$ echo $v\na b\n$ echo \"$v\"\na    b"
+        },
+        {
+          "type": "why",
+          "q": "Why does `cat $f` fail when `f='meeting notes.txt'`, but `cat \"$f\"` works?",
+          "a": "After `$f` is expanded, unquoted text is split into words at spaces, so `cat` receives two arguments, `meeting` and `notes.txt`. Inside double quotes the expansion still happens but word splitting does not, so `cat` receives one argument, `meeting notes.txt`."
+        },
+        {
+          "type": "md",
+          "text": "### Combining quotes\n\nQuoted and unquoted pieces that touch (no space between them) form **one word**. This lets you quote only the part that needs it: `\"$dir\"/*.txt` keeps a directory name with spaces together while still letting `*.txt` expand, and `'It'\\''s'` builds a single quote inside single-quoted text."
+        },
+        {
+          "type": "pitfall",
+          "text": "`ls \"*.pdf\"` and `ls '*.pdf'` do **not** list your PDF files: quoting switches the wildcard off, so ls looks for a file literally named `*.pdf`. Quote the parts with spaces, not the wildcards: `ls \"My Docs\"/*.pdf`."
+        },
+        {
+          "type": "pitfall",
+          "text": "Single quotes stop **everything**, including variables: `echo 'Hello $name'` prints `$name` literally. Use double quotes when you want the variable's value."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- Quoting removes the special meaning of characters like space, `*`, `?`, `$`, `~`.\n- `\\` makes the next one character literal.\n- `'single quotes'`: everything literal; cannot contain `'`.\n- `\"double quotes\"`: `$var`, `$(cmd)`, `$((...))` still expand; no word splitting, no globbing, no `~` or `{}` expansion.\n- Always write `\"$var\"` in scripts so names with spaces stay one argument."
+        }
+      ]
+    },
+    {
+      "id": "d2-files",
+      "title": "Creating, moving, removing and copying files",
+      "notebook": "bash/files.ipynb",
+      "priority": "high",
+      "examNote": "Quiz 1 Q1D (`cp * /home/user2/courses/CISC204`), Q1E (`mv CISC220 cisc220`) and Q2A (*a directory maps filenames to inodes*). Assignment 1 Q10-Q13: `cp -r lectures lectures_copy`, `mkdir notes images scripts`, `mv *.pdf notes`, `rm tmp.sh`. The Quiz 1 trash script used `mkdir` and `mv`.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### Filenames\n\n- Any character may appear in a filename **except** `/` (the path separator) and the null character.\n- Filenames are **case-sensitive**: `abc` and `Abc` are different files.\n- A name that begins with `.` is a **hidden** file.\n- Avoid spaces and the characters `!\"#$&'()*;<=>?[\\]^`{|}~` in names; they need quoting every time you use them. Use `_` instead of a space.\n- Never start a name with `-`: commands would read it as an option (`touch -n` is an error, not a file called `-n`)."
+        },
+        {
+          "type": "check",
+          "q": "Which two characters can never appear in a Linux filename?",
+          "a": "The slash `/` (it separates directories in a path) and the null character."
+        },
+        {
+          "type": "md",
+          "text": "### Creating files and directories\n\n- `touch f1 f2` creates empty files `f1` and `f2` if they do not exist. If a file already exists, `touch` only updates its modification time (the contents are unchanged).\n- `mkdir d1 d2` creates one or more directories. It fails if a parent directory is missing, or if the directory already exists.\n- `mkdir -p a/b/c` creates the whole path, making any missing **p**arent directories, and does not complain if they already exist.\n- `command > file` redirects a command's output into `file`, **overwriting** it; `command >> file` **appends** to the end (creating the file if needed). Redirection is covered in depth on a later day."
+        },
+        {
+          "type": "code",
+          "code": "$ touch file2 file3\n$ mkdir notes images scripts\n$ mkdir xxx/yyy/zzz\nmkdir: cannot create directory ‘xxx/yyy/zzz’: No such file or directory\n$ mkdir -p xxx/yyy/zzz\n$ echo first > moo.txt\n$ echo second >> moo.txt\n$ cat moo.txt\nfirst\nsecond\n$ ls\nfile2  file3  images  moo.txt  notes  scripts  xxx"
+        },
+        {
+          "type": "check",
+          "q": "What single command creates the directory `a/b/c` when none of `a`, `a/b`, `a/b/c` exist?",
+          "a": "`mkdir -p a/b/c`. Without `-p`, `mkdir` fails because the parents `a` and `a/b` are missing."
+        },
+        {
+          "type": "md",
+          "text": "### Moving and renaming: `mv`\n\n`mv` does both jobs, because renaming and moving are the same operation: changing which directory entry points at the file.\n\n- `mv fname newname`: **rename** (Quiz 1 Q1E: `mv CISC220 cisc220`).\n- `mv fname dirname`: **move** into an existing directory, keeping the name.\n- `mv fname dir1/cfile`: move **and** rename in one step.\n- `mv f1 f2 f3 dirname`: move several files; the **last** argument must be a directory. With a glob: `mv *.pdf notes` (Assignment 1 Q12).\n- `mv` works on directories directly; it needs no `-r`.\n\nIf the destination name already exists as a file, `mv` **overwrites it silently** and the old contents are gone. `mv -i` asks before overwriting."
+        },
+        {
+          "type": "code",
+          "code": "$ mkdir dir1; touch afile zfile\n$ mv afile bfile\n$ mv bfile dir1/cfile\n$ mv zfile dir1\n$ ls\ndir1\n$ ls dir1\ncfile  zfile\n$ echo new > x; echo old > y\n$ mv x y\n$ cat y\nnew\n$ ls\ndir1  y"
+        },
+        {
+          "type": "check",
+          "q": "You are in `courses`, which contains a directory `CISC220`. Write the command to rename it to `cisc220`.",
+          "a": "`mv CISC220 cisc220`"
+        },
+        {
+          "type": "md",
+          "text": "### Removing: `rm`, `rm -r`, `rmdir`\n\nIn UNIX, **deletion is permanent**: there is no recycle bin.\n\n- `rm f1 f2` removes files. `rm *txt` removes every non-hidden name ending in `txt`. `rm -i` asks before each one.\n- `rm` refuses to remove a directory.\n- `rmdir d` removes a directory **only if it is empty**.\n- `rm -r d` removes a directory **and everything inside it**, recursively."
+        },
+        {
+          "type": "code",
+          "code": "$ mkdir somedir; touch somedir/somefile\n$ rm somedir\nrm: cannot remove 'somedir': Is a directory\n$ rmdir somedir\nrmdir: failed to remove 'somedir': Directory not empty\n$ rm -r somedir\n$ ls"
+        },
+        {
+          "type": "check",
+          "q": "Which command removes the directory `old` only if it is empty, and gives an error otherwise?",
+          "a": "`rmdir old`"
+        },
+        {
+          "type": "md",
+          "text": "### Copying: `cp` and `cp -r`\n\n- `cp fname newname`: make a copy called `newname` (overwriting `newname` if it exists).\n- `cp f1 f2 dirname`: copy several files **into** a directory (last argument). Quiz 1 Q1D: `cp * /home/user2/courses/CISC204` copies every non-hidden file in the current directory into user2's directory.\n- `cp -r dir newdir`: copy a directory and **everything in it** (**r**ecursive). Without `-r`, `cp` skips directories with an error (Assignment 1 Q10: `cp -r lectures lectures_copy`).\n\nWatch out for one subtle case: if `newdir` **already exists**, `cp -r dir newdir` puts the copy **inside** it, as `newdir/dir`."
+        },
+        {
+          "type": "code",
+          "code": "$ cp A.txt A_words.txt\n$ cp A*txt dir1\n$ ls dir1\nA.txt  A_words.txt\n$ cp dir1 words\ncp: -r not specified; omitting directory 'dir1'\n$ cp -r dir1 words\n$ ls words\nA.txt  A_words.txt\n$ cp -r dir1 words\n$ ls words\nA.txt  A_words.txt  dir1"
+        },
+        {
+          "type": "check",
+          "q": "What does `cp -r dir1 words` do the **second** time you run it (when `words` already exists)?",
+          "a": "It copies `dir1` **into** `words`, creating `words/dir1`, instead of making `words` a copy of `dir1`."
+        },
+        {
+          "type": "md",
+          "text": "### Inodes and hard links\n\nA file's data and its information (size, owner, permissions, timestamps) are stored in a structure called an **inode**, identified by an **inode number**. The inode does **not** store the file's name.\n\nNames live in **directories**. A directory is itself a file that contains a list of entries, each **mapping a filename to an inode** (Quiz 1 Q2A). Each such entry is called a **hard link**. `ls -i` shows inode numbers.\n\n`ln target link_name` creates a new hard link: a second name for the **same** inode. Both names share the same data, so a change made through one name is visible through the other. The second column of `ls -l` is the **number of hard links** to the inode.\n\n`rm name` removes a *name* (a directory entry) and lowers the link count by one. The inode and its data are only deleted when the count reaches 0. (This is also why deleting a file needs write permission on the **directory**, not on the file.)"
+        },
+        {
+          "type": "code",
+          "code": "$ ls -i1\n655532 A.txt\n667642 dir1\n662687 file1\n$ ln A.txt A\n$ ls -il A A.txt\n655532 -rw-rw-r-- 2 cisc220 cisc220 97 Sep  3 17:41 A\n655532 -rw-rw-r-- 2 cisc220 cisc220 97 Sep  3 17:41 A.txt",
+          "caption": "From the notebook (the author's computer): A and A.txt share inode 655532 and its link count is now 2. Inode numbers on your computer will differ."
+        },
+        {
+          "type": "code",
+          "code": "$ ln A.txt A\n$ echo ATM >> A\n$ cat A.txt\nhello\nATM\n$ rm A\n$ cat A.txt\nhello\nATM",
+          "caption": "Appending through the name A changed A.txt, because both names map to the same inode. Removing A left the data, because A.txt still links to it."
+        },
+        {
+          "type": "md",
+          "text": "### Symbolic (soft) links\n\n`ln -s target link_name` creates a **symbolic link**: a small file of its own (with its own inode) that stores the *name* of another file. `ls -l` shows it with type `l` and an arrow: `words_starting_with_A -> A.txt`. If the target is renamed or removed, the link becomes **broken** (dangling) until a file with that name exists again."
+        },
+        {
+          "type": "code",
+          "code": "$ ln -s A.txt words\n$ cat words\nhello\n$ mv A.txt B.txt\n$ cat words\ncat: words: No such file or directory\n$ mv B.txt A.txt\n$ cat words\nhello"
+        },
+        {
+          "type": "why",
+          "q": "Why does a symbolic link break when its target is renamed, while a hard link does not?",
+          "a": "A symbolic link stores the target's **name**, so after a rename it points at a name that no longer exists. A hard link is a directory entry pointing straight at the **inode**; renaming the other name does not change the inode, so the hard link still works."
+        },
+        {
+          "type": "pitfall",
+          "text": "`cp dir newdir` without `-r` does not copy a directory (`cp: -r not specified; omitting directory`). `rm dir` fails too; use `rmdir` (empty) or `rm -r`. But `mv dir newname` needs no option."
+        },
+        {
+          "type": "pitfall",
+          "text": "`mv` and `cp` overwrite an existing destination file without asking. Double-check the last argument, or use `-i`."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- `touch` (empty file / update time), `mkdir` (`-p` for parents), `>` overwrite, `>>` append.\n- `mv old new` renames; `mv files... dir` moves; no `-r` needed for directories.\n- `rm` files, `rmdir` empty directories, `rm -r` a directory and its contents. Deletion is permanent.\n- `cp src copy`, `cp files... dir`, `cp -r dir copy`.\n- A directory maps **filenames to inodes**; `ln` adds a hard link (same inode), `ln -s` makes a symbolic link (stores a name)."
+        }
+      ]
+    },
+    {
+      "id": "d2-permissions",
+      "title": "Permissions",
+      "notebook": "bash/permissions.ipynb",
+      "priority": "high",
+      "examNote": "Assignment 1 Q14 (`chmod 750 hello.sh`) and Q15 (symbolic chmod on `*.pdf *.PDF`). Quiz 1 Q4 copies permissions with `stat -c %a` and `chmod`, and Quiz 1 Q5 sets `.trash` to owner-only with `chmod u=rwx,go=` or `chmod 700`. Expect to convert between `rwxr-x---` and `750` in both directions.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### Users, groups and others\n\nLinux is a multi-user system, so every file has **permissions** (access rights) saying who may do what. Permissions are given to three classes:\n\n- **user** (`u`): the file's owner. Every file has an owner username.\n- **group** (`g`): every file also belongs to a group, and members of that group get the group permissions. (Ubuntu usually creates a group named after each user.)\n- **other** (`o`): everybody else.\n\nEach class can have three permissions: **r**ead, **w**rite and e**x**ecute."
+        },
+        {
+          "type": "md",
+          "text": "### Reading `ls -l`\n\n```\n-rwxr-x--- 1 user1 user1 23 Sep 15 10:00 hello.sh\n```\n\n| Part | Meaning |\n|---|---|\n| `-` | file type: `-` regular file, `d` directory, `l` symbolic link, `c`/`b` device files |\n| `rwx` | user (owner) permissions |\n| `r-x` | group permissions |\n| `---` | other permissions |\n| `1` | number of hard links |\n| `user1` | owner (username) |\n| `user1` | group |\n| `23` | size in bytes |\n| `Sep 15 10:00` | last modification time |\n| `hello.sh` | filename |\n\nThe nine permission characters always come in the order **r w x** for **user, group, other**. A letter means the permission is granted; `-` means it is not. Here the owner can read, write and execute; the group can read and execute; others can do nothing."
+        },
+        {
+          "type": "check",
+          "q": "In `drwxr-xr-x 2 user1 staff 4096 Sep 15 10:00 notes`, what kind of file is `notes`, and what may members of group `staff` do?",
+          "a": "It is a **directory** (`d`). The group permissions are `r-x`: members of `staff` can read (list) and execute (enter) it, but not write (create, delete or rename files in it)."
+        },
+        {
+          "type": "md",
+          "text": "### What r, w and x mean\n\n| Permission | Regular file | Directory |\n|---|---|---|\n| `r` read | open and read the contents | list the names inside (needs `x` too) |\n| `w` write | change or truncate the contents; does **not** allow deleting or renaming the file | create, delete and rename files inside (needs `x` too) |\n| `x` execute | run it as a program or script | enter it (`cd`) and reach files inside it |\n\nConsequences worth remembering:\n\n- Deleting or renaming a file is a change to the **directory** (it edits the name-to-inode list), so it depends on the directory's `w` and `x`, **not** on the file's own `w`.\n- To read `d/f` you need `x` on `d` (to get through it) **and** `r` on `f`.\n- To run a script you need both `r` and `x` on it (Bash has to read the script to run it).\n- Directories almost always have `r` and `x` together (`r-x`, `rwx`) or neither (`---`)."
+        },
+        {
+          "type": "check",
+          "q": "A file `notes.txt` has permissions `r--r--r--` but is in a directory where you have `rwx`. Can you delete it with `rm`?",
+          "a": "Yes. Deleting changes the **directory**, and you have `w` and `x` on the directory. (`rm` may ask for confirmation because the file is write-protected, but it is allowed.)"
+        },
+        {
+          "type": "md",
+          "text": "### Octal permissions\n\nEach group of three permissions can be written as one **octal digit** (0 to 7) by adding **r = 4, w = 2, x = 1**:\n\n| Octal | Binary | Permissions |\n|---|---|---|\n| 0 | 000 | `---` |\n| 1 | 001 | `--x` |\n| 2 | 010 | `-w-` |\n| 3 | 011 | `-wx` |\n| 4 | 100 | `r--` |\n| 5 | 101 | `r-x` |\n| 6 | 110 | `rw-` |\n| 7 | 111 | `rwx` |\n\nThree digits, in the order **user, group, other**, describe the whole set.\n\n**Symbolic to octal:** split into threes and add. `rwxr-x---` → `rwx` = 4+2+1 = 7, `r-x` = 4+1 = 5, `---` = 0 → **750**.\n\n**Octal to symbolic:** split each digit into 4, 2, 1. `644` → 6 = 4+2 = `rw-`, 4 = `r--`, 4 = `r--` → **rw-r--r--**.\n\nCommon modes to know by heart:\n\n| Octal | Symbolic | Typical use |\n|---|---|---|\n| 755 | `rwxr-xr-x` | scripts and directories everyone may use |\n| 750 | `rwxr-x---` | script for you and your group |\n| 700 | `rwx------` | private directory or script |\n| 644 | `rw-r--r--` | normal file, readable by all |\n| 640 | `rw-r-----` | file readable by your group only |\n| 600 | `rw-------` | private file |\n| 400 | `r--------` | read-only for you, nothing for others |"
+        },
+        {
+          "type": "check",
+          "q": "Convert `rw-r-----` to octal, and `751` to symbolic.",
+          "a": "`rw-r-----` = 6 (4+2), 4, 0 → **640**. `751` = 7 `rwx`, 5 `r-x`, 1 `--x` → **rwxr-x--x**."
+        },
+        {
+          "type": "md",
+          "text": "### `chmod` with octal modes\n\nThe owner of a file changes its permissions with `chmod MODE file...`. An octal mode **sets all nine permissions at once**:"
+        },
+        {
+          "type": "code",
+          "code": "$ chmod 400 file1; ls -l file1\n-r-------- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod 444 file1; ls -l file1\n-r--r--r-- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod 755 file1; ls -l file1\n-rwxr-xr-x 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod 750 file1; ls -l file1\n-rwxr-x--- 1 user1 user1 8 Sep 15 10:00 file1"
+        },
+        {
+          "type": "md",
+          "text": "### `chmod` with symbolic modes\n\nA symbolic mode is **who**, then an **operator**, then **which permissions**:\n\n| Who | | Operator | | Permissions |\n|---|---|---|---|---|\n| `u` user | | `+` add | | `r` |\n| `g` group | | `-` remove | | `w` |\n| `o` other | | `=` set exactly | | `x` |\n| `a` all three | | | | |\n\n- `+` and `-` change **only** the permissions you mention; everything else stays as it was.\n- `=` sets the class to **exactly** what you list; `go=` (nothing after `=`) removes all permissions from group and other.\n- Several changes are separated by **commas with no spaces**: `chmod u=rwx,go= dir`, `chmod g=rx,o-rwx file1`.\n- You may combine classes: `go-w`, `ug+x`."
+        },
+        {
+          "type": "code",
+          "code": "$ chmod 000 file1\n$ chmod a+r file1; ls -l file1\n-r--r--r-- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod u+w file1; ls -l file1\n-rw-r--r-- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod u=rwx file1; ls -l file1\n-rwxr--r-- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod g=rx,o-rwx file1; ls -l file1\n-rwxr-x--- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod go= file1; ls -l file1\n-rwx------ 1 user1 user1 8 Sep 15 10:00 file1",
+          "caption": "The notebook's sequence of symbolic changes, starting from no permissions."
+        },
+        {
+          "type": "check",
+          "q": "A file is `r--------`. Give a symbolic `chmod` that makes it `rw-r--r--` (Assignment 1 Q15 style).",
+          "a": "`chmod u+w,go+r file` (or `chmod u=rw,go=r file`, or `chmod a+r,u+w file`). The octal equivalent is `chmod 644 file`."
+        },
+        {
+          "type": "why",
+          "q": "When is a symbolic mode like `u+x` better than an octal mode like `744`?",
+          "a": "`u+x` changes **one** permission and keeps the rest. If several files have different permissions (one is 644, another 600), `chmod u+x *.sh` adds execute for the owner on each one without disturbing their other bits, while `chmod 744 *.sh` would force them all to the same mode."
+        },
+        {
+          "type": "md",
+          "text": "### Printing permissions in octal: `stat -c %a`\n\nThe notebooks do not show it, but Assignment 2 and Quiz 1 Q4 use `stat -c %a filename`, which prints the permissions as an octal number. Leading zeros are dropped (mode `044` prints as `44`), and `chmod` accepts that form back. `stat -c %A` prints the symbolic form."
+        },
+        {
+          "type": "code",
+          "code": "$ stat -c %a file1\n644\n$ chmod 640 file1\n$ stat -c %a file1\n640\n$ stat -c %A file1\n-rw-r-----\n$ chmod 044 file1\n$ stat -c %a file1\n44"
+        },
+        {
+          "type": "md",
+          "text": "Quiz 1 Q4 asked for a script that copies the permissions of one file (`$1`) onto another (`$2`). `$(...)` (command substitution, covered later) captures the output of `stat` in a variable, and the quotes are required:\n\n```bash\n#!/bin/bash\nsrc=$1\ndest=$2\nperm=$(stat -c %a \"$src\")\nchmod \"$perm\" \"$dest\"\n```"
+        },
+        {
+          "type": "pitfall",
+          "text": "`chmod u=rwx file` changes **only** the user permissions; group and other keep whatever they had. To make something private, also clear the others: `chmod u=rwx,go= dir` or `chmod 700 dir`."
+        },
+        {
+          "type": "pitfall",
+          "text": "The order is always user, group, other, and within each r, w, x. `chmod 570` is *not* the same as `chmod 750`: it gives the owner `r-x` and the group `rwx`."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- `ls -l`: type character, then rwx for **user, group, other**, then links, owner, group, size, time, name.\n- Directory permissions: `r` list, `w` create/delete/rename inside, `x` enter. Deleting a file depends on the directory.\n- Octal: r=4, w=2, x=1, one digit per class: `rwxr-x---` = 750, `644` = `rw-r--r--`.\n- Symbolic: `chmod u+x,go-w file`; `=` sets exactly; `go=` clears.\n- `stat -c %a file` prints the octal mode."
+        }
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "id": "d2-fc-01",
+      "topic": "d2-globs",
+      "front": "What does the wildcard `*` match?",
+      "back": "Any string of characters, **including the empty string**. It never matches a leading `.` (hidden files)."
+    },
+    {
+      "id": "d2-fc-02",
+      "topic": "d2-globs",
+      "front": "What does the wildcard `?` match?",
+      "back": "Exactly **one** character (any character)."
+    },
+    {
+      "id": "d2-fc-03",
+      "topic": "d2-globs",
+      "front": "What does `[aA]` match in a glob?",
+      "back": "Exactly one character: `a` or `A`."
+    },
+    {
+      "id": "d2-fc-04",
+      "topic": "d2-globs",
+      "front": "What does `[!0-9]` match?",
+      "back": "Exactly one character that is **not** a digit."
+    },
+    {
+      "id": "d2-fc-05",
+      "topic": "d2-globs",
+      "front": "Does `[0-9][0-9].pdf` match `10.pdf`? `100.pdf`? `5.pdf`?",
+      "back": "`10.pdf` yes. `100.pdf` no (three digits). `5.pdf` no (one digit). Each `[...]` matches exactly one character."
+    },
+    {
+      "id": "d2-fc-06",
+      "topic": "d2-globs",
+      "front": "Write one glob that matches files ending in `.pdf` in any mix of case (`.pdf`, `.PDF`, `.Pdf`...).",
+      "back": "`*.[pP][dD][fF]`"
+    },
+    {
+      "id": "d2-fc-07",
+      "topic": "d2-globs",
+      "front": "Does `*` match the file `.bashrc`?",
+      "back": "No. A leading `.` is only matched by a pattern that starts with a literal `.`, such as `.*` or `.b*`."
+    },
+    {
+      "id": "d2-fc-08",
+      "topic": "d2-globs",
+      "front": "Glob for hidden names that never matches `.` or `..`",
+      "back": "`.[!.]*` (a dot, then one character that is not a dot, then anything)."
+    },
+    {
+      "id": "d2-fc-09",
+      "topic": "d2-globs",
+      "front": "What does the pattern `*/` expand to?",
+      "back": "The names of the (non-hidden) **subdirectories** of the current directory, each with a trailing `/`."
+    },
+    {
+      "id": "d2-fc-10",
+      "topic": "d2-globs",
+      "front": "What does `ls */A1answers.txt` list?",
+      "back": "Every file named `A1answers.txt` exactly **one level down**, inside each subdirectory of the current directory."
+    },
+    {
+      "id": "d2-fc-11",
+      "topic": "d2-globs",
+      "front": "Quiz 1: list all files, including hidden files, in the subdirectories of the current directory.",
+      "back": "`ls -a */`"
+    },
+    {
+      "id": "d2-fc-12",
+      "topic": "d2-globs",
+      "front": "What does the `-d` option of `ls` do?",
+      "back": "Lists directories **themselves** (their names) instead of their contents."
+    },
+    {
+      "id": "d2-fc-13",
+      "topic": "d2-globs",
+      "front": "No subdirectories; `ls *` prints exactly the same as `ls ?`. What can you conclude?",
+      "back": "Every (non-hidden) filename in the directory is exactly **one character** long."
+    },
+    {
+      "id": "d2-fc-14",
+      "topic": "d2-globs",
+      "front": "What does `echo *.xyz` print if no file ends in `.xyz`?",
+      "back": "`*.xyz`: a pattern that matches nothing is left unchanged."
+    },
+    {
+      "id": "d2-fc-15",
+      "topic": "d2-globs",
+      "front": "Who expands a glob: the shell or the command (e.g. `ls`)?",
+      "back": "The **shell**, before the command runs. The command only receives the resulting list of names."
+    },
+    {
+      "id": "d2-fc-16",
+      "topic": "d2-globs",
+      "front": "Glob for names starting with an uppercase letter, using a POSIX class.",
+      "back": "`[[:upper:]]*` (the class goes inside an extra pair of brackets)."
+    },
+    {
+      "id": "d2-fc-17",
+      "topic": "d2-globs",
+      "front": "Which of `.late`, `.late+`, `.late++`, `.late+x` does `.late+[+x]` match?",
+      "back": "`.late++` and `.late+x`."
+    },
+    {
+      "id": "d2-fc-18",
+      "topic": "d2-quoting",
+      "front": "Name the three ways to quote in Bash.",
+      "back": "The backslash `\\` (escapes one character), single quotes `'...'` and double quotes `\"...\"`."
+    },
+    {
+      "id": "d2-fc-19",
+      "topic": "d2-quoting",
+      "front": "What is special inside single quotes?",
+      "back": "Nothing. Every character is literal, including `$`, `*` and `\\`. A single quote cannot appear inside single quotes."
+    },
+    {
+      "id": "d2-fc-20",
+      "topic": "d2-quoting",
+      "front": "Which characters keep a special meaning inside double quotes?",
+      "back": "`$`, `` ` `` (backquote) and `\\` (and `!` interactively)."
+    },
+    {
+      "id": "d2-fc-21",
+      "topic": "d2-quoting",
+      "front": "Which expansions still happen inside double quotes?",
+      "back": "Parameter/variable expansion (`$var`), command substitution (`$(cmd)`) and arithmetic expansion (`$((...))`)."
+    },
+    {
+      "id": "d2-fc-22",
+      "topic": "d2-quoting",
+      "front": "Which expansions do NOT happen inside double quotes?",
+      "back": "Word splitting, filename expansion (globs), tilde expansion (`~`) and brace expansion (`{a,b}`)."
+    },
+    {
+      "id": "d2-fc-23",
+      "topic": "d2-quoting",
+      "front": "What do `echo \"a\\b\"` and `echo a\\b` print?",
+      "back": "`a\\b` and `ab`. Inside double quotes a backslash only escapes the dollar sign, backquote, double quote, backslash and newline, so before `b` it stays; unquoted, it escapes the `b` and disappears."
+    },
+    {
+      "id": "d2-fc-24",
+      "topic": "d2-quoting",
+      "front": "Why must scripts write `\"$f\"` instead of `$f`?",
+      "back": "Unquoted, the value is split into words at spaces (and globs in it are expanded), so `my file.txt` becomes two arguments. `\"$f\"` keeps it as one argument."
+    },
+    {
+      "id": "d2-fc-25",
+      "topic": "d2-quoting",
+      "front": "What does `ls \"*.txt\"` do?",
+      "back": "Looks for one file literally named `*.txt`; quoting turns the wildcard off."
+    },
+    {
+      "id": "d2-fc-26",
+      "topic": "d2-quoting",
+      "front": "How do you print `It's` using only single quotes and a backslash?",
+      "back": "`echo 'It'\\''s'`: close the quote, add an escaped `\\'`, reopen the quote."
+    },
+    {
+      "id": "d2-fc-27",
+      "topic": "d2-files",
+      "front": "What does `mkdir -p a/b/c` do that `mkdir a/b/c` does not?",
+      "back": "Creates any missing parent directories (`a`, `a/b`) and does not complain if they already exist."
+    },
+    {
+      "id": "d2-fc-28",
+      "topic": "d2-files",
+      "front": "What does `touch` do to a file that already exists?",
+      "back": "Updates its access and modification times to now; the contents are unchanged."
+    },
+    {
+      "id": "d2-fc-29",
+      "topic": "d2-files",
+      "front": "Rename `CISC220` to `cisc220`.",
+      "back": "`mv CISC220 cisc220`"
+    },
+    {
+      "id": "d2-fc-30",
+      "topic": "d2-files",
+      "front": "Move all `.pdf` files in the current directory into the directory `notes`.",
+      "back": "`mv *.pdf notes` (with several sources, the last argument must be a directory)."
+    },
+    {
+      "id": "d2-fc-31",
+      "topic": "d2-files",
+      "front": "`rmdir` versus `rm -r`?",
+      "back": "`rmdir d` removes `d` only if it is **empty**. `rm -r d` removes `d` and everything inside it."
+    },
+    {
+      "id": "d2-fc-32",
+      "topic": "d2-files",
+      "front": "Copy the directory `lectures` and all its contents to `lectures_copy`.",
+      "back": "`cp -r lectures lectures_copy`"
+    },
+    {
+      "id": "d2-fc-33",
+      "topic": "d2-files",
+      "front": "`words` already exists. What does `cp -r dir1 words` create?",
+      "back": "`words/dir1`: the copy goes **inside** the existing directory."
+    },
+    {
+      "id": "d2-fc-34",
+      "topic": "d2-files",
+      "front": "Quiz 1: in Linux, a directory is a file that contains what information?",
+      "back": "The mapping of **filenames to inodes** (its directory entries, i.e. hard links)."
+    },
+    {
+      "id": "d2-fc-35",
+      "topic": "d2-files",
+      "front": "What is stored in an inode? What is not?",
+      "back": "The file's data location and metadata (size, owner, group, permissions, timestamps, link count). **Not** its name; names are in directories."
+    },
+    {
+      "id": "d2-fc-36",
+      "topic": "d2-files",
+      "front": "`ln a b` versus `ln -s a b`?",
+      "back": "`ln` makes a **hard link**: `b` is another name for the same inode. `ln -s` makes a **symbolic link**: `b` is a separate small file storing the name `a`."
+    },
+    {
+      "id": "d2-fc-37",
+      "topic": "d2-files",
+      "front": "What is the number in the second column of `ls -l`?",
+      "back": "The number of hard links to the file's inode."
+    },
+    {
+      "id": "d2-fc-38",
+      "topic": "d2-files",
+      "front": "`>` versus `>>`?",
+      "back": "`>` redirects output to a file, overwriting it. `>>` appends to the end of the file."
+    },
+    {
+      "id": "d2-fc-39",
+      "topic": "d2-permissions",
+      "front": "In `ls -l`, what do the first characters `-`, `d`, `l` mean?",
+      "back": "Regular file, directory, symbolic link."
+    },
+    {
+      "id": "d2-fc-40",
+      "topic": "d2-permissions",
+      "front": "For a **directory**, what do r, w and x allow?",
+      "back": "`r`: list the names inside. `w`: create, delete and rename files inside (with `x`). `x`: enter it / reach files in it."
+    },
+    {
+      "id": "d2-fc-41",
+      "topic": "d2-permissions",
+      "front": "Octal values of r, w and x?",
+      "back": "r = 4, w = 2, x = 1. Add them per class: `rwx` = 7, `r-x` = 5, `rw-` = 6."
+    },
+    {
+      "id": "d2-fc-42",
+      "topic": "d2-permissions",
+      "front": "`rwxr-x---` in octal?",
+      "back": "750"
+    },
+    {
+      "id": "d2-fc-43",
+      "topic": "d2-permissions",
+      "front": "`644` in symbolic form?",
+      "back": "`rw-r--r--`"
+    },
+    {
+      "id": "d2-fc-44",
+      "topic": "d2-permissions",
+      "front": "`700` in symbolic form?",
+      "back": "`rwx------`"
+    },
+    {
+      "id": "d2-fc-45",
+      "topic": "d2-permissions",
+      "front": "`rw-r-----` in octal?",
+      "back": "640"
+    },
+    {
+      "id": "d2-fc-46",
+      "topic": "d2-permissions",
+      "front": "Octal equivalent of `chmod u=rwx,go= dir`?",
+      "back": "`chmod 700 dir`"
+    },
+    {
+      "id": "d2-fc-47",
+      "topic": "d2-permissions",
+      "front": "Symbolic `chmod` that turns `r--------` into `rw-r--r--`.",
+      "back": "`chmod u+w,go+r file` (or `u=rw,go=r`)."
+    },
+    {
+      "id": "d2-fc-48",
+      "topic": "d2-permissions",
+      "front": "What does `stat -c %a file` print?",
+      "back": "The file's permissions as an octal number, e.g. `644` (leading zeros dropped: `044` prints `44`)."
+    },
+    {
+      "id": "d2-fc-49",
+      "topic": "d2-permissions",
+      "front": "What permission do you need to delete a file?",
+      "back": "Write (and execute) permission on the **directory** that contains it. The file's own `w` does not matter."
+    },
+    {
+      "id": "d2-fc-50",
+      "topic": "d2-permissions",
+      "front": "Does `chmod u=rwx file` change the group or other permissions?",
+      "back": "No. `=` only sets the classes you name; group and other keep their permissions."
+    }
+  ],
+  "quiz": [
+    {
+      "id": "d2-q-01",
+      "topic": "d2-globs",
+      "type": "mcq",
+      "q": "A directory contains the files `a.txt`, `ab.txt`, `B.TXT`, `1.txt`, `notes.txt` and `.c.txt`. Which names does `?.txt` match?",
+      "options": [
+        "`a.txt` and `1.txt`",
+        "`a.txt` only",
+        "`a.txt`, `1.txt` and `B.TXT`",
+        "`a.txt`, `ab.txt` and `1.txt`"
+      ],
+      "answer": 0,
+      "explain": "`?` matches exactly one character of any kind, so `a.txt` and `1.txt` match (a digit is a character too). `ab.txt` has two characters before `.txt`, and `B.TXT` fails because globs are case-sensitive."
+    },
+    {
+      "id": "d2-q-02",
+      "topic": "d2-globs",
+      "type": "output",
+      "q": "The current directory contains `apple`, `banana`, `cherry`, `Apricot` and `.apple`. What does this print?",
+      "code": "echo [ab]*",
+      "answer": "apple banana",
+      "explain": "`[ab]` matches one lowercase `a` or `b` as the first character; `*` matches the rest. `Apricot` starts with uppercase `A` (case-sensitive) and `.apple` is hidden."
+    },
+    {
+      "id": "d2-q-03",
+      "topic": "d2-globs",
+      "type": "output",
+      "q": "The current directory contains only `a.txt`. What does this print?",
+      "code": "echo *.zip",
+      "answer": "*.zip",
+      "explain": "No file matches `*.zip`, so Bash leaves the pattern unchanged and `echo` prints it literally."
+    },
+    {
+      "id": "d2-q-04",
+      "topic": "d2-globs",
+      "type": "output",
+      "q": "The current directory contains `.profile`, `notes.txt` and `todo.txt`. What does this print?",
+      "code": "echo *",
+      "answer": "notes.txt todo.txt",
+      "explain": "`*` does not match a leading dot, so the hidden file `.profile` is left out."
+    },
+    {
+      "id": "d2-q-05",
+      "topic": "d2-globs",
+      "type": "mcq",
+      "q": "The current directory has no subdirectories. `ls *` and `ls ?` produce exactly the same output. What can you conclude?",
+      "options": [
+        "Every filename contains a question mark",
+        "Every non-hidden filename is exactly one character long",
+        "The directory contains exactly one file",
+        "The directory contains only hidden files"
+      ],
+      "answer": 1,
+      "explain": "`?` only matches one-character names. If it lists the same files as `*` (all non-hidden names), every non-hidden name has one character. There can be many such files (`a`, `b`, `c`). If there were only hidden files, both patterns would match nothing and `ls` would print errors, not listings."
+    },
+    {
+      "id": "d2-q-06",
+      "topic": "d2-globs",
+      "type": "mcq",
+      "q": "Which pattern matches exactly `.late++` and `.late+x` among `.late`, `.late+`, `.late++`, `.late+x`?",
+      "options": [
+        "`.late?`",
+        "`*late+[+x]`",
+        "`.late+[+x]`",
+        "`.late+*`"
+      ],
+      "answer": 2,
+      "explain": "`.late+[+x]` needs `.late+` followed by exactly one `+` or `x`. `.late+*` also matches `.late+` (the `*` can be empty). `.late?` matches only `.late+` (five chars plus one). `*late+[+x]` starts with `*`, which cannot match the leading dot of a hidden name, so it matches nothing."
+    },
+    {
+      "id": "d2-q-07",
+      "topic": "d2-globs",
+      "type": "mcq",
+      "q": "In `marking/A1`, each student has a directory, and some student directories contain a subdirectory `__MACOSX` that also holds an `A1answers.txt`. Which command lists only the `A1answers.txt` files directly inside the student directories?",
+      "options": [
+        "`ls A1answers.txt`",
+        "`ls */*/A1answers.txt`",
+        "`ls -a */`",
+        "`ls */A1answers.txt`"
+      ],
+      "answer": 3,
+      "explain": "Each `/`-separated part of a pattern matches one level, so `*/A1answers.txt` looks exactly one level down. `*/*/A1answers.txt` would find only the ones inside `__MACOSX`. `ls A1answers.txt` looks in the current directory, and `ls -a */` lists everything in the student directories."
+    },
+    {
+      "id": "d2-q-08",
+      "topic": "d2-globs",
+      "type": "short",
+      "q": "The current directory contains student directories. Write a single command that lists, one per line, every file or directory inside the student directories whose name starts with `a` or `A` followed by `1`, without listing the contents of any matching directory.",
+      "answer": "`ls -1d */[aA]1*`",
+      "explain": "`-1` gives one name per line and `-d` stops `ls` from opening matching directories. `[aA]` matches one `a` or `A`. `ls -d1 */[aA]1*` and `ls -d -1 */[aA]1*` are the same command."
+    },
+    {
+      "id": "d2-q-09",
+      "topic": "d2-globs",
+      "type": "mcq",
+      "q": "In the notebook's directory there are files `x1z`, `x2z`, `x@z`, `xYz`, `xaz` and `xyz`. Which ones does `x[!a-z]z` match?",
+      "options": [
+        "`x1z`, `x2z`, `x@z`, `xYz`",
+        "`xaz`, `xyz`",
+        "`x1z`, `x2z`",
+        "`x1z`, `x2z`, `x@z`"
+      ],
+      "answer": 0,
+      "explain": "`[!a-z]` matches any one character that is not a lowercase letter: digits, `@`, and uppercase `Y` all qualify."
+    },
+    {
+      "id": "d2-q-10",
+      "topic": "d2-quoting",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "name=Ada\necho 'Hi $name' \"Hi $name\"",
+      "answer": "Hi $name Hi Ada",
+      "explain": "Single quotes keep `$name` literal; double quotes still allow variable expansion. `echo` separates its two arguments with one space."
+    },
+    {
+      "id": "d2-q-11",
+      "topic": "d2-quoting",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "echo \"a\\b\" 'c\\d' e\\f",
+      "answer": "a\\b c\\d ef",
+      "explain": "Inside double quotes `\\` only escapes the dollar sign, backquote, double quote, backslash and newline, so `\\b` stays. Inside single quotes nothing is special. Unquoted, `\\f` means a literal `f` and the backslash is removed."
+    },
+    {
+      "id": "d2-q-12",
+      "topic": "d2-quoting",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "v=\"x    y\"\necho $v\necho \"$v\"",
+      "answer": "x y\nx    y",
+      "explain": "Unquoted, `$v` is split into the two words `x` and `y`, which `echo` joins with a single space. Quoted, the value is one argument and the spaces survive."
+    },
+    {
+      "id": "d2-q-13",
+      "topic": "d2-quoting",
+      "type": "output",
+      "q": "The current directory contains only `a.txt`. What does this print?",
+      "code": "echo \"*\" '*' \\* *",
+      "answer": "* * * a.txt",
+      "explain": "All three quoted or escaped stars are literal. Only the last, unquoted `*` is expanded."
+    },
+    {
+      "id": "d2-q-14",
+      "topic": "d2-quoting",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "echo \"Total: $((3*4))\" '$((3*4))'",
+      "answer": "Total: 12 $((3*4))",
+      "explain": "Arithmetic expansion still happens inside double quotes but not inside single quotes."
+    },
+    {
+      "id": "d2-q-15",
+      "topic": "d2-quoting",
+      "type": "mcq",
+      "q": "Which of these does **not** happen inside double quotes?",
+      "options": [
+        "Arithmetic expansion (`$((1+2))`)",
+        "Filename expansion (`*.txt`)",
+        "Variable expansion (`$name`)",
+        "Command substitution (`$(pwd)`)"
+      ],
+      "answer": 1,
+      "explain": "Double quotes keep `$` special, so variable, command and arithmetic expansions still happen. Word splitting and filename expansion (plus tilde and brace expansion) do not."
+    },
+    {
+      "id": "d2-q-16",
+      "topic": "d2-quoting",
+      "type": "mcq",
+      "q": "`f='meeting notes.txt'` and the file exists. Why does `cat $f` fail?",
+      "options": [
+        "Single quotes stored the literal text `$f`",
+        "Variables cannot be used as command arguments",
+        "The unquoted value is split at the space into two arguments",
+        "`cat` cannot read files whose names contain spaces"
+      ],
+      "answer": 2,
+      "explain": "After expansion, unquoted text undergoes word splitting, so `cat` receives `meeting` and `notes.txt`. `cat \"$f\"` passes one argument."
+    },
+    {
+      "id": "d2-q-17",
+      "topic": "d2-files",
+      "type": "mcq",
+      "q": "Quiz 1: in Linux, a directory is a file that contains what information?",
+      "options": [
+        "The contents of the files stored in it",
+        "The permissions of the files stored in it",
+        "The path from the root to the directory",
+        "The mapping of filenames to inodes"
+      ],
+      "answer": 3,
+      "explain": "A directory's entries map names to inode numbers. Contents, permissions and sizes are stored in each file's inode, not in the directory."
+    },
+    {
+      "id": "d2-q-18",
+      "topic": "d2-files",
+      "type": "mcq",
+      "q": "The directory `old` contains one file. What happens with `rmdir old`?",
+      "options": [
+        "An error: the directory is not empty",
+        "`old` and its file are deleted",
+        "Only the file inside is deleted",
+        "`old` is moved to the trash"
+      ],
+      "answer": 0,
+      "explain": "`rmdir` only removes empty directories (`rmdir: failed to remove 'old': Directory not empty`). Use `rm -r old` to remove it with its contents."
+    },
+    {
+      "id": "d2-q-19",
+      "topic": "d2-files",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "echo one > a\nln a b\necho two >> b\ncat a",
+      "answer": "one\ntwo",
+      "explain": "`ln a b` makes `b` a hard link: a second name for the same inode. Appending through `b` changes the data that `a` names too."
+    },
+    {
+      "id": "d2-q-20",
+      "topic": "d2-files",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "echo hi > a\nln -s a s\nmv a z\ncat s",
+      "answer": "cat: s: No such file or directory",
+      "explain": "A symbolic link stores the target's name. After `a` is renamed, the link `s` points at a name that does not exist (a broken link), so `cat` fails. (This message goes to standard error.)"
+    },
+    {
+      "id": "d2-q-21",
+      "topic": "d2-files",
+      "type": "short",
+      "q": "From the directory `CISC220_A1`, copy the directory `lectures` and all of its contents to a new directory `lectures_copy`.",
+      "answer": "`cp -r lectures lectures_copy`",
+      "explain": "Without `-r`, `cp` refuses to copy a directory. `cp -R` also works."
+    },
+    {
+      "id": "d2-q-22",
+      "topic": "d2-files",
+      "type": "short",
+      "q": "In one command, move every file whose name ends in `.pdf` from the current directory into the existing directory `notes`.",
+      "answer": "`mv *.pdf notes`",
+      "explain": "When `mv` gets several sources, the last argument must be a directory. `mv *.pdf notes/` is equivalent."
+    },
+    {
+      "id": "d2-q-23",
+      "topic": "d2-permissions",
+      "type": "short",
+      "q": "Write the `chmod` command, using an octal mode, that sets the permissions of `hello.sh` to `rwxr-x---`.",
+      "answer": "`chmod 750 hello.sh`",
+      "explain": "rwx = 4+2+1 = 7, r-x = 4+1 = 5, --- = 0."
+    },
+    {
+      "id": "d2-q-24",
+      "topic": "d2-permissions",
+      "type": "short",
+      "q": "What are the symbolic permissions (nine characters) for octal mode `640`? And what is the octal mode for `rwxr--r-x`?",
+      "answer": "`rw-r-----` and `745`.",
+      "explain": "6 = 4+2 = rw-, 4 = r--, 0 = ---. For the second: rwx = 7, r-- = 4, r-x = 5."
+    },
+    {
+      "id": "d2-q-25",
+      "topic": "d2-permissions",
+      "type": "output",
+      "q": "A file `f` exists in the current directory. What does this print?",
+      "code": "chmod 644 f\nchmod u+x,go-r f\nstat -c %a f",
+      "answer": "700",
+      "explain": "644 is rw-r--r--. `u+x` makes the owner rwx (7); `go-r` removes read from group and other, leaving 0 and 0."
+    },
+    {
+      "id": "d2-q-26",
+      "topic": "d2-permissions",
+      "type": "output",
+      "q": "A file `f` exists in the current directory. What does this print?",
+      "code": "chmod 750 f\nchmod g-x,o+r f\nstat -c %A f",
+      "answer": "-rwxr--r--",
+      "explain": "750 is rwxr-x---. `g-x` turns the group into r--; `o+r` turns other into r--. `%A` prints the symbolic form with the type character `-` first."
+    },
+    {
+      "id": "d2-q-27",
+      "topic": "d2-permissions",
+      "type": "mcq",
+      "q": "Which command makes the directory `.trash` accessible only to its owner, with all permissions for the owner (Quiz 1 Q5, step 3)?",
+      "options": [
+        "`chmod 007 .trash`",
+        "`chmod 700 .trash`",
+        "`chmod u=rwx .trash`",
+        "`chmod go-rwx .trash`"
+      ],
+      "answer": 1,
+      "explain": "700 sets rwx for the owner and nothing for group and other. `u=rwx` leaves group and other unchanged; `go-rwx` removes their permissions but does not guarantee the owner has rwx; `007` is the reverse (others get everything). `chmod u=rwx,go= .trash` is the symbolic equivalent of 700."
+    },
+    {
+      "id": "d2-q-28",
+      "topic": "d2-permissions",
+      "type": "mcq",
+      "q": "You own a directory `d` with permissions `r-x------`. A file `d/f` has permissions `rw-------`. Which of these can you do?",
+      "options": [
+        "Rename `d/f` to `d/g`",
+        "Create a new file `d/h`",
+        "Edit the contents of `d/f`",
+        "Delete `d/f`"
+      ],
+      "answer": 2,
+      "explain": "Changing a file's contents needs `w` on the file (you have it) and `x` on the directory to reach it (you have it). Deleting, renaming and creating all change the directory's list of names, which needs `w` on the directory, and `d` has no `w`."
+    },
+    {
+      "id": "d2-q-29",
+      "topic": "d2-permissions",
+      "type": "short",
+      "q": "`ls -l` prints `-rw-r-x--x 2 alice staff 120 Sep 15 10:00 run.sh`. (a) What are the group permissions? (b) How many hard links does the file have? (c) What is the mode in octal?",
+      "answer": "(a) `r-x` (read and execute). (b) 2. (c) 651.",
+      "explain": "The nine characters after the type are user `rw-` (6), group `r-x` (5), other `--x` (1). The number after the permissions is the hard link count."
+    },
+    {
+      "id": "d2-q-30",
+      "topic": "d2-permissions",
+      "type": "short",
+      "q": "Write a command that prints the permissions of the file `data.csv` as a three-digit octal number.",
+      "answer": "`stat -c %a data.csv`",
+      "explain": "Used in Assignment 2 and Quiz 1 Q4. Leading zeros are dropped, e.g. mode 044 prints `44`."
+    }
+  ],
+  "write": [
+    {
+      "id": "d2-w-01",
+      "topic": "d2-globs",
+      "stage": "worked",
+      "marks": 4,
+      "prompt": "The current directory is `marking/A2`, which looks like this (hidden files are shown):\n\n```\nA2/\n├── Al_Beback/\n│   ├── A2answers.txt\n│   ├── q1.sh\n│   └── .late\n├── Ella_Vator/\n│   ├── A2answers.txt\n│   ├── Q2.SH\n│   ├── old/\n│   │   └── A2answers.txt\n│   └── .late+\n├── Jo King/\n│   ├── A2answers.txt\n│   └── .late++\n└── summary.txt\n```\n\nWrite a **single command** for each part.\n\n(a) List all files named `A2answers.txt` in the student directories (not in subdirectories of the student directories).\n\n(b) List all files, including hidden files, in every student directory.\n\n(c) List, one per line, every file in the student directories whose name ends in `.sh` in any mix of case.\n\n(d) A hidden file `.late+` means 2 days late and `.late++` means 3 days late. List, one per line, the late-marker files of students who were 2 or more days late.",
+      "starter": "",
+      "solution": "# (a)\nls */A2answers.txt\n# (b)\nls -a */\n# (c)\nls -1 */*.[sS][hH]\n# (d)\nls -1 */.late+*",
+      "explain": "**(a)** `*/` stands for every student directory, so `*/A2answers.txt` finds the file one level down. It does **not** find `Ella_Vator/old/A2answers.txt`, which is two levels down; that is what the question wants.\n\n**(b)** `*/` expands to the three student directories (not `summary.txt`, because the trailing `/` only matches directories). Given directories, `ls` lists their contents, and `-a` includes hidden files. This is exactly Quiz 1 Q1F.\n\n**(c)** `[sS][hH]` matches `sh`, `SH`, `Sh` or `sH`, so both `q1.sh` and `Q2.SH` are found. `-1` prints one name per line. (`ls -1 */*.sh */*.SH` also works here.)\n\n**(d)** The pattern starts with a literal `.`, so it can match hidden files. `.late+*` needs `.late+` followed by anything, which matches `.late+` and `.late++` but not `.late`. Writing both names also works: `ls -1 */.late+ */.late++`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "(a) `ls */A2answers.txt`"
+        },
+        {
+          "marks": 1,
+          "item": "(b) `ls -a */`"
+        },
+        {
+          "marks": 1,
+          "item": "(c) a pattern matching both `.sh` and `.SH`, with `-1`"
+        },
+        {
+          "marks": 1,
+          "item": "(d) a pattern that starts with a literal `.` and excludes `.late`"
+        }
+      ],
+      "pitfalls": [
+        "`ls -a` alone lists the current directory, not the student directories.",
+        "`*late+*` cannot match a hidden file because `*` never matches a leading dot.",
+        "`ls */*.sh` misses `Q2.SH`: globs are case-sensitive."
+      ]
+    },
+    {
+      "id": "d2-w-02",
+      "topic": "d2-permissions",
+      "stage": "worked",
+      "marks": 4,
+      "prompt": "The current directory contains:\n\n```\n$ ls -l\n-r-------- 1 user1 user1 8000 Sep 15 10:00 SLIDES.PDF\n-rw-r--r-- 1 user1 user1  120 Sep 15 10:00 hello.sh\n-r-------- 1 user1 user1 5120 Sep 15 10:00 notes.pdf\ndrwxr-xr-x 2 user1 user1 4096 Sep 15 10:00 private\n```\n\nWrite a **single command** for each part.\n\n(a) Using an **octal** mode, set the permissions of `hello.sh` to `rwxr-x---`.\n\n(b) Using a **symbolic** mode, change the permissions of all the PDF files (ending in `.pdf` or `.PDF`) from `r--------` to `rw-r--r--`.\n\n(c) Change the permissions of `private` so that the owner has all permissions and all other users have no permissions.\n\n(d) Print the permissions of `hello.sh` as a three-digit octal number.",
+      "starter": "",
+      "solution": "# (a)\nchmod 750 hello.sh\n# (b)\nchmod u+w,go+r *.pdf *.PDF\n# (c)\nchmod u=rwx,go= private\n# (d)\nstat -c %a hello.sh",
+      "explain": "**(a)** Split `rwxr-x---` into user `rwx` = 4+2+1 = 7, group `r-x` = 4+1 = 5, other `---` = 0, giving 750 (Assignment 1 Q14).\n\n**(b)** Compare before and after class by class: user goes from `r--` to `rw-` (add w), group and other go from `---` to `r--` (add r). So `u+w,go+r`, with a comma and no spaces. The two globs pick up both spellings of the extension; `*.[pP][dD][fF]` also works, as does `u=rw,go=r` (Assignment 1 Q15).\n\n**(c)** `u=rwx` sets the owner to exactly rwx, and `go=` with nothing after the `=` clears group and other. `chmod 700 private` is the octal equivalent (Quiz 1 Q5 step 3).\n\n**(d)** `stat -c %a` prints the octal mode. After part (a) it prints `750`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "(a) `chmod 750 hello.sh`"
+        },
+        {
+          "marks": 1,
+          "item": "(b) symbolic mode adding w for user and r for group/other, applied to both `.pdf` and `.PDF`"
+        },
+        {
+          "marks": 1,
+          "item": "(c) `chmod u=rwx,go= private` or `chmod 700 private`"
+        },
+        {
+          "marks": 1,
+          "item": "(d) `stat -c %a hello.sh`"
+        }
+      ],
+      "pitfalls": [
+        "`chmod u=rwx private` alone leaves the group and other permissions as `r-x`.",
+        "No spaces inside a symbolic mode: `u+w, go+r` is an error.",
+        "Using only `*.pdf` misses `SLIDES.PDF`."
+      ]
+    },
+    {
+      "id": "d2-w-03",
+      "topic": "d2-files",
+      "stage": "faded",
+      "marks": 5,
+      "prompt": "The current directory is `CISC220_A1`:\n\n```\nCISC220_A1/\n├── A2.PDF\n├── a1.pdf\n├── classlist\n├── lectures/\n│   ├── intro.txt\n│   └── week1/\n│       └── globs.txt\n└── tmp.sh\n```\n\nFill in the blanks so that each line is a single command that:\n\n(a) copies the directory `lectures` and all its contents to a new directory `lectures_copy`;\n\n(b) creates three directories named `notes`, `images` and `scripts`;\n\n(c) moves all the PDF files (`.pdf` or `.PDF`) into `notes`;\n\n(d) removes the file `tmp.sh`;\n\n(e) creates the directory `archive/2026/fall` (none of these directories exist yet).",
+      "starter": "# (a)\ncp ____ lectures lectures_copy\n# (b)\nmkdir ____\n# (c)\nmv ____ notes\n# (d)\n____ tmp.sh\n# (e)\nmkdir ____ archive/2026/fall",
+      "solution": "# (a)\ncp -r lectures lectures_copy\n# (b)\nmkdir notes images scripts\n# (c)\nmv *.pdf *.PDF notes\n# (d)\nrm tmp.sh\n# (e)\nmkdir -p archive/2026/fall",
+      "explain": "(a) needs `-r` because `lectures` is a directory. (b) `mkdir` accepts several names. (c) when `mv` gets several files, the last argument is the destination directory; `*.[pP][dD][fF]` also works. (e) `-p` creates the missing parents `archive` and `archive/2026`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "(a) `-r`"
+        },
+        {
+          "marks": 1,
+          "item": "(b) all three names"
+        },
+        {
+          "marks": 1,
+          "item": "(c) both `.pdf` and `.PDF` files moved"
+        },
+        {
+          "marks": 1,
+          "item": "(d) `rm`"
+        },
+        {
+          "marks": 1,
+          "item": "(e) `-p`"
+        }
+      ],
+      "pitfalls": [
+        "`rmdir tmp.sh` does not work on a file.",
+        "Part (c) must run after part (b), or `notes` does not exist and `mv` would fail (or rename a single file)."
+      ]
+    },
+    {
+      "id": "d2-w-04",
+      "topic": "d2-quoting",
+      "stage": "faded",
+      "marks": 4,
+      "prompt": "The current directory is `photos`:\n\n```\nphotos/\n├── .index\n├── .thumbs/\n├── Beach Day.jpg\n├── IMG_001.JPG\n├── IMG_002.jpg\n├── img_3.png\n└── read me.txt\n```\n\nFill in the blanks so that each line is a single command that:\n\n(a) prints the contents of `read me.txt`;\n\n(b) renames `Beach Day.jpg` to `beach_day.jpg`;\n\n(c) lists every file ending in `.jpg` in any mix of upper and lower case;\n\n(d) lists the names of the hidden entries only (not `.` and `..`), without listing the contents of the hidden directory.",
+      "starter": "# (a)\ncat ____\n# (b)\nmv ____ beach_day.jpg\n# (c)\nls *.____\n# (d)\nls -d .____",
+      "solution": "# (a)\ncat \"read me.txt\"\n# (b)\nmv \"Beach Day.jpg\" beach_day.jpg\n# (c)\nls *.[jJ][pP][gG]\n# (d)\nls -d .[!.]*",
+      "explain": "(a) and (b): the names contain a space, so they must be quoted (or the space escaped with `\\`). (c) each bracket set matches one character in either case. (d) the pattern starts with a literal `.`, so it can match hidden names; `[!.]` keeps out `.` and `..`; `-d` stops `ls` from listing what is inside `.thumbs`. The result is `.index  .thumbs`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "(a) name quoted or escaped"
+        },
+        {
+          "marks": 1,
+          "item": "(b) old name quoted or escaped"
+        },
+        {
+          "marks": 1,
+          "item": "(c) `[jJ][pP][gG]`"
+        },
+        {
+          "marks": 1,
+          "item": "(d) `[!.]*` (or an equivalent such as `??*`)"
+        }
+      ],
+      "pitfalls": [
+        "Quoting the glob (`ls \"*.jpg\"`) stops it from expanding.",
+        "`ls -a` would also list `.`, `..` and every non-hidden file."
+      ]
+    },
+    {
+      "id": "d2-w-05",
+      "topic": "d2-globs",
+      "stage": "blank",
+      "marks": 6,
+      "prompt": "The current directory is `course`:\n\n```\ncourse/\n├── handouts/\n│   ├── .draft.pdf\n│   ├── L01.pdf\n│   └── L02.PDF\n├── students/\n│   ├── Ann Lee/\n│   │   ├── .submitted\n│   │   └── lab1.c\n│   ├── Cy_Young/\n│   │   ├── .submitted\n│   │   ├── lab1.c\n│   │   └── lab2.c\n│   └── bob_ray/\n│       └── lab1.c\n└── todo.txt\n```\n\nWrite a **single command** for each part. Unless stated otherwise, the current directory is `course`. Do not use `cd`.\n\n(a) List all the files in `handouts`, including hidden files.\n\n(b) List every `.submitted` file in the student directories.\n\n(c) List every file in the student directories whose name is `lab`, then one digit, then `.c`.\n\n(d) Copy all the non-hidden PDF files in `handouts` (`.pdf` or `.PDF`) into the existing directory `students`.\n\n(e) The current directory is `students`. Rename the directory `Ann Lee` to `ann_lee`.\n\n(f) Remove the file `todo.txt` and the directory `handouts` with everything in it.",
+      "starter": "",
+      "solution": "# (a)\nls -a handouts\n# (b)\nls students/*/.submitted\n# (c)\nls students/*/lab[0-9].c\n# (d)\ncp handouts/*.[pP][dD][fF] students\n# (e)  (current directory: students)\nmv \"Ann Lee\" ann_lee\n# (f)\nrm -r todo.txt handouts",
+      "explain": "",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "(a) `ls -a handouts`"
+        },
+        {
+          "marks": 1,
+          "item": "(b) `students/*/.submitted` with the dot written literally"
+        },
+        {
+          "marks": 1,
+          "item": "(c) `[0-9]` for exactly one digit"
+        },
+        {
+          "marks": 1,
+          "item": "(d) both cases of the extension, destination last"
+        },
+        {
+          "marks": 1,
+          "item": "(e) the old name quoted or escaped"
+        },
+        {
+          "marks": 1,
+          "item": "(f) `-r` for the directory (one command; `rm todo.txt; rm -r handouts` on one line is also accepted)"
+        }
+      ],
+      "pitfalls": [
+        "`students/*/*.submitted` is wrong: `*` cannot match the leading dot of a hidden name.",
+        "`lab?.c` would also match a name like `labX.c`; the question asks for a digit."
+      ]
+    },
+    {
+      "id": "d2-w-06",
+      "topic": "d2-permissions",
+      "stage": "blank",
+      "marks": 5,
+      "prompt": "The current directory contains:\n\n```\n$ ls -l\n-rwxr-xr-x 1 user1 cisc220  210 Sep 15 10:00 build.sh\n-rw-rw-r-- 1 user1 cisc220 1830 Sep 15 10:00 data.csv\n-rw-r--r-- 1 user1 cisc220  512 Sep 15 10:00 notes.txt\ndrwxr-x--- 2 user1 cisc220 4096 Sep 15 10:00 shared\n-rw-r--r-- 1 user1 cisc220  640 Sep 15 10:00 todo.txt\n```\n\n(a) What are the octal permissions of `build.sh` and of `data.csv`?\n\n(b) Can a member of the group `cisc220` (who is not `user1`) create a new file inside `shared`? Explain in one sentence.\n\n(c) Write a single command, using a **symbolic** mode, that removes write permission for the group and others from `data.csv` and leaves every other permission unchanged.\n\n(d) Write a single command, using an **octal** mode, that sets every file ending in `.txt` to `rw-r-----`.\n\n(e) Write a single command that prints the permissions of `data.csv` as an octal number.",
+      "starter": "",
+      "solution": "# (a)\n# build.sh: 755    data.csv: 664\n# (b)\n# No: the group permissions on shared are r-x, and creating a file needs w on the directory.\n# (c)\nchmod go-w data.csv\n# (d)\nchmod 640 *.txt\n# (e)\nstat -c %a data.csv",
+      "explain": "",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "(a) 755 and 664"
+        },
+        {
+          "marks": 1,
+          "item": "(b) no, because the group lacks `w` on the directory"
+        },
+        {
+          "marks": 1,
+          "item": "(c) `chmod go-w data.csv` (`chmod g-w,o-w data.csv` also fine)"
+        },
+        {
+          "marks": 1,
+          "item": "(d) `chmod 640 *.txt`"
+        },
+        {
+          "marks": 1,
+          "item": "(e) `stat -c %a data.csv`"
+        }
+      ],
+      "pitfalls": [
+        "`chmod go=r data.csv` would be wrong if other permissions existed; here it happens to give the same result, but `-` is what the question asks for.",
+        "Read the permission string in groups of three: `rw-rw-r--` is 6, 6, 4."
+      ]
+    }
+  ]
+}

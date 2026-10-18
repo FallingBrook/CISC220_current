@@ -1,0 +1,1372 @@
+{
+  "day": 5,
+  "title": "Regular expressions and making decisions",
+  "goal": "Write if statements with file, string and integer tests, combine them with ! && ||, and use regular expressions with =~ and grep to validate input, as in Assignment 3's testpw.sh.",
+  "topics": [
+    {
+      "id": "d5-if",
+      "title": "Conditional statements: if, [[ ]] and tests",
+      "notebook": "bash/conditional_statements.ipynb",
+      "priority": "high",
+      "examNote": "Quiz 2 Q1E: *write an `if` statement that prints `not readable` if the file named in `f` is not readable* (`if [[ ! -r $f ]]; then echo \"not readable\"; fi`). Every long exam script starts with an argument check that prints a usage message to stderr and exits with a non-zero status (Assignment 3: `testpw.sh`, `tr220.sh`).",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "Until now your scripts ran every line, top to bottom. Today they start to **make decisions**: do one thing if a file exists, something else if it does not; print a usage message if the user forgot an argument.\n\n### The shape of an `if` statement\n\n```bash\nif test-commands; then\n    commands\nelif test-commands; then\n    commands\nelse\n    commands\nfi\n```\n\n- `if`, `then`, `elif`, `else` and `fi` are **keywords**. `fi` is `if` backwards and ends the statement.\n- `elif` (\"else if\") and `else` are optional. You can have many `elif` parts.\n- The `;` before `then` is required **when `then` is on the same line** as the condition. The `;` separates commands, just like a new line does. So this is the same statement:\n\n```bash\nif test-commands\nthen\n    commands\nfi\n```"
+        },
+        {
+          "type": "pitfall",
+          "text": "Forgetting `fi`, or writing `if ... then` with no `;` on one line (`if [[ -e $f ]] then`), is a syntax error. On paper, write `if ...; then` and immediately write the matching `fi` underneath before filling in the middle."
+        },
+        {
+          "type": "check",
+          "q": "Write a one-line `if` statement that prints `hi` if the condition `true` succeeds. Where does the `;` go?",
+          "a": "`if true; then echo \"hi\"; fi`. A `;` goes before `then` (because it is on the same line) and before `fi` (to end the `echo` command)."
+        },
+        {
+          "type": "md",
+          "text": "### The condition is a command: its exit status decides\n\nThis is the unusual part of Bash. The condition of an `if` is not a \"boolean expression\" like in Java. It is **a command**. Bash runs it and looks at its **exit status** (Day 1):\n\n- exit status `0` (success) means **true**, so the `then` part runs;\n- any non-zero exit status (failure) means **false**, so the `elif`/`else` part runs.\n\nThe command `true` does nothing and exits with `0`; `false` does nothing and exits with `1`:"
+        },
+        {
+          "type": "code",
+          "code": "$ if true; then echo \"true\"; fi\ntrue\n$ if false; then echo \"false\"; fi\n$",
+          "caption": "if false prints nothing: the condition failed and there is no else."
+        },
+        {
+          "type": "md",
+          "text": "Any command works as a condition. The course script `cdls2.sh` tries to `cd` into a directory, and uses the exit status of `cd` to decide what to do:"
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\n# cdls2.sh\n\nif cd \"$1\" 2> /dev/null      # discard standard error output of cd command\nthen\n    # cd successful\n    ls\nelse\n    # cd unsuccessful\n    echo \"error changing to directory $1\" >&2\n    exit 1\nfi"
+        },
+        {
+          "type": "code",
+          "code": "$ ./cdls2.sh /bad_dirname\nerror changing to directory /bad_dirname\n$ echo $?\n1"
+        },
+        {
+          "type": "md",
+          "text": "Two details:\n\n- `2> /dev/null` throws away `cd`'s own error message. `/dev/null` is the **null device**: a file that discards everything written to it. We only want `cd`'s exit status, not its complaint.\n- `echo \"...\" >&2` sends **our** error message to standard error (Day 3), and `exit 1` ends the script with a failure status. This \"message to stderr, then exit non-zero\" pattern appears in almost every exam script."
+        },
+        {
+          "type": "check",
+          "q": "In `if cd \"$1\" 2> /dev/null`, what decides whether the `then` part runs, and what does `2> /dev/null` do?",
+          "a": "The exit status of `cd`: 0 (it worked) runs `then`, non-zero runs `else`. `2> /dev/null` discards `cd`'s error message (standard error) so the user only sees the script's own message."
+        },
+        {
+          "type": "why",
+          "q": "Why can `if` use `grep` or `cd` as a condition, but `if 5 > 3` does not compare numbers?",
+          "a": "Because `if` only ever runs a command and checks its exit status. `if 5 > 3` runs a command named `5` with its output redirected into a file named `3`. To evaluate a comparison you need a command whose job is to evaluate it and set the exit status: `[[ ]]` or `(( ))`."
+        },
+        {
+          "type": "md",
+          "text": "### `[[ ]]`: a command that evaluates a logical expression\n\nTo test things like \"does this file exist?\" or \"are these strings equal?\" we need a command that evaluates the expression and sets its exit status to `0` (true) or `1` (false).\n\n- The standard UNIX command for this is `test`, usually written with single brackets: `[ expr ]`. Learn it only if you need scripts that run on many kinds of UNIX shells.\n- Bash (and zsh) also provide **double brackets** `[[ expr ]]`. It has fewer surprises and is what this course uses.\n\n`[[ expr ]]` has exit status `0` if *expr* is true and `1` if it is false."
+        },
+        {
+          "type": "code",
+          "code": "$ [[ 5 -lt 7 ]]\n$ echo $?\n0\n$ [[ 5 -gt 7 ]]\n$ echo $?\n1"
+        },
+        {
+          "type": "md",
+          "text": "**Spaces are required** after `[[` and before `]]`. `[[` is a word to Bash, like a command name. Without the space, `[[$x` is read as one strange word:"
+        },
+        {
+          "type": "code",
+          "code": "$ x=5\n$ if [[$x == 5]]; then echo hi; fi\nbash: [[5: command not found"
+        },
+        {
+          "type": "md",
+          "text": "**No word splitting or filename expansion happens inside `[[ ]]`.** So inside `[[ ]]` you usually do not need to double quote variable expansions: `[[ -e $file ]]` works even if `$file` contains spaces. (The course still wants `\"$var\"` everywhere else: in `echo`, `cp`, `mv`, `cd` and so on.) The single-bracket `[ ]` *does* split words, which is one of its surprises:"
+        },
+        {
+          "type": "code",
+          "code": "$ s=\"hello world\"\n$ if [ $s == \"hello world\" ]; then echo eq; fi\nbash: [: too many arguments\n$ if [[ $s == \"hello world\" ]]; then echo eq; fi\neq"
+        },
+        {
+          "type": "check",
+          "q": "What is wrong with `if [[$name == bob]]; then echo hi; fi`?",
+          "a": "There must be a space after `[[` and before `]]`: `if [[ $name == bob ]]; then echo hi; fi`."
+        },
+        {
+          "type": "md",
+          "text": "### File tests\n\nFiles are central in UNIX, so there are many tests for them. The ones to memorise:\n\n| Expression | True if ... |\n|---|---|\n| `-e file` | file **e**xists (any kind of file) |\n| `-f file` | file exists and is a regular **f**ile |\n| `-d file` | file exists and is a **d**irectory |\n| `-r file` | file exists and is **r**eadable |\n| `-w file` | file exists and is **w**ritable |\n| `-x file` | file exists and is e**x**ecutable |\n| `-s file` | file exists and has **s**ize greater than zero |\n| `f1 -nt f2` | f1 is newer (modification time) than f2 |\n| `f1 -ot f2` | f1 is older than f2 |\n\nThe course script `test_file.sh` uses several of them (it is a nice model of **nested** `if` statements):"
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n#\n# test_file.sh: Evaluate the status of a file\n\nfile=$1\nif [[ -e $file ]]; then                # no need to double quote $file\n                                       # because word splitting is suppressed\n  if [[ -f $file ]]; then\n    echo \"$file is a regular file\"\n  fi\n  if [[ -d $file ]]; then\n    echo \"$file is a directory\"\n  fi\n  if [[ -r $file ]]; then\n    echo \"$file is readable\"\n  fi\n  if [[ -w $file ]]; then\n    echo \"$file is writable\"\n  fi\n  if [[ -x $file ]]; then\n    echo \"$file is executable\"\n  fi\nelse\n  echo \"$file does not exist\"\n  exit 1\nfi"
+        },
+        {
+          "type": "code",
+          "code": "$ ./test_file.sh scripts\nscripts is a directory\nscripts is readable\nscripts is writable\nscripts is executable\n$ ./test_file.sh notes.txt\nnotes.txt is a regular file\nnotes.txt is readable\nnotes.txt is writable\n$ ./test_file.sh no_such_file\nno_such_file does not exist",
+          "caption": "scripts is a directory and notes.txt is a file with rw-r--r-- permissions. A directory with x permission counts as \"executable\" (you can cd into it)."
+        },
+        {
+          "type": "md",
+          "text": "To test the **opposite**, put `!` in front (more on `!` in the next topic). This is exactly Quiz 2 Q1E:\n\n```bash\nif [[ ! -r $f ]]; then echo \"not readable\"; fi\n```"
+        },
+        {
+          "type": "check",
+          "q": "Write an `if` statement that prints `not readable` if the file whose name is stored in `f` is not readable.",
+          "a": "`if [[ ! -r $f ]]; then echo \"not readable\"; fi`"
+        },
+        {
+          "type": "check",
+          "q": "`notes` is a directory. Which of `[[ -e notes ]]`, `[[ -f notes ]]`, `[[ -d notes ]]` are true?",
+          "a": "`-e` (it exists) and `-d` (it is a directory). `-f` is false: a directory is not a regular file."
+        },
+        {
+          "type": "md",
+          "text": "### String tests\n\n| Expression | True if ... |\n|---|---|\n| `string` | the string is not empty |\n| `-n string` | the length of string is greater than zero |\n| `-z string` | the length of string is zero (empty) |\n| `s1 == s2` (or `s1 = s2`) | the strings are equal |\n| `s1 != s2` | the strings are not equal |\n| `s1 < s2` | s1 comes before s2 lexicographically (dictionary order) |\n| `s1 > s2` | s1 comes after s2 lexicographically |\n| `s1 =~ regex` | s1 matches the regular expression (topic 3) |\n\nThe course script `compstr.sh` does a Java-like `compareTo` of two strings using `if`/`elif`/`else`:"
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\n# compstr.sh : Java-like compareTo comparison of strings\n\ns1=$1\ns2=$2\nif [[ $s1 == $s2 ]]; then\n    echo 0\nelif [[ $s1 < $s2 ]]; then\n    echo -1\nelse\n    echo 1\nfi"
+        },
+        {
+          "type": "code",
+          "code": "$ ./compstr.sh cat cat\n0\n$ ./compstr.sh antelope zebra\n-1\n$ ./compstr.sh tiger poodle\n1\n$ ./compstr.sh 100 2\n-1"
+        },
+        {
+          "type": "pitfall",
+          "text": "Inside `[[ ]]`, `==`, `<` and `>` compare **strings**, character by character, even if they look like numbers. `[[ 100 < 2 ]]` is **true** because the character `1` comes before `2`. To compare numbers use `-lt`, `-gt`, ... or `(( ))`."
+        },
+        {
+          "type": "check",
+          "q": "What does `[[ 100 < 2 ]]; echo $?` print, and why?",
+          "a": "`0` (true). `<` inside `[[ ]]` compares strings lexicographically, and \"100\" comes before \"2\" because `1` comes before `2`."
+        },
+        {
+          "type": "md",
+          "text": "#### Pattern matching with `==` and `!=`\n\nIf the right side of `==` or `!=` is **not quoted**, it is treated as a **pattern** (the same glob patterns as filename expansion on Day 2): `*` matches any sequence of characters (even none), `?` matches exactly one character, `[ ]` matches one character from a set."
+        },
+        {
+          "type": "code",
+          "code": "$ str=\"avocado\"\n$ if [[ $str == a* ]]; then echo \"starts with a\"; else echo \"does not start with a\"; fi\nstarts with a\n$ if [[ $str == \"a*\" ]]; then echo \"equal\"; else echo \"not equal\"; fi\nnot equal\n$ str=\"K7L3N6\"\n$ if [[ $str == [A-Z][0-9][A-Z][0-9][A-Z][0-9] ]]; then echo \"might be a postal code\"; fi\nmight be a postal code",
+          "caption": "Quoting the right side turns the pattern into a plain string: \"a*\" only equals the two characters a and *."
+        },
+        {
+          "type": "md",
+          "text": "A pattern like `a?a` matches any three-character string that starts and ends with `a` (`ada`, `aaa`, `a7a`). (The notebook's text writes `a*a` here, but `*` would also match `aa`, `abba`, ... ; `?` is the one-character wildcard.)\n\n`-z` and `-n` test for empty strings:"
+        },
+        {
+          "type": "code",
+          "code": "$ s=\"\"\n$ if [[ -z $s ]]; then echo \"empty\"; else echo \"not empty\"; fi\nempty\n$ if [[ $s ]]; then echo \"not empty\"; else echo \"empty\"; fi\nempty"
+        },
+        {
+          "type": "md",
+          "text": "#### `-v`: has a variable been assigned?\n\n`[[ -v varname ]]` is true if the variable has been assigned a value (even the empty string). Write the variable's **name**, not `$name`:"
+        },
+        {
+          "type": "code",
+          "code": "$ unset x\n$ if [[ -v x ]]; then echo \"x assigned\"; else echo \"x not assigned\"; fi\nx not assigned\n$ x=\n$ if [[ -v x ]]; then echo \"x assigned\"; else echo \"x not assigned\"; fi\nx assigned"
+        },
+        {
+          "type": "check",
+          "q": "What is the difference between `[[ $s == a* ]]` and `[[ $s == \"a*\" ]]`?",
+          "a": "Unquoted `a*` is a pattern: true for any string starting with `a`. Quoted `\"a*\"` is a plain string: true only if `s` is exactly the two characters `a*`."
+        },
+        {
+          "type": "md",
+          "text": "### Integer tests\n\nTo compare integers inside `[[ ]]`, use these operators (think of the letters: **eq**ual, **n**ot **e**qual, **l**ess **t**han, ...):\n\n| Expression | True if ... |\n|---|---|\n| `a -eq b` | a == b |\n| `a -ne b` | a != b |\n| `a -lt b` | a < b |\n| `a -le b` | a <= b |\n| `a -gt b` | a > b |\n| `a -ge b` | a >= b |\n\nOr use **arithmetic** `(( ))` from Day 4, where `<`, `>`, `==`, `!=`, `<=`, `>=` *do* mean numeric comparison. `(( expr ))` has exit status `0` when *expr* is non-zero (true) and `1` when it is `0` (false), so it works as an `if` condition. Both styles are fine on the exam:"
+        },
+        {
+          "type": "code",
+          "code": "$ if [[ 10 -lt 9 ]]; then echo \"less\"; else echo \"not less\"; fi\nnot less\n$ if (( 10 < 9 )); then echo \"less\"; else echo \"not less\"; fi\nnot less\n$ if [[ 10 < 9 ]]; then echo \"less\"; else echo \"not less\"; fi\nless",
+          "caption": "The last one is the string trap again: \"10\" < \"9\" as strings."
+        },
+        {
+          "type": "md",
+          "text": "The course script `compint.sh` compares integers with a nested `if`:"
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\n# compint.sh : Java-like compareTo comparison of integers\n\ni1=$1\ni2=$2\nif [[ $i1 -ne $i2 ]]; then           # not equal\n    if [[ $i1 -lt $i2 ]]; then           # less than\n        echo -1\n    else\n        echo 1\n    fi\nelse\n    echo 0\nfi"
+        },
+        {
+          "type": "code",
+          "code": "$ ./compint.sh 5 5\n0\n$ ./compint.sh -3 12\n-1\n$ ./compint.sh 22 21\n1\n$ ./compint.sh hello goodbye\n0\n$ ./compint.sh abc 3\n-1\n$ ./compint.sh 2#101 1\n1"
+        },
+        {
+          "type": "md",
+          "text": "Surprise: a non-integer such as `hello` used in an integer test is usually **treated as 0**, with no error (so `hello` and `goodbye` are \"equal\"). And `2#101` means 101 in base 2, which is 5. That is why real scripts check the input with a regular expression first (topic 3)."
+        },
+        {
+          "type": "check",
+          "q": "Write a condition that is true when the integer in `n` is at least 10, in two ways.",
+          "a": "`[[ $n -ge 10 ]]` or `(( n >= 10 ))`."
+        },
+        {
+          "type": "md",
+          "text": "### Checking the command line arguments (the usage message)\n\nBash does not complain if a script uses `$1` and the user gave no arguments: `$1` is just empty. So a script that needs arguments must check `$#` itself, print a **usage message to standard error**, and **exit with a non-zero status**. This is the first thing in almost every exam script:"
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\n# namedsh.sh\n\nif [[ $# -ne 1 ]]; then\n    # oops, no filename specified\n    echo \"namedsh.sh: output filename required\" >&2\n    exit 2\nfi\n\nif [[ -e $1 ]]; then\n    # oops, specified file already exists\n    echo \"namedsh.sh: $1 already exists\" >&2\n    exit 1\nfi\n\n# specified does not exist, go ahead and create it\necho '#!/bin/bash' > \"$1\"\nchmod u+x \"$1\"",
+          "caption": "The course's namedsh.sh (with \"$1\" quoted, as the course requires in commands)."
+        },
+        {
+          "type": "md",
+          "text": "The same check written with `(( ))`, as in the Arithmetic notebook and the course's `test_regex.sh`:\n\n```bash\nif (( $# != 1 )); then\n    echo \"Usage: myscript.sh filename\" >&2\n    exit 1\nfi\n```\n\nBecause `exit` ends the script, no `else` is needed: the rest of the script only runs when the arguments are fine. This \"guard clause\" style keeps scripts flat and readable."
+        },
+        {
+          "type": "why",
+          "q": "Why does the usage message go to standard error (`>&2`) and why exit with a non-zero status?",
+          "a": "Standard error is for messages about problems, so they are not mixed into the script's real output (which may be piped or redirected to a file). A non-zero exit status tells whoever ran the script (a person, `if`, or a grading script) that it failed."
+        },
+        {
+          "type": "md",
+          "text": "### Also seen in Bash: `case` (not in the course notebooks)\n\nYou may meet `case` elsewhere. It compares one word against several glob patterns:\n\n```bash\ncase $answer in\n    y|yes) echo \"OK\" ;;\n    n|no)  echo \"cancelled\" ;;\n    *)     echo \"please answer yes or no\" ;;\nesac\n```\n\nThe course notebooks never use it, so you do not need it for the midterm; an `if`/`elif` chain with `[[ $answer == ... ]]` does the same job."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- `if cmd; then ...; elif cmd; then ...; else ...; fi`: the condition is a **command**; exit status `0` means true.\n- `[[ expr ]]` evaluates file, string and integer tests. Spaces after `[[` and before `]]` are required.\n- File tests: `-e -f -d -r -w -x -s`. Strings: `== != < > -z -n`. Integers: `-eq -ne -lt -le -gt -ge` or `(( ))`.\n- Inside `[[ ]]`, `<` and `>` compare **strings**; an unquoted right side of `==`/`!=` is a **glob pattern**.\n- Usage check: `if (( $# != 1 )); then echo \"Usage: ...\" >&2; exit 1; fi`."
+        }
+      ]
+    },
+    {
+      "id": "d5-operators",
+      "title": "Conditional operators: ! && ||",
+      "notebook": "bash/conditional_operators.ipynb",
+      "priority": "medium",
+      "examNote": "Not asked on its own in past tests, but `!` appears in Quiz 2 Q1E (`[[ ! -r $f ]]`) and you need `&&`/`||` to combine tests in written scripts (e.g. a mark that must be a number *and* at most 100).",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "Conditions can be **negated**, **combined** and **grouped** with these operators, listed from highest to lowest precedence (precedence = which operator is applied first, like `*` before `+` in math):\n\n1. `( expr )`: the value of *expr* (grouping)\n2. `! expr`: true if *expr* is false, false if *expr* is true\n3. `expr1 && expr2`: true if **both** are true; *expr2* is **not evaluated** if *expr1* is false\n4. `expr1 || expr2`: true if **either** is true; *expr2* is **not evaluated** if *expr1* is true\n\nThey work inside `[[ ]]` and, with the same meaning, inside `(( ))`."
+        },
+        {
+          "type": "md",
+          "text": "### `!` (not)\n\nThe course example creates a file only if it does not already exist:"
+        },
+        {
+          "type": "code",
+          "code": "file=./newfile\n\nif [[ ! -e $file ]]; then\n    echo \"Creating $file ...\"\n    touch \"$file\"\nelse\n    echo \"$file already exists\"\nfi"
+        },
+        {
+          "type": "code",
+          "code": "$ ./create.sh\nCreating ./newfile ...\n$ ./create.sh\n./newfile already exists",
+          "caption": "Running the code above (saved as create.sh) twice."
+        },
+        {
+          "type": "check",
+          "q": "Write a condition that is true when the file named in `f` is NOT a directory.",
+          "a": "`[[ ! -d $f ]]`"
+        },
+        {
+          "type": "md",
+          "text": "### `&&` (and)\n\n\"Is the file a regular file **and** readable?\"\n\n```bash\nif [[ -f $file && -r $file ]]; then\n    echo \"$file is a regular file and readable by $USER\"\nelse\n    echo \"$file is not a regular file and/or not readable by $USER\"\nfi\n```\n\n**Short-circuit evaluation**: if the left side of `&&` is false, the whole thing is already false, so Bash does not even evaluate the right side. Likewise, if the left side of `||` is true, the right side is skipped."
+        },
+        {
+          "type": "code",
+          "code": "$ f=nosuch\n$ if [[ -e $f && -r $f ]]; then echo \"ok\"; else echo \"not ok\"; fi\nnot ok",
+          "caption": "-e fails, so -r is never tested."
+        },
+        {
+          "type": "md",
+          "text": "### `||` (or) and grouping with `( )`\n\nThe course's leap-year example: a year is a leap year if it is divisible by 400, **or** if it is divisible by 4 **and not** divisible by 100. This is arithmetic, so it goes in `(( ))`, where `%` is the remainder:"
+        },
+        {
+          "type": "code",
+          "code": "yr=2000\nif (( yr % 400 == 0 || (yr % 4 == 0 && yr % 100 != 0) )); then\n    echo \"$yr is a leap year\"\nelse\n    echo \"$yr is not a leap year\"\nfi"
+        },
+        {
+          "type": "code",
+          "code": "2000 is a leap year",
+          "caption": "With yr=1900 it prints 1900 is not a leap year (divisible by 100 but not 400); with yr=2024, 2024 is a leap year."
+        },
+        {
+          "type": "md",
+          "text": "The parentheses make the meaning clear. Because `&&` has higher precedence than `||`, they happen to be optional here, but writing them is clearer and costs nothing on an exam.\n\nInside `[[ ]]` the same operators combine tests:"
+        },
+        {
+          "type": "code",
+          "code": "$ s=\"\"\n$ if [[ ! -z $s || -n $s ]]; then echo yes; else echo no; fi\nno",
+          "caption": "! -z \"\" is false, -n \"\" is false; false || false is false."
+        },
+        {
+          "type": "check",
+          "q": "What does `x=15; if (( x > 3 && x < 10 )); then echo in; else echo out; fi` print?",
+          "a": "`out`. 15 > 3 is true but 15 < 10 is false, and `&&` needs both."
+        },
+        {
+          "type": "why",
+          "q": "Why is `[[ -e $f && -r $f ]]` safe even when `f` names a file that does not exist?",
+          "a": "Short-circuiting: when `-e $f` is false, `&&` already knows the answer is false and never evaluates `-r $f`. (Here `-r` would also just be false, but in general short-circuiting lets the left test protect the right one.)"
+        },
+        {
+          "type": "pitfall",
+          "text": "`&&` and `||` go **inside** one `[[ ]]`: `[[ -f $f && -r $f ]]`. One pair of brackets holds the whole combined condition."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- `!` negates, `&&` needs both, `||` needs either; `( )` groups. Precedence: `( )`, then `!`, then `&&`, then `||`.\n- Short-circuit: `&&` skips the right side if the left is false; `||` skips it if the left is true.\n- Use them inside `[[ ]]` for file/string tests and inside `(( ))` for arithmetic, e.g. the leap-year test.\n- Add parentheses when mixing `&&` and `||`: clearer for you and the marker."
+        }
+      ]
+    },
+    {
+      "id": "d5-regex",
+      "title": "Regular expressions, =~ and grep",
+      "notebook": "bash/regex.ipynb",
+      "priority": "high",
+      "examNote": "Quiz 2 Q1A: *what does `?` mean in a regex?* (zero or one instances of the preceding atom). Quiz 2 Q1B: *a regex matching strings that start and end with a lowercase letter*. Assignment 3 Q1 (`testpw.sh`) checks a password with `=~` and `[:space:]`, `[:alpha:]`, `[:digit:]`, `[:punct:]`, the model for a long written question.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "A **regular expression** (regex) is a string that describes a search **pattern** for text. You use one when you need to ask \"does this text look like X?\": an integer, a phone number, a password with at least one digit.\n\nBash uses the **POSIX extended regular expression** syntax. Warning: regexes use some of the same symbols as Bash's glob patterns (`*`, `?`, `[ ]`) but with **different meanings**. Keep them apart:\n\n| Symbol | Glob pattern (Day 2, `==`) | Regular expression |\n|---|---|---|\n| `*` | any sequence of characters | **zero or more of the preceding atom** |\n| `?` | exactly one character | **zero or one of the preceding atom** |\n| `.` | a literal dot | **any single character** |"
+        },
+        {
+          "type": "md",
+          "text": "### The `=~` operator\n\nInside `[[ ]]`, `=~` does regex matching:\n\n```bash\nif [[ $str =~ $re ]]; then\n    echo \"$str matches $re\"\nfi\n```\n\nIt is true if **any part** of `$str` matches the pattern (the match does not have to cover the whole string unless you use anchors, see below). The course's `test_regex.sh` script is handy for experimenting:"
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\n# test_regex.sh\n\nif (( $# != 2 )); then\n    echo \"Usage: test_regex string regex\" >&2\n    exit 1\nfi\nstr=$1\nre=$2\nif [[ $str =~ $re ]]; then\n    echo \"The string $str is matched by the regex $re\"\nelse\n    echo \"The string $str is not matched by the regex $re\"\nfi"
+        },
+        {
+          "type": "md",
+          "text": "Ordinary characters match themselves:"
+        },
+        {
+          "type": "code",
+          "code": "$ ./test_regex.sh hello a\nThe string hello is not matched by the regex a\n$ ./test_regex.sh walrus a\nThe string walrus is matched by the regex a\n$ ./test_regex.sh sandman and\nThe string sandman is matched by the regex and"
+        },
+        {
+          "type": "pitfall",
+          "text": "**Do not quote the regex** on the right of `=~`. `[[ $str =~ \"$re\" ]]` matches `$re` as a plain string, character for character, not as a regex. Quoting only part (`^a\".\"c$`) makes that part literal. Store tricky regexes in a variable (`re='...'`) and write `[[ $str =~ $re ]]`."
+        },
+        {
+          "type": "code",
+          "code": "$ re=\"a.c\"\n$ if [[ abc =~ $re ]]; then echo \"match\"; else echo \"no match\"; fi\nmatch\n$ if [[ abc =~ \"$re\" ]]; then echo \"match\"; else echo \"no match\"; fi\nno match"
+        },
+        {
+          "type": "check",
+          "q": "Does `[[ sandman =~ and ]]` succeed? Why?",
+          "a": "Yes. Without anchors, `=~` succeeds if the pattern appears **anywhere** in the string, and `sandman` contains `and`."
+        },
+        {
+          "type": "md",
+          "text": "### Metacharacters\n\nA regex is made of ordinary characters, which match themselves, and **metacharacters**, which have special meaning. Learn this table exactly as the course states it:\n\n| Metacharacter | Meaning |\n|---|---|\n| `^` | **anchor**: matches the beginning of the line (when first in the expression) |\n| `$` | **anchor**: matches the end of the line (when last in the expression) |\n| `.` | matches **any single character** |\n| `[ ]` | **bracket expression**: matches any single character inside the brackets |\n| `[^ ]` | matches any single character **not** inside the brackets |\n| `( )` | a **subexpression** (group) |\n| `*` | the preceding element **zero or more** times |\n| `?` | the preceding element **zero or one** time |\n| `+` | the preceding element **one or more** times |\n| `{m,n}` | the preceding element at least m and at most n times |\n| vertical bar (see below) | **choice**: matches the expression before or after it |\n\nMetacharacters **lose their special meaning inside square brackets**, so `[.]` matches a literal dot and `[(]` a literal parenthesis."
+        },
+        {
+          "type": "md",
+          "text": "Examples (all from the notebook):\n\n| Regex | Matches |\n|---|---|\n| `hello` | any string containing the substring `hello` |\n| `^hello$` | exactly `hello` |\n| `^.ello$` | `1ello`, `Aello`, `jello`, ... (any one character, then `ello`) |\n| `^h..lo$` | `h11lo`, `hAylo`, `h@Mlo`, ... |\n| `^s[aei]t$` | `sat`, `set`, `sit` |\n| `^s[a-z]t$` | `sat`, `sbt`, ..., `szt` |\n| `^s[-a-z]t$` | `s-t`, `sat`, ..., `szt` (a `-` first in brackets is literal) |\n| `^file[0-9]$` | `file0`, ..., `file9` |\n| `^a[.]c$` | only `a.c` |\n\nAnchors matter: `hello` matches `Say hello`, but `^hello$` matches only the exact string `hello`. When a question says \"strings that **are** ...\" you almost always need both `^` and `$`."
+        },
+        {
+          "type": "check",
+          "q": "Which strings does `^s[aei]t$` match? Does it match `seat`?",
+          "a": "Exactly `sat`, `set`, `sit`. Not `seat`: a bracket expression matches **one** character, and `^...$` forces the whole string to be three characters."
+        },
+        {
+          "type": "md",
+          "text": "### Atoms and quantifiers\n\nAn **atom** is a single (ordinary) character, a bracket expression, or a subexpression `( )`. A **quantifier** (`*`, `?`, `+`, `{m,n}`) says how many times **the atom just before it** must match. That is the exam answer for Quiz 2 Q1A: *`?` means zero or one instances of the preceding atom.*\n\n| Regex | Matches |\n|---|---|\n| `^.*$` | all strings, including the empty string |\n| `^.+$` | all non-empty strings |\n| `^.?$` | the empty string and all strings of length one |\n| `[0-9]` | any string containing at least one digit |\n| `^[0-9]+$` | any unsigned integer (only digits, at least one) |\n| `^-[0-9]+$` | any negative integer |\n| `^[-+]?[0-9]+$` | any signed or unsigned integer |\n| `^[-+]?[[:digit:]]+$` | the same, using a POSIX class |\n| `^xa{1}$` | `xa` |\n| `^xa{1,}$` | `x` followed by one or more `a`s |\n| `^xa{1,3}$` | `xa`, `xaa`, or `xaaa` |\n| `^(abc)+$` | `abc`, `abcabc`, `abcabcabc`, ... |"
+        },
+        {
+          "type": "code",
+          "code": "$ ./test_regex.sh color '^colou?r$'\nThe string color is matched by the regex ^colou?r$\n$ ./test_regex.sh colouur '^colou?r$'\nThe string colouur is not matched by the regex ^colou?r$",
+          "caption": "u? means: zero or one u. Single quotes stop Bash from touching $ and ? before the script sees them."
+        },
+        {
+          "type": "pitfall",
+          "text": "A quantifier applies only to the **one atom** right before it. `^ab+$` matches `ab`, `abb`, `abbb` (more b's), not `abab`. To repeat several characters, group them: `^(ab)+$`."
+        },
+        {
+          "type": "check",
+          "q": "What does the metacharacter `?` mean in a regular expression? (Quiz 2 Q1A)",
+          "a": "Zero or one instances (occurrences) of the preceding atom."
+        },
+        {
+          "type": "md",
+          "text": "### POSIX character classes\n\nInside a bracket expression you can name a whole **class** of characters. Note the **double** brackets: the outer `[ ]` is the bracket expression, the inner `[: :]` is the class name.\n\n| Class | Matches one ... |\n|---|---|\n| `[[:digit:]]` | digit, same as `[0-9]` |\n| `[[:alpha:]]` | letter |\n| `[[:upper:]]` / `[[:lower:]]` | uppercase / lowercase letter |\n| `[[:alnum:]]` | letter or digit |\n| `[[:space:]]` | whitespace character (space, tab, newline, ...) |\n| `[[:blank:]]` | space or tab |\n| `[[:punct:]]` | punctuation/symbol character, such as `! @ # . , -` |\n\nThese are what Assignment 3's `testpw.sh` uses: `[[ $pw =~ [[:digit:]] ]]` is true if the password contains a digit anywhere.\n\nA note on ranges like `[a-z]`: in some locales (language settings) ranges can behave unexpectedly. The course examples (and this app) assume the standard `C` locale, where `[a-z]` is exactly the 26 lowercase letters. `[[:lower:]]` always means lowercase letters."
+        },
+        {
+          "type": "check",
+          "q": "Write a test that is true if the string in `pw` contains at least one whitespace character.",
+          "a": "`[[ $pw =~ [[:space:]] ]]` (no anchors, so it matches anywhere in the string)."
+        },
+        {
+          "type": "md",
+          "text": "### Choice `|` and subexpressions `( )`\n\nThe vertical bar `|` is the **choice** operator: `a|b` matches anything matching `a` **or** `b`. It has the **lowest** precedence: it splits the *whole* regex into two alternatives unless parentheses limit it.\n\n- `a|b` (alternatives `a` and `b`): any string containing an `a` or a `b`\n- `^b|cat$` (alternatives `^b` and `cat$`): any string starting with `b` **or** ending with `cat`\n- `^b|(^c)at$` (alternatives `^b` and `(^c)at$`): any string starting with `b`, or the string `cat`\n- `(^b|^c)at$` (alternatives `^b` and `^c`, inside the group): exactly `bat` or `cat`\n\nSo `^(19|20)[0-9][0-9]$` matches years 1900 to 2099, and `^(0[1-9]|1[0-2])$` matches months `01` to `12`."
+        },
+        {
+          "type": "code",
+          "code": "$ ./test_regex.sh java \"a|b\"\nThe string java is matched by the regex a|b"
+        },
+        {
+          "type": "check",
+          "q": "Does `^b|cat$` match `bobcat`? Does `(^b|^c)at$` match it?",
+          "a": "`^b|cat$`: yes (it starts with `b`; it also ends with `cat`). `(^b|^c)at$`: no, that only matches exactly `bat` or `cat`."
+        },
+        {
+          "type": "md",
+          "text": "### Writing a regex: start and end with a lowercase letter (Quiz 2 Q1B)\n\n*Provide a regular expression that matches all strings that start and end with a lowercase English letter.* Build it piece by piece:\n\n1. Start with a lowercase letter: `^[a-z]`\n2. End with a lowercase letter: `[a-z]$`\n3. Anything in between: `.*`\n\nThat gives `^[a-z].*[a-z]$`. But it needs **at least two** characters, so the one-letter string `a` (which starts and ends with a lowercase letter) is not matched. Fix: make \"anything, then a final letter\" optional with `( )?`:\n\n```\n^[a-z](.*[a-z])?$\n```\n\nCheck it against test strings (assume the C locale):\n\n| String | `^[a-z]+$` | `^[a-z].*[a-z]$` | `^[a-z](.*[a-z])?$` |\n|---|---|---|---|\n| `a` | match | **no** | match |\n| `abc` | match | match | match |\n| `x-ray` | **no** | match | match |\n| `a1b` | **no** | match | match |\n| `aB` | no | no | no |\n| `Ab` | no | no | no |\n\nThe posted answer key accepted `^[a-z]+$` and `^[a-z]*[a-z]$` (these are the same pattern) as correct and `^[a-z].*[a-z]$` as sufficient. Notice that `^[a-z]+$` really means \"**only** lowercase letters\", so it rejects `x-ray`. Write `^[a-z](.*[a-z])?$` (or `^[a-z]$|^[a-z].*[a-z]$`): it is correct under any reading of the question."
+        },
+        {
+          "type": "why",
+          "q": "Why does `^[a-z].*[a-z]$` fail to match the string `a`?",
+          "a": "It contains two separate `[a-z]` atoms, each of which must match one character, so the string needs at least two characters. With one character, the first `[a-z]` uses the `a` and nothing is left for the last `[a-z]`."
+        },
+        {
+          "type": "md",
+          "text": "### `grep`: search files for lines that match a regex\n\n`grep` (\"global regular expression print\") prints the **lines** of files (or of standard input) that match a regex. Use `-E` for the extended syntax described above (without it, `grep` uses an older \"basic\" syntax in which `+ ? | { } ( )` are not special):\n\n```\ngrep -E [options] regex [file...]\n```\n\nUseful options taught in the course: `-n` (print line numbers), `-i` (ignore upper/lower case). If no file is given, `grep` reads standard input, so it works at the end of a pipe. Quote the regex (single quotes are safest) so the shell does not expand `*`, `?`, `$`, `|`, `[ ]` first."
+        },
+        {
+          "type": "code",
+          "code": "$ cat bin.txt\nzip\ngzip\nzipinfo\nbunzip2\nfunzip\nunzip\n$ grep -E zip bin.txt\nzip\ngzip\nzipinfo\nbunzip2\nfunzip\nunzip\n$ grep -E '^zip' bin.txt\nzip\nzipinfo\n$ grep -E 'zip$' bin.txt\nzip\ngzip\nfunzip\nunzip",
+          "caption": "In the notebook the input is ls /usr/bin | grep -E zip; here a small file stands in for /usr/bin."
+        },
+        {
+          "type": "code",
+          "code": "$ cat pets.txt\ncat\ndog\ncatalog\nCat\nbobcat\n$ grep -En 'o' pets.txt\n2:dog\n3:catalog\n5:bobcat\n$ grep -Ei 'cat$' pets.txt\ncat\nCat\nbobcat"
+        },
+        {
+          "type": "md",
+          "text": "The notebook also finds `for` loops in a Java file with `grep -En \"for[[:blank:]]*[(]\" AllWordsLookup.java`: `for`, then zero or more blanks, then a literal `(` (the `(` is a metacharacter, so it is put inside `[ ]`). And a crossword helper: `grep -Ei \"^.ak.s$\" /usr/share/dict/words` finds five-letter words like `makes` and `takes`.\n\n`grep` also sets its exit status: `0` if some line matched, `1` if none did. So it can be an `if` condition:\n\n```bash\nif grep -E '^dog$' pets.txt > /dev/null; then\n    echo \"found\"\nfi\n```"
+        },
+        {
+          "type": "check",
+          "q": "Write a command that prints, with line numbers, the lines of `log.txt` that start with `ERROR`.",
+          "a": "`grep -En '^ERROR' log.txt`"
+        },
+        {
+          "type": "md",
+          "text": "### Putting it together: a validator script (Assignment 3 Q1 style)\n\nChecking that input \"looks right\" combines everything today: a usage check, `=~` with classes, `${#s}` for length (Day 4), `!`, and stderr messages. The trick for \"print a message for **every** failing rule\" is to **not exit early**: remember failure in a variable and exit at the end."
+        },
+        {
+          "type": "code",
+          "code": "#!/bin/bash\n\n# isint.sh: is the argument an integer?\n\nif (( $# != 1 )); then\n    echo \"Usage: isint.sh value\" >&2\n    exit 1\nfi\n\nif [[ $1 =~ ^[-+]?[0-9]+$ ]]; then\n    echo \"$1 is an integer\"\nelse\n    echo \"$1 is not an integer\"\n    exit 2\nfi"
+        },
+        {
+          "type": "code",
+          "code": "$ ./isint.sh -7\n-7 is an integer\n$ ./isint.sh 4x2\n4x2 is not an integer\n$ echo $?\n2\n$ ./isint.sh\nUsage: isint.sh value"
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- `[[ $str =~ $re ]]` is true if **any part** of `str` matches; use `^` and `$` to match the whole string. Never quote the regex.\n- `.` any char, `[ ]` one char from a set, `[^ ]` one char not in the set, `*` 0+, `+` 1+, `?` 0 or 1, `{m,n}` m to n, `|` or, `( )` group.\n- A quantifier applies to the preceding **atom** (character, bracket expression, or group).\n- POSIX classes go inside brackets: `[[:digit:]]`, `[[:alpha:]]`, `[[:space:]]`, `[[:punct:]]`.\n- `grep -E regex file` prints matching lines; `-n` line numbers, `-i` ignore case."
+        }
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "id": "d5-fc-01",
+      "topic": "d5-if",
+      "front": "Write the full form of an `if` statement with `elif` and `else` (then on the same line).",
+      "back": "```bash\nif test-commands; then\n    commands\nelif test-commands; then\n    commands\nelse\n    commands\nfi\n```"
+    },
+    {
+      "id": "d5-fc-02",
+      "topic": "d5-if",
+      "front": "When is the `;` before `then` required?",
+      "back": "When `then` is on the same line as the condition. `;` separates commands just like a newline does."
+    },
+    {
+      "id": "d5-fc-03",
+      "topic": "d5-if",
+      "front": "How does `if` decide whether its condition is true?",
+      "back": "It runs the condition **command** and checks its exit status: `0` means true, non-zero means false."
+    },
+    {
+      "id": "d5-fc-04",
+      "topic": "d5-if",
+      "front": "Exit status of `true` and of `false`?",
+      "back": "`true` exits with `0`; `false` exits with `1`."
+    },
+    {
+      "id": "d5-fc-05",
+      "topic": "d5-if",
+      "front": "What is `/dev/null` and why write `cd \"$1\" 2> /dev/null`?",
+      "back": "The null device: it discards everything written to it. `2> /dev/null` throws away `cd`'s error message when we only want its exit status."
+    },
+    {
+      "id": "d5-fc-06",
+      "topic": "d5-if",
+      "front": "Exit status of `[[ expr ]]`?",
+      "back": "`0` if *expr* is true, `1` if it is false."
+    },
+    {
+      "id": "d5-fc-07",
+      "topic": "d5-if",
+      "front": "`[[ ]]` vs `test` / `[ ]`?",
+      "back": "`test` (written `[ ]`) is the standard UNIX command, portable to other shells. `[[ ]]` is Bash's version with fewer surprises (e.g. no word splitting inside). The course uses `[[ ]]`."
+    },
+    {
+      "id": "d5-fc-08",
+      "topic": "d5-if",
+      "front": "Why must you write spaces in `[[ $x == 5 ]]`?",
+      "back": "`[[` and `]]` must be separate words. `[[$x` becomes one word, e.g. `[[5: command not found`."
+    },
+    {
+      "id": "d5-fc-09",
+      "topic": "d5-if",
+      "front": "Which expansions do NOT happen inside `[[ ]]`?",
+      "back": "Word splitting and filename expansion. So `[[ -e $file ]]` works even if the name has spaces."
+    },
+    {
+      "id": "d5-fc-10",
+      "topic": "d5-if",
+      "front": "`-e file`",
+      "back": "True if the file exists (any kind of file)."
+    },
+    {
+      "id": "d5-fc-11",
+      "topic": "d5-if",
+      "front": "`-f file`",
+      "back": "True if the file exists and is a regular file."
+    },
+    {
+      "id": "d5-fc-12",
+      "topic": "d5-if",
+      "front": "`-d file`",
+      "back": "True if the file exists and is a directory."
+    },
+    {
+      "id": "d5-fc-13",
+      "topic": "d5-if",
+      "front": "`-r`, `-w`, `-x file`",
+      "back": "True if the file exists and is readable / writable / executable (by you)."
+    },
+    {
+      "id": "d5-fc-14",
+      "topic": "d5-if",
+      "front": "`-s file`",
+      "back": "True if the file exists and has a size greater than zero."
+    },
+    {
+      "id": "d5-fc-15",
+      "topic": "d5-if",
+      "front": "`f1 -nt f2` and `f1 -ot f2`",
+      "back": "f1 is newer than f2 (or f1 exists and f2 does not) / f1 is older than f2 (or f2 exists and f1 does not), by modification time."
+    },
+    {
+      "id": "d5-fc-16",
+      "topic": "d5-if",
+      "front": "`-z str` vs `-n str`",
+      "back": "`-z`: true if the string is empty (length zero). `-n`: true if its length is greater than zero."
+    },
+    {
+      "id": "d5-fc-17",
+      "topic": "d5-if",
+      "front": "What does `[[ $s ]]` (just a string) test?",
+      "back": "True if the string is not empty."
+    },
+    {
+      "id": "d5-fc-18",
+      "topic": "d5-if",
+      "front": "String operators inside `[[ ]]`",
+      "back": "`==` (or `=`) equal, `!=` not equal, `<` before (lexicographically), `>` after, `=~` regex match."
+    },
+    {
+      "id": "d5-fc-19",
+      "topic": "d5-if",
+      "front": "Is `[[ 100 < 2 ]]` true or false?",
+      "back": "True. `<` compares **strings**; `\"1\"` comes before `\"2\"`."
+    },
+    {
+      "id": "d5-fc-20",
+      "topic": "d5-if",
+      "front": "What makes the right side of `==` a glob pattern?",
+      "back": "Not quoting it. `[[ $s == a* ]]` = starts with a; `[[ $s == \"a*\" ]]` = exactly the string `a*`."
+    },
+    {
+      "id": "d5-fc-21",
+      "topic": "d5-if",
+      "front": "Integer test operators inside `[[ ]]`",
+      "back": "`-eq -ne -lt -le -gt -ge` (equal, not equal, less than, less or equal, greater than, greater or equal)."
+    },
+    {
+      "id": "d5-fc-22",
+      "topic": "d5-if",
+      "front": "Two ways to test that `n` is less than 10",
+      "back": "`[[ $n -lt 10 ]]` or `(( n < 10 ))`."
+    },
+    {
+      "id": "d5-fc-23",
+      "topic": "d5-if",
+      "front": "What happens to a non-integer like `hello` in `[[ $x -eq 0 ]]`?",
+      "back": "It is usually treated as `0`, with no error (so `[[ hello -eq 0 ]]` is true)."
+    },
+    {
+      "id": "d5-fc-24",
+      "topic": "d5-if",
+      "front": "`[[ -v x ]]`",
+      "back": "True if the variable `x` has been assigned a value (even empty). Write the name, not `$x`."
+    },
+    {
+      "id": "d5-fc-25",
+      "topic": "d5-if",
+      "front": "Standard usage-message check for a script that needs exactly one argument",
+      "back": "```bash\nif (( $# != 1 )); then\n    echo \"Usage: script.sh arg\" >&2\n    exit 1\nfi\n```"
+    },
+    {
+      "id": "d5-fc-26",
+      "topic": "d5-if",
+      "front": "Quiz 2 Q1E: print `not readable` if the file named in `f` is not readable",
+      "back": "`if [[ ! -r $f ]]; then echo \"not readable\"; fi`"
+    },
+    {
+      "id": "d5-fc-27",
+      "topic": "d5-operators",
+      "front": "Conditional operators from highest to lowest precedence",
+      "back": "`( expr )`, `! expr`, `expr1 && expr2`, `expr1 || expr2`."
+    },
+    {
+      "id": "d5-fc-28",
+      "topic": "d5-operators",
+      "front": "When is the right side of `&&` not evaluated? Of `||`?",
+      "back": "`&&`: when the left side is false. `||`: when the left side is true (short-circuit evaluation)."
+    },
+    {
+      "id": "d5-fc-29",
+      "topic": "d5-operators",
+      "front": "Test: file in `f` is a regular file AND readable",
+      "back": "`[[ -f $f && -r $f ]]`"
+    },
+    {
+      "id": "d5-fc-30",
+      "topic": "d5-operators",
+      "front": "Leap-year test for `yr`",
+      "back": "`(( yr % 400 == 0 || (yr % 4 == 0 && yr % 100 != 0) ))`"
+    },
+    {
+      "id": "d5-fc-31",
+      "topic": "d5-regex",
+      "front": "What is a regular expression?",
+      "back": "A string that specifies a search pattern. Bash uses the POSIX extended regex syntax."
+    },
+    {
+      "id": "d5-fc-32",
+      "topic": "d5-regex",
+      "front": "When is `[[ $str =~ $re ]]` true?",
+      "back": "When **any part** of `str` matches the regex `re` (use `^`/`$` to match the whole string)."
+    },
+    {
+      "id": "d5-fc-33",
+      "topic": "d5-regex",
+      "front": "What happens if you quote the regex: `[[ $s =~ \"$re\" ]]`?",
+      "back": "The regex is matched as a plain string (no metacharacters). Quoting part of a regex makes that part literal."
+    },
+    {
+      "id": "d5-fc-34",
+      "topic": "d5-regex",
+      "front": "`^` and `$` in a regex",
+      "back": "Anchors: `^` matches the beginning of the line (when first), `$` the end of the line (when last)."
+    },
+    {
+      "id": "d5-fc-35",
+      "topic": "d5-regex",
+      "front": "`.` in a regex",
+      "back": "Matches any single character."
+    },
+    {
+      "id": "d5-fc-36",
+      "topic": "d5-regex",
+      "front": "`[ ]` and `[^ ]` in a regex",
+      "back": "`[abc]`: any one character inside the brackets. `[^abc]`: any one character NOT inside."
+    },
+    {
+      "id": "d5-fc-37",
+      "topic": "d5-regex",
+      "front": "`*`, `+`, `?` in a regex",
+      "back": "Preceding element zero or more times / one or more times / zero or one time."
+    },
+    {
+      "id": "d5-fc-38",
+      "topic": "d5-regex",
+      "front": "`{m,n}`, `{m,}`, `{m}`",
+      "back": "Preceding element at least m and at most n times / m or more times / exactly m times."
+    },
+    {
+      "id": "d5-fc-39",
+      "topic": "d5-regex",
+      "front": "`|` and `( )` in a regex",
+      "back": "`|` is the choice operator (before OR after). `( )` is a subexpression (group), e.g. `^(abc)+$`."
+    },
+    {
+      "id": "d5-fc-40",
+      "topic": "d5-regex",
+      "front": "What is an atom?",
+      "back": "A single ordinary character, a bracket expression, or a subexpression `( )`. Quantifiers apply to the preceding atom."
+    },
+    {
+      "id": "d5-fc-41",
+      "topic": "d5-regex",
+      "front": "How do you match a literal `.` or `(`?",
+      "back": "Put it in square brackets: `[.]`, `[(]`. Metacharacters lose their meaning inside brackets."
+    },
+    {
+      "id": "d5-fc-42",
+      "topic": "d5-regex",
+      "front": "Regex for any signed or unsigned integer",
+      "back": "`^[-+]?[0-9]+$` (or `^[-+]?[[:digit:]]+$`)"
+    },
+    {
+      "id": "d5-fc-43",
+      "topic": "d5-regex",
+      "front": "Regex: strings that start and end with a lowercase letter (including one-letter strings)",
+      "back": "`^[a-z](.*[a-z])?$`. (`^[a-z].*[a-z]$` misses `a`; `^[a-z]+$` only allows letters.)"
+    },
+    {
+      "id": "d5-fc-44",
+      "topic": "d5-regex",
+      "front": "POSIX classes for digit, letter, whitespace, punctuation",
+      "back": "`[[:digit:]]`, `[[:alpha:]]`, `[[:space:]]`, `[[:punct:]]` (also `[[:upper:]]`, `[[:lower:]]`, `[[:alnum:]]`, `[[:blank:]]`)."
+    },
+    {
+      "id": "d5-fc-45",
+      "topic": "d5-regex",
+      "front": "Regex meaning of `*` vs glob meaning of `*`",
+      "back": "Regex: zero or more of the preceding atom. Glob: any sequence of characters. (Regex `.*` = glob `*`.)"
+    },
+    {
+      "id": "d5-fc-46",
+      "topic": "d5-regex",
+      "front": "`grep -E`, `-n`, `-i`",
+      "back": "`-E`: use extended regexes. `-n`: print line numbers. `-i`: ignore case."
+    },
+    {
+      "id": "d5-fc-47",
+      "topic": "d5-regex",
+      "front": "Exit status of `grep`",
+      "back": "`0` if at least one line matched, `1` if none matched; so `if grep ... > /dev/null; then` works."
+    },
+    {
+      "id": "d5-fc-48",
+      "topic": "d5-regex",
+      "front": "Which years does `^(19|20)[0-9][0-9]$` match?",
+      "back": "1900 to 2099 (four-digit strings starting 19 or 20)."
+    }
+  ],
+  "quiz": [
+    {
+      "id": "d5-q-01",
+      "topic": "d5-if",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "if true; then echo \"true\"; fi\nif false; then echo \"false\"; fi\necho done",
+      "answer": "true\ndone",
+      "explain": "The condition is a command. `true` exits with 0 (true) so its `echo` runs. `false` exits with 1, the condition fails, and there is no `else`, so nothing is printed."
+    },
+    {
+      "id": "d5-q-02",
+      "topic": "d5-if",
+      "type": "mcq",
+      "q": "What is wrong with `if [[$x == 5]]; then echo hi; fi`?",
+      "options": [
+        "Nothing; it prints hi if x is 5",
+        "`==` must be `-eq` for numbers",
+        "There must be a space after `[[` and before `]]`",
+        "`$x` must be double quoted"
+      ],
+      "answer": 2,
+      "explain": "`[[` and `]]` must be separate words. With x=5 Bash tries to run a command named `[[5` (`[[5: command not found`). `==` compares strings, which works for `5`; quoting is optional inside `[[ ]]`."
+    },
+    {
+      "id": "d5-q-03",
+      "topic": "d5-if",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "if [[ 100 < 2 ]]; then echo \"100 comes first\"; else echo \"2 comes first\"; fi",
+      "answer": "100 comes first",
+      "explain": "Inside `[[ ]]`, `<` compares strings lexicographically: `1` comes before `2`, so \"100\" < \"2\" is true. Use `-lt` or `(( ))` for numbers."
+    },
+    {
+      "id": "d5-q-04",
+      "topic": "d5-if",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "x=hello\nif [[ $x -eq 0 ]]; then echo zero; else echo \"not zero\"; fi",
+      "answer": "zero",
+      "explain": "In an integer test, a non-integer word like `hello` is treated as 0 (no error), so `0 -eq 0` is true."
+    },
+    {
+      "id": "d5-q-05",
+      "topic": "d5-if",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "str=\"avocado\"\nif [[ $str == a* ]]; then echo \"pattern match\"; else echo \"no pattern match\"; fi\nif [[ $str == \"a*\" ]]; then echo \"equal to a*\"; else echo \"not equal to a*\"; fi",
+      "answer": "pattern match\nnot equal to a*",
+      "explain": "Unquoted `a*` on the right of `==` is a glob pattern (starts with a). Quoted `\"a*\"` is the literal two-character string, which `avocado` is not."
+    },
+    {
+      "id": "d5-q-06",
+      "topic": "d5-if",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "str=\"K7L 3N6\"\nif [[ $str == [A-Z][0-9][A-Z][0-9][A-Z][0-9] ]]; then\n    echo \"might be a postal code\"\nelse\n    echo \"not a postal code\"\nfi",
+      "answer": "not a postal code",
+      "explain": "The pattern describes exactly six characters. The space makes the string seven characters, and the 4th character is a space, not a digit."
+    },
+    {
+      "id": "d5-q-07",
+      "topic": "d5-if",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "x=7\nif (( x > 10 )); then\n    echo big\nelif (( x > 5 )); then\n    echo medium\nelse\n    echo small\nfi",
+      "answer": "medium",
+      "explain": "`7 > 10` is false, so Bash tries the `elif`: `7 > 5` is true, so it prints `medium` and skips the `else`. Inside `(( ))`, `>` is a numeric comparison."
+    },
+    {
+      "id": "d5-q-08",
+      "topic": "d5-if",
+      "type": "mcq",
+      "q": "`notes` is a directory and `empty.txt` is an empty regular file. Which test is **false**?",
+      "options": [
+        "`[[ -e notes ]]`",
+        "`[[ -d notes ]]`",
+        "`[[ -e empty.txt ]]`",
+        "`[[ -s empty.txt ]]`"
+      ],
+      "answer": 3,
+      "explain": "`-s` needs size greater than zero, and `empty.txt` is empty. `-e` is true for any existing file (including directories); `-d` is true for the directory."
+    },
+    {
+      "id": "d5-q-09",
+      "topic": "d5-if",
+      "type": "short",
+      "q": "Suppose the variable `f` stores the name of a file. Write an `if` statement that prints `not writable` to standard output if the file is not writable.",
+      "answer": "`if [[ ! -w $f ]]; then echo \"not writable\"; fi`",
+      "explain": "Same shape as Quiz 2 Q1E with `-w` instead of `-r`. Also accepted: the multi-line form, or `[[ ! -w \"$f\" ]]`. Common mistakes: no spaces inside `[[ ]]`, no `;` before `then`, forgetting `fi`."
+    },
+    {
+      "id": "d5-q-10",
+      "topic": "d5-if",
+      "type": "mcq",
+      "q": "In `cdls2.sh`, why is the condition written `if cd \"$1\" 2> /dev/null`?",
+      "options": [
+        "To run `cd` in the background",
+        "To use `cd`'s exit status as the condition while discarding its error message",
+        "To send the directory listing to /dev/null",
+        "Because `if` needs a redirection to read an exit status"
+      ],
+      "answer": 1,
+      "explain": "`if` uses the exit status of `cd` (0 if it worked). `2> /dev/null` redirects standard error to the null device so only the script's own error message appears."
+    },
+    {
+      "id": "d5-q-11",
+      "topic": "d5-if",
+      "type": "mcq",
+      "q": "Which `if` statement correctly tests whether the variable `x` has been assigned a value?",
+      "options": [
+        "`if [[ -v $x ]]; then`",
+        "`if [[ -v x ]]; then`",
+        "`if [[ -z x ]]; then`",
+        "`if [[ $x ]]; then`"
+      ],
+      "answer": 1,
+      "explain": "`-v` takes the variable's **name**. `-v $x` would test a variable named by x's value. `-z x` tests the literal string \"x\" (never empty). `[[ $x ]]` is false for a variable assigned the empty string."
+    },
+    {
+      "id": "d5-q-12",
+      "topic": "d5-if",
+      "type": "short",
+      "q": "Write the lines at the start of a script that print `Usage: count.sh file` to standard error and exit with status 1 when the number of command line arguments is not exactly 1.",
+      "answer": "```bash\nif (( $# != 1 )); then\n    echo \"Usage: count.sh file\" >&2\n    exit 1\nfi\n```",
+      "explain": "`[[ $# -ne 1 ]]` is equally good. Both `>&2` (stderr) and `exit 1` are needed; without `exit` the script would carry on."
+    },
+    {
+      "id": "d5-q-13",
+      "topic": "d5-if",
+      "type": "output",
+      "q": "`compstr.sh` is the course script below. What does `./compstr.sh tiger poodle` print?",
+      "code": "#!/bin/bash\n\ns1=$1\ns2=$2\nif [[ $s1 == $s2 ]]; then\n    echo 0\nelif [[ $s1 < $s2 ]]; then\n    echo -1\nelse\n    echo 1\nfi",
+      "answer": "1",
+      "explain": "The strings are not equal, and `tiger` does not come before `poodle` (`t` comes after `p`), so the `else` branch prints `1`."
+    },
+    {
+      "id": "d5-q-14",
+      "topic": "d5-operators",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "yr=1900\nif (( yr % 400 == 0 || (yr % 4 == 0 && yr % 100 != 0) )); then\n    echo \"$yr is a leap year\"\nelse\n    echo \"$yr is not a leap year\"\nfi",
+      "answer": "1900 is not a leap year",
+      "explain": "1900 % 400 is 300, so the left side is false. 1900 is divisible by 4 but also by 100, so the parenthesised part is false too."
+    },
+    {
+      "id": "d5-q-15",
+      "topic": "d5-operators",
+      "type": "mcq",
+      "q": "The file `nosuch` does not exist. In `[[ -e nosuch && -r nosuch ]]`, what happens?",
+      "options": [
+        "Both tests run and the result is false",
+        "Only `-e` runs; the result is false (short-circuit)",
+        "Bash prints an error because the file is missing",
+        "Only `-r` runs because `&&` is evaluated right to left"
+      ],
+      "answer": 1,
+      "explain": "`&&` stops as soon as the left side is false: the whole expression must be false, so `-r` is never evaluated. No error is printed; file tests on missing files are simply false."
+    },
+    {
+      "id": "d5-q-16",
+      "topic": "d5-operators",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "s=\"\"\nif [[ ! -z $s || -n $s ]]; then echo yes; else echo no; fi",
+      "answer": "no",
+      "explain": "`s` is empty, so `-z $s` is true and `! -z $s` is false; `-n $s` is false. false || false is false."
+    },
+    {
+      "id": "d5-q-17",
+      "topic": "d5-operators",
+      "type": "mcq",
+      "q": "Which condition is true exactly when the integer `x` is between 3 and 10 (exclusive)?",
+      "options": [
+        "`[[ $x > 3 && $x < 10 ]]`",
+        "`(( x > 3 || x < 10 ))`",
+        "`[[ $x -gt 3 && $x -lt 10 ]]`",
+        "`[[ $x -gt 3 ]] || [[ $x -lt 10 ]]`"
+      ],
+      "answer": 2,
+      "explain": "Both comparisons must hold, so `&&`, with integer operators. Option A compares strings (`\"5\" < \"10\"` is false). Options B and D use `||`, true for every integer."
+    },
+    {
+      "id": "d5-q-18",
+      "topic": "d5-regex",
+      "type": "mcq",
+      "q": "What does the metacharacter `?` mean in a regular expression?",
+      "options": [
+        "Any single character",
+        "Zero or one instances of the preceding atom",
+        "One or more instances of the preceding atom",
+        "Exactly one character, as in a glob pattern"
+      ],
+      "answer": 1,
+      "explain": "Quiz 2 Q1A. `.` is any single character, `+` is one or more. Option D is the glob (filename expansion) meaning of `?`, a common mix-up."
+    },
+    {
+      "id": "d5-q-19",
+      "topic": "d5-regex",
+      "type": "mcq",
+      "q": "Which regex matches **all and only** strings that start and end with a lowercase letter, including one-letter strings like `a` (assume the C locale)?",
+      "options": [
+        "`^[a-z]+$`",
+        "`^[a-z].*[a-z]$`",
+        "`^[a-z](.*[a-z])?$`",
+        "`[a-z].*[a-z]`"
+      ],
+      "answer": 2,
+      "explain": "`^[a-z]+$` rejects `x-ray` (it allows only letters). `^[a-z].*[a-z]$` rejects `a` (it needs two characters). `[a-z].*[a-z]` has no anchors, so it matches `1ab2`. `^[a-z](.*[a-z])?$` handles all cases. (The Quiz 2 key also accepted A and B.)"
+    },
+    {
+      "id": "d5-q-20",
+      "topic": "d5-regex",
+      "type": "mcq",
+      "q": "Which strings does `^s[aei]t$` match?",
+      "options": [
+        "`sat`, `set`, `sit` only",
+        "`sat`, `set`, `sit`, `seat`, `saeit`",
+        "any string containing `sat`, `set` or `sit`",
+        "`s`, then any characters, then `t`"
+      ],
+      "answer": 0,
+      "explain": "`[aei]` matches exactly one character from the set, and the anchors force the whole string to be three characters."
+    },
+    {
+      "id": "d5-q-21",
+      "topic": "d5-regex",
+      "type": "mcq",
+      "q": "Which string is matched by `^xa{1,3}$`?",
+      "options": [
+        "`x`",
+        "`xaaaa`",
+        "`xaa`",
+        "`axa`"
+      ],
+      "answer": 2,
+      "explain": "`a{1,3}` means one to three `a`s after the `x`, and nothing else. `x` has zero `a`s, `xaaaa` has four, `axa` does not start with `x`."
+    },
+    {
+      "id": "d5-q-22",
+      "topic": "d5-regex",
+      "type": "mcq",
+      "q": "Which of these strings is matched by `^b|cat$`?",
+      "options": [
+        "`at`",
+        "`abc`",
+        "`scat`",
+        "`cab`"
+      ],
+      "answer": 2,
+      "explain": "`|` splits the whole regex: \"starts with b\" OR \"ends with cat\". `scat` ends with `cat`. `abc` and `cab` neither start with b nor end with cat."
+    },
+    {
+      "id": "d5-q-23",
+      "topic": "d5-regex",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "re=\"a.c\"\nif [[ abc =~ $re ]]; then echo \"match 1\"; else echo \"no match 1\"; fi\nif [[ abc =~ \"$re\" ]]; then echo \"match 2\"; else echo \"no match 2\"; fi",
+      "answer": "match 1\nno match 2",
+      "explain": "Unquoted, `.` is a metacharacter (any character), so `abc` matches. Quoted, the regex is matched as the literal string `a.c`, which `abc` does not contain."
+    },
+    {
+      "id": "d5-q-24",
+      "topic": "d5-regex",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "re=\"^(19|20)[0-9][0-9]$\"\nif [[ 1999 =~ $re ]]; then echo \"1999 yes\"; else echo \"1999 no\"; fi\nif [[ 1899 =~ $re ]]; then echo \"1899 yes\"; else echo \"1899 no\"; fi\nif [[ 20245 =~ $re ]]; then echo \"20245 yes\"; else echo \"20245 no\"; fi",
+      "answer": "1999 yes\n1899 no\n20245 no",
+      "explain": "The regex matches exactly four characters: `19` or `20`, then two digits. `1899` starts with 18; `20245` has five characters, and `$` forbids the extra one."
+    },
+    {
+      "id": "d5-q-25",
+      "topic": "d5-regex",
+      "type": "output",
+      "q": "What does this print?",
+      "code": "s=hello\nif [[ $s =~ ^h.*o$ ]]; then echo A; fi\nif [[ $s =~ l{2} ]]; then echo B; fi\nif [[ $s =~ ^l ]]; then echo C; fi",
+      "answer": "A\nB",
+      "explain": "`^h.*o$`: starts with h, anything, ends with o: yes. `l{2}`: two l's in a row somewhere: yes (`ll`). `^l`: does not start with l."
+    },
+    {
+      "id": "d5-q-26",
+      "topic": "d5-regex",
+      "type": "output",
+      "q": "The file `pets.txt` contains these five lines: `cat`, `dog`, `catalog`, `Cat`, `bobcat`. What does this print?",
+      "code": "grep -Ei 'cat$' pets.txt",
+      "answer": "cat\nCat\nbobcat",
+      "explain": "Lines ending with `cat`, ignoring case (`-i`). `catalog` contains cat but does not end with it; `dog` has no cat."
+    },
+    {
+      "id": "d5-q-27",
+      "topic": "d5-regex",
+      "type": "output",
+      "q": "Same `pets.txt` (`cat`, `dog`, `catalog`, `Cat`, `bobcat`). What does this print?",
+      "code": "grep -En 'o' pets.txt",
+      "answer": "2:dog\n3:catalog\n5:bobcat",
+      "explain": "`-n` puts the line number and `:` before each matching line. Lines 2, 3 and 5 contain an `o`."
+    },
+    {
+      "id": "d5-q-28",
+      "topic": "d5-regex",
+      "type": "short",
+      "q": "Write a regex that matches any signed or unsigned integer (an optional `+` or `-`, then one or more digits, and nothing else).",
+      "answer": "`^[-+]?[0-9]+$`",
+      "explain": "Also correct: `^[-+]?[[:digit:]]+$`, `^(-|\\+)?[0-9]+$`. The `-` is first inside the brackets so it is literal. Without `^` and `$`, strings like `12a` would match."
+    },
+    {
+      "id": "d5-q-29",
+      "topic": "d5-regex",
+      "type": "short",
+      "q": "Write a single `grep` command that prints the lines of `words.txt` that are exactly five characters long.",
+      "answer": "`grep -E '^.....$' words.txt`",
+      "explain": "Also correct: `grep -E '^.{5}$' words.txt`. The anchors are essential: without them every line of five or more characters would match."
+    },
+    {
+      "id": "d5-q-30",
+      "topic": "d5-regex",
+      "type": "mcq",
+      "q": "Which regex matches only the string `a.c`?",
+      "options": [
+        "`^a.c$`",
+        "`^a[.]c$`",
+        "`a[.]c`",
+        "`^a?c$`"
+      ],
+      "answer": 1,
+      "explain": "Inside brackets `.` loses its meaning, so `[.]` is a literal dot. `^a.c$` also matches `abc`; `a[.]c` (no anchors) matches `xa.cx`; `^a?c$` matches `c` and `ac`."
+    }
+  ],
+  "write": [
+    {
+      "id": "d5-w-01",
+      "topic": "d5-if",
+      "stage": "worked",
+      "marks": 2,
+      "prompt": "Suppose that the variable `d` stores the name of a file. Write a Bash `if` statement that prints the message `not a directory` **to standard error** if the file whose name is stored in `d` is not a directory.",
+      "starter": "",
+      "solution": "if [[ ! -d $d ]]; then echo \"not a directory\" >&2; fi",
+      "explain": "Read the question as three pieces. *If the file is not a directory*: the test is `-d`, negated with `!`, inside `[[ ]]` with spaces: `[[ ! -d $d ]]`. *Prints the message*: `echo \"not a directory\"`. *To standard error*: add `>&2`. On one line you need `;` before `then` and before `fi`. Inside `[[ ]]` no quotes are needed around `$d` (no word splitting there), but `[[ ! -d \"$d\" ]]` is also correct. Now cover the solution and write it again from memory, then do it for \"not executable\" (`-x`) and \"does not exist\" (`-e`).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct test `[[ ! -d $d ]]` (negation, -d, spaces inside the brackets)"
+        },
+        {
+          "marks": 1,
+          "item": "Correct if syntax (`; then ... fi`) and `echo \"not a directory\" >&2`"
+        }
+      ],
+      "pitfalls": [
+        "Writing `[[! -d $d]]` without spaces",
+        "Forgetting `>&2` when the question says standard error",
+        "Testing `-f` (regular file) instead of `-d`"
+      ]
+    },
+    {
+      "id": "d5-w-02",
+      "topic": "d5-regex",
+      "stage": "faded",
+      "marks": 2,
+      "prompt": "Provide a regular expression that matches all strings that start with an uppercase English letter and end with a digit (anything may be in between). Fill in the blanks.",
+      "starter": "^____.*____$",
+      "solution": "^[A-Z].*[0-9]$",
+      "explain": "Start: `^` then one uppercase letter `[A-Z]`. Middle: `.*` (any characters, possibly none). End: one digit `[0-9]` then `$`. Unlike the lowercase-letter question, no string of length one can both start with a letter and end with a digit, so `.*` (zero or more) is enough: `A1` matches with an empty middle. `[[:upper:]].*[[:digit:]]` with the anchors is also correct.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`^[A-Z]` (or `^[[:upper:]]`) anchored at the start"
+        },
+        {
+          "marks": 1,
+          "item": "`.*[0-9]$` (or `[[:digit:]]`) anchored at the end"
+        }
+      ],
+      "pitfalls": [
+        "Leaving out `^` or `$`: then the pattern can match in the middle of the string",
+        "Writing `*` alone instead of `.*` (in a regex `*` repeats the previous atom; it is not a wildcard)"
+      ]
+    },
+    {
+      "id": "d5-w-03",
+      "topic": "d5-if",
+      "stage": "worked",
+      "marks": 6,
+      "prompt": "Write a script `safecreate.sh` that creates a new script file. It requires exactly one command line argument, the name of the file to create.\n\n- If the number of arguments is not exactly 1, print `safecreate.sh: filename required` to standard error and exit with status 2.\n- If a file with that name already exists, print `safecreate.sh: NAME already exists` to standard error (NAME is the argument) and exit with status 1, without changing the file.\n- Otherwise create the file containing the single line `#!/bin/bash` and give its owner execute permission.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# safecreate.sh: create a new executable script, never overwrite\n\nif [[ $# -ne 1 ]]; then\n    echo \"safecreate.sh: filename required\" >&2\n    exit 2\nfi\n\nif [[ -e $1 ]]; then\n    echo \"safecreate.sh: $1 already exists\" >&2\n    exit 1\nfi\n\necho '#!/bin/bash' > \"$1\"\nchmod u+x \"$1\"",
+      "explain": "This is the course's `namedsh.sh`. Each error check is a **guard clause**: test for the problem, print to stderr, `exit`. Because `exit` stops the script, no `else` is needed and the creation code at the bottom only runs when both checks pass.\n\n1. `[[ $# -ne 1 ]]` (or `(( $# != 1 ))`) catches zero arguments and too many.\n2. `[[ -e $1 ]]` is true for *any* existing file, including a directory; `-f` would let the script try to overwrite a directory name.\n3. `echo '#!/bin/bash' > \"$1\"`: single quotes (as in the course's `namedsh.sh`) so nothing inside is special; `>` creates the file.\n4. `chmod u+x \"$1\"` adds execute for the owner only. Quote `\"$1\"` so names with spaces work.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks `$#` is exactly 1"
+        },
+        {
+          "marks": 1,
+          "item": "Usage message to stderr and `exit 2`"
+        },
+        {
+          "marks": 1,
+          "item": "Tests existence with `[[ -e $1 ]]`"
+        },
+        {
+          "marks": 1,
+          "item": "Exists message (including the name) to stderr and `exit 1`"
+        },
+        {
+          "marks": 1,
+          "item": "Creates the file with `#!/bin/bash` using `>` and quoted `\"$1\"`"
+        },
+        {
+          "marks": 1,
+          "item": "`chmod u+x \"$1\"`"
+        }
+      ],
+      "pitfalls": [
+        "Forgetting `exit` after an error message, so the script carries on",
+        "Using `-f` instead of `-e` (a directory with that name would not be detected)",
+        "Unquoted `$1` in the `echo >` and `chmod` lines"
+      ]
+    },
+    {
+      "id": "d5-w-04",
+      "topic": "d5-operators",
+      "stage": "faded",
+      "marks": 6,
+      "prompt": "Complete `grade.sh MARK`. If the number of arguments is not 1, print `Usage: grade.sh mark` to standard error and exit 1. If MARK is not made only of digits, or is greater than 100, print `grade.sh: mark must be an integer from 0 to 100` to standard error and exit 2. Otherwise print the letter grade: `A` for 80-100, `B` for 70-79, `C` for 60-69, `D` for 50-59, `F` below 50.",
+      "starter": "#!/bin/bash\n\n# grade.sh: convert a mark to a letter grade\n\nif (( ____ )); then\n    echo \"Usage: grade.sh mark\" >&2\n    exit 1\nfi\n\nmark=$1\nif [[ ! $mark =~ ____ ]] ____ (( mark > 100 )); then\n    echo \"grade.sh: mark must be an integer from 0 to 100\" >&2\n    exit 2\nfi\n\nif (( mark >= 80 )); then\n    echo A\n____ (( ____ )); then\n    echo B\nelif (( mark >= 60 )); then\n    echo C\nelif (( mark >= 50 )); then\n    echo D\n____\n    echo F\n____",
+      "solution": "#!/bin/bash\n\n# grade.sh: convert a mark to a letter grade\n\nif (( $# != 1 )); then\n    echo \"Usage: grade.sh mark\" >&2\n    exit 1\nfi\n\nmark=$1\nif [[ ! $mark =~ ^[0-9]+$ ]] || (( mark > 100 )); then\n    echo \"grade.sh: mark must be an integer from 0 to 100\" >&2\n    exit 2\nfi\n\nif (( mark >= 80 )); then\n    echo A\nelif (( mark >= 70 )); then\n    echo B\nelif (( mark >= 60 )); then\n    echo C\nelif (( mark >= 50 )); then\n    echo D\nelse\n    echo F\nfi",
+      "explain": "Blanks in order: `$# != 1`; `^[0-9]+$` (digits only, whole string); `||` (either problem is an error); `elif`; `mark >= 70`; `else`; `fi`.\n\nWhy `||` and not `&&`? The input is bad if it is not a number **or** it is too big. Short-circuiting also helps: when the regex test already fails, `(( mark > 100 ))` is not evaluated. Because the regex only allows digits, negative marks like `-5` are rejected too. The `elif` chain works top-down: by the time we test `mark >= 70`, we already know the mark is below 80.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`$# != 1` usage check (stderr, exit 1 already given)"
+        },
+        {
+          "marks": 1,
+          "item": "Regex `^[0-9]+$` with `=~`, unquoted"
+        },
+        {
+          "marks": 1,
+          "item": "`||` combining the two error conditions"
+        },
+        {
+          "marks": 2,
+          "item": "`elif (( mark >= 70 )); then` correctly written"
+        },
+        {
+          "marks": 1,
+          "item": "`else` and closing `fi`"
+        }
+      ],
+      "pitfalls": [
+        "Using `[[ $mark > 100 ]]`, a string comparison (\"99\" > \"100\" is true!)",
+        "Forgetting the anchors: `[0-9]+` alone accepts `7a`",
+        "Writing `else if` instead of `elif` (that needs its own `fi`)"
+      ]
+    },
+    {
+      "id": "d5-w-05",
+      "topic": "d5-regex",
+      "stage": "worked",
+      "marks": 10,
+      "prompt": "(Assignment 3 Q1) Write `testpw.sh` that tests whether its first command line argument is a strong password. Extra arguments are ignored. If there are no arguments, print `Usage: testpw.sh password` to standard error and exit with status 1.\n\nA strong password: (1) contains no whitespace, (2) has length at least 8, (3) contains at least one letter, (4) at least one digit, (5) at least one punctuation/symbol character. For **every** requirement that fails, print its message to standard error, in this order:\n\n- `password cannot contain whitespace`\n- `password length less than 8`\n- `password must contain at least one letter`\n- `password must contain at least one digit`\n- `password must contain at least one symbol`\n\nExit with status 2 if any requirement failed, otherwise exit with status 0 (printing nothing).",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# testpw.sh: is a password strong?\n\nif (( $# == 0 )); then\n    echo \"Usage: testpw.sh password\" >&2\n    exit 1\nfi\n\npw=$1\nstatus=0\n\nif [[ $pw =~ [[:space:]] ]]; then\n    echo \"password cannot contain whitespace\" >&2\n    status=2\nfi\n\nif (( ${#pw} < 8 )); then\n    echo \"password length less than 8\" >&2\n    status=2\nfi\n\nif [[ ! $pw =~ [[:alpha:]] ]]; then\n    echo \"password must contain at least one letter\" >&2\n    status=2\nfi\n\nif [[ ! $pw =~ [[:digit:]] ]]; then\n    echo \"password must contain at least one digit\" >&2\n    status=2\nfi\n\nif [[ ! $pw =~ [[:punct:]] ]]; then\n    echo \"password must contain at least one symbol\" >&2\n    status=2\nfi\n\nexit $status",
+      "explain": "Structure first, details second:\n\n1. **Usage check** with `(( $# == 0 ))`: only *zero* arguments is an error, because extra arguments are ignored.\n2. **A status variable.** The script must report *every* failing rule, so it cannot `exit` at the first failure. `status=0` at the start; each failing check sets `status=2`; the last line is `exit $status`.\n3. **One independent `if` per rule**, in the required order (not `elif`: an `elif` chain would stop after the first failure).\n4. **The tests**: no anchors are needed, because \"contains\" means *anywhere*. `[[ $pw =~ [[:space:]] ]]` is true if there is whitespace (bad). For \"must contain\", negate: `[[ ! $pw =~ [[:digit:]] ]]`. Length uses `${#pw}` from Day 4.\n5. Every message goes to stderr with `>&2`.\n\nTry it: `./testpw.sh abc` prints three messages (length, digit, symbol) and exits 2; `./testpw.sh 'abc123!@'` prints nothing and exits 0.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Usage message to stderr and exit 1 when `$# == 0`"
+        },
+        {
+          "marks": 1,
+          "item": "Whitespace check with `=~ [[:space:]]` (regex not quoted)"
+        },
+        {
+          "marks": 1,
+          "item": "Length check `(( ${#pw} < 8 ))`"
+        },
+        {
+          "marks": 2,
+          "item": "Letter and digit checks with `!` and `[[:alpha:]]` / `[[:digit:]]`"
+        },
+        {
+          "marks": 1,
+          "item": "Symbol check with `[[:punct:]]`"
+        },
+        {
+          "marks": 1,
+          "item": "All five messages exact, in order, to stderr"
+        },
+        {
+          "marks": 2,
+          "item": "Status variable: all failing rules reported (independent ifs), `exit 2` if any failed"
+        },
+        {
+          "marks": 1,
+          "item": "Exit 0 and no output for a strong password"
+        }
+      ],
+      "pitfalls": [
+        "Quoting the regex: `=~ \"[[:digit:]]\"` looks for the literal text `[[:digit:]]`",
+        "Writing `[:digit:]` without the outer brackets (that is a bracket expression of the characters `: d i g t`)",
+        "Using `exit 2` inside each check, which stops after the first failure",
+        "Using `elif`, which also stops after the first failure"
+      ]
+    },
+    {
+      "id": "d5-w-06",
+      "topic": "d5-regex",
+      "stage": "faded",
+      "marks": 10,
+      "prompt": "Complete `checkuser.sh` that checks a username given as the first command line argument (extra arguments are ignored). With no arguments, print `Usage: checkuser.sh username` to standard error and exit 1. Check these rules in order and print the message to standard error for **every** rule that fails:\n\n1. `username cannot contain whitespace`\n2. `username length must be from 3 to 12`\n3. `username must start with a lowercase letter`\n4. `username cannot contain uppercase letters`\n5. `username must contain at least one digit`\n\nExit 2 if any rule failed; otherwise print nothing and exit 0.",
+      "starter": "#!/bin/bash\n\n# checkuser.sh: check that a username follows the rules\n\nif (( ____ )); then\n    echo \"Usage: checkuser.sh username\" ____\n    exit 1\nfi\n\nuser=$1\nstatus=0\n\nif [[ $user =~ ____ ]]; then\n    echo \"username cannot contain whitespace\" >&2\n    status=2\nfi\n\nif (( ____ )); then\n    echo \"username length must be from 3 to 12\" >&2\n    status=2\nfi\n\nif [[ ____ ]]; then\n    echo \"username must start with a lowercase letter\" >&2\n    status=2\nfi\n\nif [[ $user =~ ____ ]]; then\n    echo \"username cannot contain uppercase letters\" >&2\n    status=2\nfi\n\nif [[ ____ ]]; then\n    echo \"username must contain at least one digit\" >&2\n    status=2\nfi\n\nexit ____",
+      "solution": "#!/bin/bash\n\n# checkuser.sh: check that a username follows the rules\n\nif (( $# == 0 )); then\n    echo \"Usage: checkuser.sh username\" >&2\n    exit 1\nfi\n\nuser=$1\nstatus=0\n\nif [[ $user =~ [[:space:]] ]]; then\n    echo \"username cannot contain whitespace\" >&2\n    status=2\nfi\n\nif (( ${#user} < 3 || ${#user} > 12 )); then\n    echo \"username length must be from 3 to 12\" >&2\n    status=2\nfi\n\nif [[ ! $user =~ ^[a-z] ]]; then\n    echo \"username must start with a lowercase letter\" >&2\n    status=2\nfi\n\nif [[ $user =~ [[:upper:]] ]]; then\n    echo \"username cannot contain uppercase letters\" >&2\n    status=2\nfi\n\nif [[ ! $user =~ [[:digit:]] ]]; then\n    echo \"username must contain at least one digit\" >&2\n    status=2\nfi\n\nexit $status",
+      "explain": "Blanks in order: `$# == 0`; `>&2`; `[[:space:]]`; `${#user} < 3 || ${#user} > 12`; `! $user =~ ^[a-z]`; `[[:upper:]]`; `! $user =~ [[:digit:]]`; `$status`.\n\nCompare with `testpw.sh`: the same skeleton (usage check, `status` variable, one `if` per rule, `exit $status`). The new idea is rule 3, the only rule about a *position*: `^[a-z]` anchors the letter at the start. Rule 2 combines two comparisons with `||` inside `(( ))`. For `Ab` the script prints rules 2, 3, 4 and 5.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`$# == 0` usage check, message to stderr (`>&2`)"
+        },
+        {
+          "marks": 1,
+          "item": "`[[:space:]]` whitespace test"
+        },
+        {
+          "marks": 2,
+          "item": "Length test with `${#user}` and `||` covering both bounds"
+        },
+        {
+          "marks": 2,
+          "item": "Start test `! $user =~ ^[a-z]` (anchored, negated)"
+        },
+        {
+          "marks": 1,
+          "item": "`[[:upper:]]` test"
+        },
+        {
+          "marks": 2,
+          "item": "Digit test negated with `!`"
+        },
+        {
+          "marks": 1,
+          "item": "`exit $status`"
+        }
+      ],
+      "pitfalls": [
+        "Writing `^[a-z]+$` for rule 3: that would also reject `jsmith42`",
+        "Using `&&` in the length test: a length cannot be both below 3 and above 12",
+        "Forgetting `!` in the \"must start with\" and \"must contain\" rules"
+      ]
+    },
+    {
+      "id": "d5-w-07",
+      "topic": "d5-regex",
+      "stage": "blank",
+      "marks": 10,
+      "prompt": "Write a script `checkname.sh` that checks whether its first command line argument is a good name for a Bash script file. Extra arguments are ignored. With no arguments, print `Usage: checkname.sh filename` to standard error and exit with status 1.\n\nCheck these rules in this order, and for **every** rule that fails print its message to standard error:\n\n1. `filename cannot contain whitespace`\n2. `filename must start with a letter`\n3. `filename must end with .sh`\n4. `filename longer than 20 characters` (fails when the length is more than 20)\n\nExit with status 2 if any rule failed; otherwise print nothing and exit with status 0.\n\nExamples: `checkname.sh backup.sh` exits 0; `checkname.sh notes.txt` prints the rule 3 message; `checkname.sh \"9 lives\"` prints the rule 1, 2 and 3 messages.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# checkname.sh: check that a script filename follows the rules\n\nif (( $# == 0 )); then\n    echo \"Usage: checkname.sh filename\" >&2\n    exit 1\nfi\n\nname=$1\nstatus=0\n\nif [[ $name =~ [[:space:]] ]]; then\n    echo \"filename cannot contain whitespace\" >&2\n    status=2\nfi\n\nif [[ ! $name =~ ^[[:alpha:]] ]]; then\n    echo \"filename must start with a letter\" >&2\n    status=2\nfi\n\nif [[ ! $name =~ [.]sh$ ]]; then\n    echo \"filename must end with .sh\" >&2\n    status=2\nfi\n\nif (( ${#name} > 20 )); then\n    echo \"filename longer than 20 characters\" >&2\n    status=2\nfi\n\nexit $status",
+      "explain": "Same skeleton as `testpw.sh`. Rule 3 is the trap: `.sh$` is wrong because `.` means *any character*, so `abcsh` would pass. Write the dot as `[.]` so it is literal: `[.]sh$`. Rule 2 uses `^[[:alpha:]]` (or `^[a-zA-Z]`).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Usage message to stderr and exit 1 when there are no arguments"
+        },
+        {
+          "marks": 1,
+          "item": "`status` variable initialised to 0 and `exit $status` at the end"
+        },
+        {
+          "marks": 1,
+          "item": "Whitespace rule with `[[:space:]]`"
+        },
+        {
+          "marks": 2,
+          "item": "Start rule `! $name =~ ^[[:alpha:]]` (anchored, negated)"
+        },
+        {
+          "marks": 2,
+          "item": "End rule with a literal dot `[.]sh$` (anchored, negated)"
+        },
+        {
+          "marks": 1,
+          "item": "Length rule `(( ${#name} > 20 ))`"
+        },
+        {
+          "marks": 1,
+          "item": "Independent `if`s so every failing rule is reported, in order"
+        },
+        {
+          "marks": 1,
+          "item": "All messages exact and sent to stderr"
+        }
+      ],
+      "pitfalls": [
+        "`.sh$` with an unescaped dot (matches `abcsh`)",
+        "Quoting the regex",
+        "Reporting only the first failing rule"
+      ]
+    },
+    {
+      "id": "d5-w-08",
+      "topic": "d5-operators",
+      "stage": "blank",
+      "marks": 5,
+      "prompt": "Write a script `leap.sh` that takes one command line argument, a year. If the number of arguments is not 1, print `Usage: leap.sh year` to standard error and exit with status 1. If the argument is not made only of digits, print `leap.sh: YEAR is not a year` to standard error (YEAR is the argument) and exit with status 2. Otherwise print `YEAR is a leap year` or `YEAR is not a leap year`. A year is a leap year if it is divisible by 400, or if it is divisible by 4 and not divisible by 100.",
+      "starter": "",
+      "solution": "#!/bin/bash\n\n# leap.sh: is a year a leap year?\n\nif (( $# != 1 )); then\n    echo \"Usage: leap.sh year\" >&2\n    exit 1\nfi\n\nyr=$1\nif [[ ! $yr =~ ^[0-9]+$ ]]; then\n    echo \"leap.sh: $yr is not a year\" >&2\n    exit 2\nfi\n\nif (( yr % 400 == 0 || (yr % 4 == 0 && yr % 100 != 0) )); then\n    echo \"$yr is a leap year\"\nelse\n    echo \"$yr is not a leap year\"\nfi",
+      "explain": "Two guard clauses, then the course's leap-year condition. `2000`: leap. `1900`: not leap. `2024`: leap.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Argument-count check with usage message to stderr, exit 1"
+        },
+        {
+          "marks": 1,
+          "item": "Digits-only check `[[ ! $yr =~ ^[0-9]+$ ]]` with message to stderr, exit 2"
+        },
+        {
+          "marks": 2,
+          "item": "Correct leap-year condition using `%`, `||`, `&&` (and parentheses)"
+        },
+        {
+          "marks": 1,
+          "item": "Both output messages with the year, using if/else"
+        }
+      ],
+      "pitfalls": [
+        "Writing `yr % 4 == 0 || yr % 100 != 0 && ...` in the wrong grouping",
+        "Forgetting `exit` after an error message, so the script goes on to print a leap-year message too"
+      ]
+    }
+  ]
+}
