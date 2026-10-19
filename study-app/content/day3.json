@@ -1,1159 +1,1339 @@
 {
-  "day": 3,
-  "title": "Streams, pipelines, expansions, and tr",
-  "goal": "Redirect and pipe the standard streams, build exam-style pipelines with cut, sort, uniq, head, wc and tee, predict every shell expansion in order, and use tr to translate, delete and squeeze characters.",
-  "topics": [
+ "day": 3,
+ "title": "Streams, pipelines, expansions, and your first scripts",
+ "goal": "Redirect and pipe command output, predict every shell expansion, and create, run and debug your first Bash script that uses its command line arguments.",
+ "topics": [
+  {
+   "id": "d3-streams",
+   "title": "Streams, redirection, pipelines and tees",
+   "notebook": "bash/streams.ipynb",
+   "priority": "high",
+   "examNote": "Quiz 1 Q2D: *overwrite myfile with OOPS using a redirection* (`echo OOPS > myfile`). Quiz 1 Q3B (2 marks): a single pipeline with `cut`, `sort`, `tee` and `head` built from an English description. Expect fd numbers, `2>&1` order and `/dev/null` as short answers. Assignment 3 requires error messages on **standard error** (`>&2`, introduced here); you will write those messages in scripts on Day 5.",
+   "blocks": [
     {
-      "id": "d3-streams",
-      "title": "Streams, redirection, pipelines and tees",
-      "notebook": "bash/streams.ipynb",
-      "priority": "high",
-      "examNote": "Quiz 1 Q2D: *overwrite myfile with OOPS using a redirection* (`echo OOPS > myfile`). Quiz 1 Q3B (2 marks): a single pipeline with `cut`, `sort`, `tee` and `head` built from an English description. Assignment 3 requires error messages on **stderr** (`>&2`). Expect fd numbers, `2>&1` order and `/dev/null` as short answers.",
-      "blocks": [
-        {
-          "type": "md",
-          "text": "### Everything is a stream of bytes\n\nA **byte stream** is an ordered sequence of bytes (characters). Programs read data from streams and write data to streams. Every command you run starts with **three standard streams** already connected for it:\n\n| Stream | Short name | File descriptor | Connected by default to |\n|---|---|---|---|\n| standard input | stdin | `0` | the keyboard |\n| standard output | stdout | `1` | the terminal |\n| standard error | stderr | `2` | the terminal |\n\nA **file descriptor** is just a small integer that names an open stream. Memorize the three numbers: **0 = stdin, 1 = stdout, 2 = stderr**. You will use them in redirections.\n\nNormal results go to **stdout**. Error and diagnostic messages go to **stderr**. Because both stdout and stderr are connected to the terminal by default, they *look* the same on screen, but they are two separate streams that you can send to different places."
-        },
-        {
-          "type": "code",
-          "code": "$ ls classlist zzz\nls: cannot access 'zzz': No such file or directory\nclasslist",
-          "caption": "The error line was written to stderr (fd 2); the line classlist was written to stdout (fd 1). Both appear on the terminal."
-        },
-        {
-          "type": "md",
-          "text": "Some commands read **standard input** when you do not give them a file name. If you type `sort` and press Enter, `sort` waits for you to type lines on the keyboard. You signal the end of input by pressing **Ctrl-d**; then `sort` prints the lines in sorted order."
-        },
-        {
-          "type": "check",
-          "q": "What are the file descriptor numbers of stdin, stdout and stderr?",
-          "a": "stdin is 0, stdout is 1, stderr is 2."
-        },
-        {
-          "type": "md",
-          "text": "### Redirecting standard output: `>` and `>>`\n\n**Redirection** changes where a command reads its input from or sends its output to. To send standard output to a file, write `1> filename` (or just `> filename`; the `1` is optional) anywhere in the command:\n\n- `>` **creates** the file if it does not exist, and **overwrites** (truncates) it if it does.\n- `>>` **appends** to the end of the file instead of overwriting it (it also creates the file if needed).\n\nThe command itself does not know about the file. The shell opens the file and connects it to fd 1 *before* the command runs. Anything the command would have printed on stdout goes into the file instead, so nothing appears on the terminal."
-        },
-        {
-          "type": "code",
-          "code": "$ echo OOPS > myfile\n$ cat myfile\nOOPS\n$ echo again >> myfile\n$ cat myfile\nOOPS\nagain\n$ echo new > myfile\n$ cat myfile\nnew",
-          "caption": "Quiz 1 asked: what command overwrites myfile with the string OOPS? Answer: echo OOPS > myfile"
-        },
-        {
-          "type": "code",
-          "code": "$ ls -A 1> files.txt\n$ ls -A > files.txt",
-          "caption": "These two commands do the same thing: for stdout the 1 is optional."
-        },
-        {
-          "type": "check",
-          "q": "What is the difference between `echo hi > f` and `echo hi >> f` when `f` already contains one line?",
-          "a": "`>` overwrites: afterwards `f` contains only `hi`. `>>` appends: afterwards `f` contains its old line followed by `hi`."
-        },
-        {
-          "type": "pitfall",
-          "text": "`sort data > data` does **not** sort the file in place. The shell truncates `data` to empty *before* `sort` starts, so `sort` reads an empty file and `data` ends up empty. Write to a different file instead: `sort data > sorted`."
-        },
-        {
-          "type": "md",
-          "text": "### Redirecting standard error: `2>`\n\nTo redirect standard error you **must** write the file descriptor `2`: `2> filename`. Then only the error messages go to the file; normal output still goes to the terminal.\n\nYou can redirect both streams of one command to **separate** files:"
-        },
-        {
-          "type": "code",
-          "code": "$ ls -A zzz file?? > files.txt 2> error.txt\n$ cat files.txt\nfile00\nfile01\n$ cat error.txt\nls: cannot access 'zzz': No such file or directory",
-          "caption": "Directory contains file00 and file01. Many commands keep going after an error, so ls still lists the files it can."
-        },
-        {
-          "type": "md",
-          "text": "**`/dev/null`** is the *null device*: a special file that discards everything written to it (and reports that the write succeeded). Use it to throw output away, most often error messages:\n\n```bash\nls classlist zzz 2> /dev/null      # error message discarded, classlist still printed\n```\n\nInside scripts you will often see `>&2` (short for `1>&2`). It sends a command's **standard output to standard error**, which is how a script prints its own error messages:\n\n```bash\necho \"error changing to directory $1\" >&2\n```"
-        },
-        {
-          "type": "check",
-          "q": "Write a command that runs `ls zzz` and stores the error message in a file named `err.txt`.",
-          "a": "`ls zzz 2> err.txt`"
-        },
-        {
-          "type": "md",
-          "text": "### Both streams to one file: `> file 2>&1`\n\nTo send **all** output (stdout and stderr) to the same file, redirect stdout to the file and then add `2>&1`:\n\n```bash\nls -A zzz file?? > all.txt 2>&1\n```\n\n`2>&1` means: *make file descriptor 2 a duplicate (copy) of file descriptor 1*, that is, send stderr to wherever stdout points **right now**.\n\nThe shell processes redirections **from left to right**, so order matters:\n\n1. `> all.txt 2>&1`: first fd 1 points to `all.txt`; then fd 2 is copied from fd 1, so it also points to `all.txt`. Everything goes to the file.\n2. `2>&1 > all.txt`: first fd 2 is copied from fd 1, which is still the **terminal**; then fd 1 is changed to `all.txt`. Errors still appear on the terminal and only normal output goes to the file.\n\nBash also has the shorthand `&> file`, which means the same as `> file 2>&1`. The course notebooks use the `> file 2>&1` form, so make sure you can write that one."
-        },
-        {
-          "type": "code",
-          "code": "$ ls -A zzz file?? 2>&1 > all.txt\nls: cannot access 'zzz': No such file or directory\n$ cat all.txt\nfile00\nfile01",
-          "caption": "Wrong order: the error still reaches the terminal."
-        },
-        {
-          "type": "why",
-          "q": "Why does `2>&1 > all.txt` not send errors into all.txt?",
-          "a": "Redirections are done left to right. When `2>&1` runs, fd 1 still points at the terminal, so fd 2 becomes a copy of *the terminal*. Changing fd 1 afterwards does not change fd 2; the copy was already made."
-        },
-        {
-          "type": "check",
-          "q": "Write a command that sends both the output and the errors of `ls a b` into `log.txt`.",
-          "a": "`ls a b > log.txt 2>&1` (or `ls a b &> log.txt`)."
-        },
-        {
-          "type": "md",
-          "text": "### Redirecting standard input: `<`\n\n`0< filename` (or just `< filename`) makes the command read **standard input from the file** instead of the keyboard.\n\nMost filter commands also accept a file name argument, so `sort unsorted.txt` and `sort < unsorted.txt` print the same thing. The difference shows up with commands that print the file name: `wc -l classlist` prints `4 classlist`, but `wc -l < classlist` prints just `4`, because `wc` reads stdin and never sees a file name.\n\nYou can combine input and output redirection: `sort < unsorted.txt > sorted.txt`."
-        },
-        {
-          "type": "code",
-          "code": "$ sort < unsorted.txt > sorted.txt\n$ cat sorted.txt\nanteater\ndog\nelephant\nzebra\n$ wc -l classlist\n4 classlist\n$ wc -l < classlist\n4",
-          "caption": "unsorted.txt contains zebra, elephant, anteater, dog (one per line); classlist has 4 lines."
-        },
-        {
-          "type": "check",
-          "q": "Why does `wc -l < classlist` print only a number while `wc -l classlist` also prints the name?",
-          "a": "With `<` the shell opens the file and connects it to stdin; `wc` only sees an anonymous stream, so it has no file name to print."
-        },
-        {
-          "type": "md",
-          "text": "### Pipelines: `|`\n\nA **pipe** `|` connects the **standard output** of the command on its left to the **standard input** of the command on its right. A **pipeline** is a chain of commands joined by pipes. Think of each command as a segment of pipe: data flows in one end, gets changed, and flows out the other end.\n\n```bash\nls /bin /usr/bin | sort | uniq | wc -l\n```\n\nOnly **stdout** goes through a pipe. Error messages on stderr still go to the terminal (unless you redirect them).\n\nThe commands that sit in the middle of pipelines are called **filters**: they read stdin (or files named as arguments), transform the lines, and write stdout. These are the ones you need:\n\n| Command | What it does |\n|---|---|\n| `sort` | sorts lines (alphabetically by default) |\n| `sort -n` | sorts numerically (so `9` comes before `10`) |\n| `sort -r` | reverse order; `sort -n -r` (or `-nr`) is largest number first |\n| `uniq` | removes **adjacent** duplicate lines (so `sort` first!) |\n| `uniq -d` | prints only lines that are duplicated (one copy each) |\n| `wc -l` | counts lines |\n| `head -n 3` | first 3 lines (`head -n3` also works) |\n| `tail -n 3` | last 3 lines |\n| `cut -f 3` | 3rd field of each line; fields are separated by **TAB** by default |\n| `cut -d\" \" -f 1` | 1st field, using a space as the delimiter (`-d` = `--delimiter`, `-f` = `--fields`) |\n\n`cut -f1,3` selects several fields, and `cut -f2 -d:` uses `:` as the delimiter (options can come in either order)."
-        },
-        {
-          "type": "code",
-          "code": "$ cat classlist\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n$ cut -f3 classlist\n3100025\n2999999\n3001111\n1990000\n$ cut -f3 classlist | sort\n1990000\n2999999\n3001111\n3100025\n$ cut -f3 classlist | sort -r | head -n1\n3100025",
-          "caption": "classlist fields are separated by single TAB characters."
-        },
-        {
-          "type": "check",
-          "q": "Why must you usually `sort` before `uniq`?",
-          "a": "`uniq` only removes duplicates that are **next to each other**. Sorting puts identical lines together so `uniq` can find them all."
-        },
-        {
-          "type": "code",
-          "code": "$ printf '10\\n9\\n100\\n' | sort\n10\n100\n9\n$ printf '10\\n9\\n100\\n' | sort -n\n9\n10\n100",
-          "caption": "Plain sort compares character by character (1 < 9), so 100 comes before 9. Use -n for numbers. (printf here just prints three lines.)"
-        },
-        {
-          "type": "pitfall",
-          "text": "`sort` without `-n` sorts numbers as text: `100` comes before `9`. Student numbers that all have the same number of digits sort correctly either way, but marks like 9, 72, 100 need `sort -n`."
-        },
-        {
-          "type": "md",
-          "text": "### Tees: save *and* pass along\n\nRedirection sends output to a file; a pipe sends it to another command. To do **both**, use `tee`. The `tee` command reads standard input and copies it to **standard output and to one or more files**. Like the letter T in plumbing, the data continues down the pipeline while a copy is saved.\n\nBecause `tee` is an ordinary command, you can put it anywhere in a pipeline to save an intermediate result:\n\n```bash\ndate | tee fulldate.txt | cut -d\" \" -f1\nfortune | tee fortune.txt | cowsay | tee cow.txt | cowsay -n\n```\n\n### Building a pipeline from an English description\n\nQuiz 1 asked: *extract the student numbers from `classlist`, sort them ascending, save all of them to a file `snum` (in sorted order), and print the first three.* Translate each phrase into one command, in order:\n\n1. extract the student numbers: `cut -f3 classlist`\n2. sort ascending: `sort`\n3. save all of them (sorted) and keep going: `tee snum`\n4. print only the first three: `head -n3`"
-        },
-        {
-          "type": "code",
-          "code": "$ cut -f3 classlist | sort | tee snum | head -n3\n1990000\n2999999\n3001111\n$ cat snum\n1990000\n2999999\n3001111\n3100025",
-          "caption": "The tee must come AFTER sort (the file must be sorted) and BEFORE head (the file must contain all the numbers)."
-        },
-        {
-          "type": "why",
-          "q": "Why would `cut -f3 classlist | sort | head -n3 | tee snum` lose marks?",
-          "a": "`tee` would only see the three lines that `head` let through, so `snum` would contain three numbers instead of all of them."
-        },
-        {
-          "type": "check",
-          "q": "Write a pipeline that prints how many lines in `words.txt` are different (count of distinct lines).",
-          "a": "`sort words.txt | uniq | wc -l`"
-        },
-        {
-          "type": "md",
-          "text": "### Key points\n\n- fd **0** = stdin, **1** = stdout, **2** = stderr.\n- `>` overwrites, `>>` appends, `<` reads stdin from a file, `2>` redirects errors, `2> /dev/null` discards them.\n- `> file 2>&1` puts both streams in one file; redirections are processed **left to right**.\n- `|` connects stdout to the next command's stdin; stderr does not go through the pipe.\n- `tee file` saves a copy of the stream and passes it on; place it exactly where the data has the form you want saved."
-        }
-      ]
+     "type": "md",
+     "text": "### Everything is a stream of bytes\n\nA **byte stream** is an ordered sequence of bytes (characters). Programs read data from streams and write data to streams. Every command you run starts with **three standard streams** already connected for it:\n\n| Stream | Short name | File descriptor | Connected by default to |\n|---|---|---|---|\n| standard input | stdin | `0` | the keyboard |\n| standard output | stdout | `1` | the terminal |\n| standard error | stderr | `2` | the terminal |\n\nA **file descriptor** is just a small integer that names an open stream. Memorize the three numbers: **0 = stdin, 1 = stdout, 2 = stderr**. You will use them in redirections.\n\nNormal results go to **stdout**. Error and diagnostic messages go to **stderr**. Because both stdout and stderr are connected to the terminal by default, they *look* the same on screen, but they are two separate streams that you can send to different places."
     },
     {
-      "id": "d3-expansions",
-      "title": "Shell expansions",
-      "notebook": "bash/expansions.ipynb",
-      "priority": "high",
-      "examNote": "Know the **order** of the seven expansions and which happen inside double quotes. Quiz 1 used command substitution (`perm=$(stat -c %a \"$src\")`) and arithmetic expansion (`n=$(( ${#s} / 2 ))`) inside scripts. \"What does this print?\" questions on brace expansion and word splitting are easy marks.",
-      "blocks": [
-        {
-          "type": "md",
-          "text": "### What is an expansion?\n\nThe shell splits each command line into **tokens** (words and operators). Before running the command, it performs **expansions**: it replaces some tokens with new strings. For example, in `echo $((1 + 1))`, the shell replaces `$((1 + 1))` with `2` and then runs `echo 2`. The command never sees the original text.\n\nThere are **seven** kinds of expansion, performed **in this order** (memorize it):\n\n1. **brace expansion**: `{a,b}`, `{1..5}`\n2. **tilde expansion**: `~`\n3. **parameter expansion**: `$name`, `${name}`\n4. **command substitution**: `$(command)`\n5. **arithmetic expansion**: `$(( expression ))`\n6. **word splitting**\n7. **filename expansion** (globbing): `*`, `?`, `[...]`\n\nCommand substitution and arithmetic expansion have the **same precedence**: if a line has several of them, they are done left to right.\n\nA memory aid: **B**rave **T**urtles **P**addle **C**alm **A**rctic **W**ater **F**ast (Brace, Tilde, Parameter, Command, Arithmetic, Word splitting, Filename)."
-        },
-        {
-          "type": "check",
-          "q": "List the seven expansions in order.",
-          "a": "Brace, tilde, parameter, command substitution, arithmetic (same level as command substitution), word splitting, filename expansion."
-        },
-        {
-          "type": "md",
-          "text": "### Brace expansion\n\nBrace expansion **generates strings that follow a pattern**. Its form is *preamble*`{`*expression*`}`*postscript*. The optional preamble is glued to the front of every generated string and the optional postscript to the back. The *expression* is either:\n\n- two or more **comma-separated** strings: `{a,b,c}`, or\n- a **sequence expression** `{x..y}` or `{x..y..incr}` where `x` and `y` are integers or single characters and `incr` is an optional step size.\n\nBrace expansion is pure text generation. Unlike `*`, it does **not** look at which files exist."
-        },
-        {
-          "type": "code",
-          "code": "$ echo {a,b,c}\na b c\n$ echo before_{and,\\&,also}_after\nbefore_and_after before_&_after before_also_after\n$ echo {9..0}\n9 8 7 6 5 4 3 2 1 0\n$ echo {10..20..2}\n10 12 14 16 18 20\n$ echo {a..z..2}\na c e g i k m o q s u w y\n$ echo file{1..3}.txt\nfile1.txt file2.txt file3.txt\n$ echo /usr/{ucb/{ex,edit},lib/{a,how_ex}}\n/usr/ucb/ex /usr/ucb/edit /usr/lib/a /usr/lib/how_ex",
-          "caption": "The last one is a nested brace expansion from the Bash manual."
-        },
-        {
-          "type": "md",
-          "text": "Leading zeros are kept: `{01..12}` gives `01 02 ... 12`. Two brace expansions next to each other give every combination, which is handy for creating many files or directories at once:\n\n```bash\nmkdir {2019..2022}-{01..12}     # 48 directories 2019-01 ... 2022-12\ntouch file{00..30}.txt          # file00.txt ... file30.txt\n```"
-        },
-        {
-          "type": "code",
-          "code": "$ echo {a,b}{1,2}\na1 a2 b1 b2"
-        },
-        {
-          "type": "check",
-          "q": "What does `echo x{1..3}y` print?",
-          "a": "`x1y x2y x3y`"
-        },
-        {
-          "type": "pitfall",
-          "text": "Brace expansion happens **first**, before variables are expanded. So `n=3; echo {1..$n}` prints `{1..3}` literally: when brace expansion ran, the text was `{1..$n}`, which is not a valid sequence, so it was left alone."
-        },
-        {
-          "type": "md",
-          "text": "### Tilde expansion\n\nA `~` at the start of a word expands to the absolute path of **your home directory** (the value of `HOME`). `~username` expands to the home directory of *username*.\n\n```bash\n$ echo ~            # if your home directory is /home/user1\n/home/user1\n$ echo ~/notes\n/home/user1/notes\n```\n\n### Parameter expansion\n\n**Parameter expansion** happens when you access the value of a variable or parameter by writing `$name` (or `${name}`). You create a variable with `name=value` (**no spaces around `=`**). Inside a script, `$1` is the **first command line argument**, `$2` the second, and so on; that is also parameter expansion. (Variables and arguments are covered fully on Day 4.)"
-        },
-        {
-          "type": "code",
-          "code": "$ course=CISC220\n$ echo \"I am taking $course\"\nI am taking CISC220"
-        },
-        {
-          "type": "md",
-          "text": "### Command substitution: `$( )`\n\n`$(command)` runs *command* (in a subshell) and **replaces itself with the command's standard output**. Trailing newlines are removed. This is how you store the output of a command in a variable, or use it inside a string:\n\n```bash\necho \"Today is $(date +%A), it's $(date +%H:%M)\"\nmoo=$(cowsay \"Mooooo!\")     # prints nothing: the output is stored in moo\necho \"$moo\"                 # now print it\n```"
-        },
-        {
-          "type": "code",
-          "code": "$ echo \"classlist has $(wc -l < classlist) lines\"\nclasslist has 4 lines\n$ n=$(cut -f3 classlist | sort | head -n1)\n$ echo \"smallest student number: $n\"\nsmallest student number: 1990000",
-          "caption": "Using the 4-line classlist from the Streams lesson."
-        },
-        {
-          "type": "check",
-          "q": "What is the difference between `x=$(date)` and `x=date`?",
-          "a": "`x=$(date)` runs `date` and stores its output; `x=date` stores the four-letter string `date`."
-        },
-        {
-          "type": "md",
-          "text": "### Arithmetic expansion: `$(( ))`\n\n`$(( expression ))` evaluates an **integer** arithmetic expression and substitutes the result. Division throws away the remainder (`7 / 2` is `3`); `%` gives the remainder. Arithmetic is rare at the command line but common in scripts (see the Arithmetic notebook later).\n\n```bash\n$ echo $(( 1 + 1 ))\n2\n$ mkdir dir$((2 * 5))       # creates dir10\n```"
-        },
-        {
-          "type": "check",
-          "q": "What does `echo $(( 17 / 5 )) $(( 17 % 5 ))` print?",
-          "a": "`3 2` (integer division, then remainder)."
-        },
-        {
-          "type": "md",
-          "text": "### Word splitting\n\nAfter the earlier expansions, **anything not inside double quotes** undergoes **word splitting**: the result is split into separate words (fields) wherever there are field separator characters. By default the separators are **space, tab and newline**, stored in the variable `IFS` (*internal field separator*). Several separators in a row count as **one** separator.\n\nThis is why spaces in file names cause trouble. `unzip CISC220 Assignment solutions.zip` gives `unzip` three arguments (`CISC220`, `Assignment`, `solutions.zip`). Quoting or escaping prevents the split."
-        },
-        {
-          "type": "code",
-          "code": "$ str=\"field1    field2       field3\n\n\nfield4\"\n$ echo $str\nfield1 field2 field3 field4\n$ echo \"$str\"\nfield1    field2       field3\n\n\nfield4",
-          "caption": "Unquoted: the runs of spaces and newlines became single word breaks, and echo joins its arguments with one space. Quoted: one argument, printed exactly."
-        },
-        {
-          "type": "md",
-          "text": "You can change `IFS` temporarily to split on something else, such as commas. Save the old value and restore it afterwards:\n\n```bash\nstr=\"123456,Ester,Polly\"\nOLDIFS=$IFS\nIFS=\",\"\nfor field in $str; do\n    echo $field\ndone\nIFS=$OLDIFS\n```\n\nprints `123456`, `Ester` and `Polly` on separate lines."
-        },
-        {
-          "type": "why",
-          "q": "Why does `echo $(cut -f3 classlist)` print all the student numbers on one line?",
-          "a": "The command substitution is unquoted, so its output is word split on the newlines. `echo` receives four separate arguments and prints them separated by single spaces."
-        },
-        {
-          "type": "md",
-          "text": "### Filename expansion\n\nThe **last** expansion is filename expansion: words containing `*`, `?` or `[...]` are replaced with the matching file names (Day 2). Because it comes after word splitting, a variable that holds `*` expands to file names when used unquoted.\n\n### What happens inside quotes?\n\n| | brace | tilde | parameter `$x` | command `$( )` | arithmetic `$(( ))` | word splitting | filename `*` |\n|---|---|---|---|---|---|---|---|\n| unquoted | yes | yes | yes | yes | yes | yes | yes |\n| `\"double\"` | no | no | **yes** | **yes** | **yes** | no | no |\n| `'single'` | no | no | no | no | no | no | no |\n\nDouble quotes keep `$` working (parameter, command and arithmetic expansion) but **prevent word splitting and filename expansion** (and brace and tilde expansion). That is exactly why the course writes `\"$var\"`: the value is used as **one** word, exactly as stored, even if it contains spaces or `*`."
-        },
-        {
-          "type": "code",
-          "code": "$ echo \"{a,b}\" \"~\" '$HOME' \"$((2+3))\"\n{a,b} ~ $HOME 5\n$ v='f*'\n$ echo \"$v\"\nf*\n$ echo $v\nf1 f2",
-          "caption": "The directory contains files f1 and f2."
-        },
-        {
-          "type": "check",
-          "q": "Which expansions still happen inside double quotes?",
-          "a": "Parameter expansion, command substitution and arithmetic expansion (the ones that start with `$`)."
-        },
-        {
-          "type": "md",
-          "text": "### Key points\n\n- Order: **brace, tilde, parameter, command substitution / arithmetic, word splitting, filename**.\n- Brace expansion generates text (`{a,b}`, `{1..10..2}`, `{01..12}`) and does not care what files exist; it runs before variables are expanded.\n- `$(cmd)` is replaced by cmd's stdout; `$((expr))` by an integer result.\n- Unquoted results are word split on space, tab and newline (`IFS`), then globbed.\n- Double quotes allow only the `$` expansions; single quotes allow none."
-        }
-      ]
+     "type": "code",
+     "code": "$ ls classlist zzz\nls: cannot access 'zzz': No such file or directory\nclasslist",
+     "caption": "The error line was written to stderr (fd 2); the line classlist was written to stdout (fd 1). Both appear on the terminal."
     },
     {
-      "id": "d3-tr",
-      "title": "The tr command",
-      "notebook": "bash/tr.ipynb",
-      "priority": "medium",
-      "examNote": "Assignment 3 Q5 (`tr220.sh`) re-implements `tr` and rejects exactly the cases this notebook calls undefined or non-portable (seq1 longer than seq2, duplicated characters in seq1). Expect a one-line `tr` in a pipeline or a \"what does this print?\" question.",
-      "blocks": [
-        {
-          "type": "md",
-          "text": "### What `tr` does\n\n`tr` **translates, squeezes and/or deletes characters**. It reads **standard input only** (it does not take a file name argument) and writes standard output. Think of it as a character-by-character search and replace.\n\n```bash\ntr [option]... seq1 [seq2]\n```\n\nWith two sequences, each character of `seq1` is replaced by the character **at the same position** in `seq2`. Characters not in `seq1` pass through unchanged.\n\nBecause `tr` reads stdin, you feed it with a pipe or `<`:\n\n```bash\ntr a-z A-Z < words.txt           # a file\necho \"$x\" | tr a-z A-Z           # a variable\nprintf %s \"$x\" | tr 'p' 't'      # printf %s prints x exactly, with no newline added\n```"
-        },
-        {
-          "type": "code",
-          "code": "$ x=\"sparring with a purple porpoise\"\n$ printf %s \"$x\" | tr 'p' 't'\nstarring with a turtle tortoise\n$ echo \"ca.queensu.cs.cisc124\" | tr '.' '/'\nca/queensu/cs/cisc124\n$ echo hello | tr el ip\nhippo",
-          "caption": "In the last one e becomes i and l becomes p (position 1 maps to position 1, position 2 to position 2)."
-        },
-        {
-          "type": "check",
-          "q": "What does `echo mutate | tr emu opo` print?",
-          "a": "`potato` (e->o, m->p, u->o)."
-        },
-        {
-          "type": "pitfall",
-          "text": "`tr a-z A-Z words.txt` is an error: `tr` does not accept a file name. Use `tr a-z A-Z < words.txt` or `cat words.txt | tr a-z A-Z`."
-        },
-        {
-          "type": "md",
-          "text": "### Three ways to write a sequence\n\n1. a plain **string** of characters: `ABCDEFGHIJKLMNOPQRSTUVWXYZ`\n2. a **range**: `A-Z`, `a-z`, `0-9` (not portable, but works in GNU tr)\n3. a **POSIX character class**: `[:upper:]`, `[:lower:]`, `[:digit:]`, `[:alpha:]`, `[:space:]`, `[:punct:]`\n\nSpecial characters can be written with backslash escapes: `'\\n'` is newline, `'\\t'` is tab. Quote the sequences (single quotes are safest) so the shell does not treat `[`, `*` or `\\` specially."
-        },
-        {
-          "type": "code",
-          "code": "$ echo cisc220 | tr 'a-z' 'A-Z'\nCISC220\n$ echo \"Hi There\" | tr '[:upper:]' '[:lower:]'\nhi there\n$ echo \"one two\" | tr ' ' '\\n'\none\ntwo"
-        },
-        {
-          "type": "md",
-          "text": "### When the sequences have different lengths\n\n- **`seq1` shorter than `seq2`**: the extra characters of `seq2` are ignored. `tr 'a-z' 'A-Z0-9'` behaves like `tr 'a-z' 'A-Z'`.\n- **`seq1` longer than `seq2`**: GNU `tr` **extends `seq2` by repeating its last character** until it is as long as `seq1`. POSIX says the result is **undefined**, so this is not portable.\n- The portable way to repeat a character *c* is `[c*]`, which repeats *c* as many times as needed to match `seq1`."
-        },
-        {
-          "type": "code",
-          "code": "$ echo cisc220 | tr 'a-z' 'A-Z0-9'\nCISC220\n$ echo cisc220 | tr '0-9' 'X'\nciscXXX\n$ echo cisc220 | tr '[:digit:]' '[X*]'\nciscXXX\n$ echo abc | tr abc xy\nxyy",
-          "caption": "GNU tr: in tr abc xy, seq2 is extended to xyy."
-        },
-        {
-          "type": "md",
-          "text": "### Duplicated characters in `seq1`: undefined\n\nIf `seq1` contains the **same character twice**, the result is **undefined** (the standard does not say which translation wins). With GNU `tr`, the **last** occurrence wins:\n\n```bash\n$ echo cisc220 | tr 'cisc' 'CIS'\nSISS220\n```\n\nHere `seq2` is extended to `CISS`, so `c` is mapped first to `C` and then to `S`; the later mapping wins, giving `SISS220`. Assignment 3's `tr220.sh` refuses this case: it checks `seq1` for duplicated characters (with `hasdups`) and also rejects a `seq1` that is longer than `seq2`, the two undefined/non-portable cases above."
-        },
-        {
-          "type": "check",
-          "q": "Name the two `tr` situations that the course calls undefined or non-portable.",
-          "a": "`seq1` longer than `seq2` (GNU repeats the last character of seq2; POSIX says undefined), and `seq1` containing a duplicated character (undefined)."
-        },
-        {
-          "type": "md",
-          "text": "### Deleting and squeezing\n\n- `tr -d seq1` **deletes** every character that is in `seq1`. Give only one sequence.\n- `tr -s seq1` **squeezes**: each run of a repeated character from `seq1` is replaced by a single copy.\n- `tr -ds seq1 seq2` does both: first **delete** the characters in `seq1`, then **squeeze** repeats of characters in `seq2`."
-        },
-        {
-          "type": "code",
-          "code": "$ echo \"2022-10-21\" | tr -d '-'\n20221021\n$ echo \"a     bcd  ef g\" | tr -s ' '\na bcd ef g\n$ echo bookkeeper | tr -s 'a-z'\nbokeper\n$ echo \"aaabbb--ccc\" | tr -ds '-' 'a-z'\nabc",
-          "caption": "Squeezing only merges repeats that are next to each other: bookkeeper becomes bokeper."
-        },
-        {
-          "type": "why",
-          "q": "Why is `tr -s ' '` useful before `cut -d' '`?",
-          "a": "`cut` treats every single delimiter as a field boundary, so two spaces in a row create an empty field. Squeezing runs of spaces to one space first makes the fields line up."
-        },
-        {
-          "type": "check",
-          "q": "Write a command that prints the contents of `code.txt` with all digits removed.",
-          "a": "`tr -d '0-9' < code.txt` (or `tr -d '[:digit:]' < code.txt`)."
-        },
-        {
-          "type": "md",
-          "text": "### Key points\n\n- `tr` reads **stdin only**; feed it with `<`, a pipe, or `echo \"$x\" |`.\n- Position *i* of `seq1` maps to position *i* of `seq2`; other characters pass through.\n- Sequences: strings, ranges `a-z`, classes `[:digit:]`; `[c*]` repeats *c*.\n- seq1 longer than seq2: GNU repeats the last char (non-portable); duplicates in seq1: undefined (GNU: last wins).\n- `-d` deletes, `-s` squeezes, `-ds` deletes seq1 then squeezes seq2."
-        }
-      ]
+     "type": "md",
+     "text": "Some commands read **standard input** when you do not give them a file name. If you type `sort` and press Enter, `sort` waits for you to type lines on the keyboard. You signal the end of input by pressing **Ctrl + D** at the start of a line; then `sort` prints the lines in sorted order. (Ctrl + C would instead stop `sort` without printing anything.)"
+    },
+    {
+     "type": "try",
+     "text": "Type `sort` and press Enter. Type `zebra`, `elephant`, `anteater` and `dog`, pressing Enter after each. Then press **Ctrl + D**. The four words come back in alphabetical order."
+    },
+    {
+     "type": "check",
+     "q": "What are the file descriptor numbers of stdin, stdout and stderr?",
+     "a": "stdin is 0, stdout is 1, stderr is 2."
+    },
+    {
+     "type": "md",
+     "text": "### Redirecting standard output: `>` and `>>`\n\n**Redirection** changes where a command reads its input from or sends its output to. To send standard output to a file, write `1> filename` (or just `> filename`; the `1` is optional) anywhere in the command:\n\n- `>` **creates** the file if it does not exist, and **overwrites** (truncates) it if it does.\n- `>>` **appends** to the end of the file instead of overwriting it (it also creates the file if needed).\n\nThe command itself does not know about the file. The shell opens the file and connects it to fd 1 *before* the command runs. Anything the command would have printed on stdout goes into the file instead, so nothing appears on the terminal."
+    },
+    {
+     "type": "code",
+     "code": "$ echo OOPS > myfile\n$ cat myfile\nOOPS\n$ echo again >> myfile\n$ cat myfile\nOOPS\nagain\n$ echo new > myfile\n$ cat myfile\nnew",
+     "caption": "Quiz 1 asked: what command overwrites myfile with the string OOPS? Answer: echo OOPS > myfile"
+    },
+    {
+     "type": "try",
+     "text": "In your practice folder, run `echo OOPS > myfile`, then `cat myfile`. Run `echo again >> myfile` and `cat myfile` again: two lines. Now run `echo new > myfile` and `cat myfile`: only `new` is left."
+    },
+    {
+     "type": "code",
+     "code": "$ ls -A 1> files.txt\n$ ls -A > files.txt",
+     "caption": "These two commands do the same thing: for stdout the 1 is optional."
+    },
+    {
+     "type": "check",
+     "q": "What is the difference between `echo hi > f` and `echo hi >> f` when `f` already contains one line?",
+     "a": "`>` overwrites: afterwards `f` contains only `hi`. `>>` appends: afterwards `f` contains its old line followed by `hi`."
+    },
+    {
+     "type": "pitfall",
+     "text": "`sort data > data` does **not** sort the file in place. The shell truncates `data` to empty *before* `sort` starts, so `sort` reads an empty file and `data` ends up empty. Write to a different file instead: `sort data > sorted`."
+    },
+    {
+     "type": "md",
+     "text": "### Redirecting standard error: `2>`\n\nTo redirect standard error you **must** write the file descriptor `2`: `2> filename`. Then only the error messages go to the file; normal output still goes to the terminal.\n\nYou can redirect both streams of one command to **separate** files:"
+    },
+    {
+     "type": "code",
+     "code": "$ ls -A zzz file?? > files.txt 2> error.txt\n$ cat files.txt\nfile00\nfile01\n$ cat error.txt\nls: cannot access 'zzz': No such file or directory",
+     "caption": "Directory contains file00 and file01. Many commands keep going after an error, so ls still lists the files it can."
+    },
+    {
+     "type": "md",
+     "text": "**`/dev/null`** is the *null device*: a special file that discards everything written to it (and reports that the write succeeded). Use it to throw output away, most often error messages:\n\n```bash\nls classlist zzz 2> /dev/null      # error message discarded, classlist still printed\n```"
+    },
+    {
+     "type": "check",
+     "q": "Write a command that runs `ls zzz` and stores the error message in a file named `err.txt`.",
+     "a": "`ls zzz 2> err.txt`"
+    },
+    {
+     "type": "md",
+     "text": "### Both streams to one file: `> file 2>&1`\n\nTo send **all** output (stdout and stderr) to the same file, redirect stdout to the file and then add `2>&1`:\n\n```bash\nls -A zzz file?? > all.txt 2>&1\n```\n\n`2>&1` means: *make file descriptor 2 a duplicate (copy) of file descriptor 1*, that is, send stderr to wherever stdout points **right now**.\n\nThe shell processes redirections **from left to right**, so order matters:\n\n1. `> all.txt 2>&1`: first fd 1 points to `all.txt`; then fd 2 is copied from fd 1, so it also points to `all.txt`. Everything goes to the file.\n2. `2>&1 > all.txt`: first fd 2 is copied from fd 1, which is still the **terminal**; then fd 1 is changed to `all.txt`. Errors still appear on the terminal and only normal output goes to the file.\n\nBash also has the shorthand `&> file`, which means the same as `> file 2>&1`. The course notebooks use the `> file 2>&1` form, so make sure you can write that one."
+    },
+    {
+     "type": "code",
+     "code": "$ ls -A zzz file?? 2>&1 > all.txt\nls: cannot access 'zzz': No such file or directory\n$ cat all.txt\nfile00\nfile01",
+     "caption": "Wrong order: the error still reaches the terminal."
+    },
+    {
+     "type": "why",
+     "q": "Why does `2>&1 > all.txt` not send errors into all.txt?",
+     "a": "Redirections are done left to right. When `2>&1` runs, fd 1 still points at the terminal, so fd 2 becomes a copy of *the terminal*. Changing fd 1 afterwards does not change fd 2; the copy was already made."
+    },
+    {
+     "type": "check",
+     "q": "Write a command that sends both the output and the errors of `ls a b` into `log.txt`.",
+     "a": "`ls a b > log.txt 2>&1` (or `ls a b &> log.txt`)."
+    },
+    {
+     "type": "md",
+     "text": "### The other direction: `>&2`\n\n`2>&1` sends standard error to wherever standard output goes. The reverse, `1>&2`, is usually written **`>&2`** (the `1` is optional, as always for stdout). It makes standard output a copy of standard error, so whatever the command prints goes to **stderr** instead of stdout:\n\n```bash\necho \"Something went wrong\" >&2\n```\n\nOn the screen this looks exactly like a normal `echo`. The difference shows when stdout is redirected or piped: the message still reaches the terminal, because it was never on stdout. Scripts use this to print their **error messages** (you will write such messages in scripts on Day 5)."
+    },
+    {
+     "type": "code",
+     "code": "$ echo hello >&2 > out.txt\n$ cat out.txt\nhello",
+     "caption": "Left to right again: >&2 sends stdout to the terminal's stderr, then > out.txt changes stdout to the file. The later redirection wins, so hello goes into out.txt."
+    },
+    {
+     "type": "md",
+     "text": "### Redirecting standard input: `<`\n\n`0< filename` (or just `< filename`) makes the command read **standard input from the file** instead of the keyboard.\n\nThe examples from here on use a file named `classlist`: four students, one per line (it is shown in full a little further down). They also use **`wc -l`**: `wc` means *word count*, and with `-l` it counts **lines**. `wc -l FILE` prints the number of lines followed by the file name.\n\nMost filter commands also accept a file name argument, so `sort unsorted.txt` and `sort < unsorted.txt` print the same thing. The difference shows up with commands that print the file name: `wc -l classlist` prints `4 classlist`, but `wc -l < classlist` prints just `4`, because `wc` reads stdin and never sees a file name.\n\nYou can combine input and output redirection: `sort < unsorted.txt > sorted.txt`."
+    },
+    {
+     "type": "code",
+     "code": "$ sort < unsorted.txt > sorted.txt\n$ cat sorted.txt\nanteater\ndog\nelephant\nzebra\n$ wc -l classlist\n4 classlist\n$ wc -l < classlist\n4",
+     "caption": "unsorted.txt contains zebra, elephant, anteater, dog (one per line); classlist has 4 lines."
+    },
+    {
+     "type": "check",
+     "q": "Why does `wc -l < classlist` print only a number while `wc -l classlist` also prints the name?",
+     "a": "With `<` the shell opens the file and connects it to stdin; `wc` only sees an anonymous stream, so it has no file name to print."
+    },
+    {
+     "type": "md",
+     "text": "### Pipelines: `|`\n\nA **pipe** `|` connects the **standard output** of the command on its left to the **standard input** of the command on its right. A **pipeline** is a chain of commands joined by pipes. Think of each command as a segment of pipe: data flows in one end, gets changed, and flows out the other end.\n\n```bash\nls /bin /usr/bin | sort | uniq | wc -l\n```\n\nOnly **stdout** goes through a pipe. Error messages on stderr still go to the terminal (unless you redirect them).\n\nThe commands that sit in the middle of pipelines are called **filters**: they read stdin (or files named as arguments), transform the lines, and write stdout. These are the ones you need:\n\n| Command | What it does |\n|---|---|\n| `sort` | sorts lines (alphabetically by default) |\n| `sort -n` | sorts numerically (so `9` comes before `10`) |\n| `sort -r` | reverse order; `sort -n -r` (or `-nr`) is largest number first |\n| `uniq` | removes **adjacent** duplicate lines (so `sort` first!) |\n| `uniq -d` | prints only lines that are duplicated (one copy each) |\n| `wc -l` | counts lines |\n| `head -n 3` | first 3 lines (`head -n3` also works) |\n| `tail -n 3` | last 3 lines |\n| `cut -f 3` | 3rd field of each line; fields are separated by **TAB** by default |\n| `cut -d\" \" -f 1` | 1st field, using a space as the delimiter (`-d` = `--delimiter`, `-f` = `--fields`) |\n\n`cut -f1,3` selects several fields, and `cut -f2 -d:` uses `:` as the delimiter (options can come in either order)."
+    },
+    {
+     "type": "code",
+     "code": "$ cat classlist\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n$ cut -f3 classlist\n3100025\n2999999\n3001111\n1990000\n$ cut -f3 classlist | sort\n1990000\n2999999\n3001111\n3100025\n$ cut -f3 classlist | sort -r | head -n1\n3100025",
+     "caption": "classlist fields are separated by single TAB characters."
+    },
+    {
+     "type": "check",
+     "q": "Why must you usually `sort` before `uniq`?",
+     "a": "`uniq` only removes duplicates that are **next to each other**. Sorting puts identical lines together so `uniq` can find them all."
+    },
+    {
+     "type": "md",
+     "text": "The next examples need a few lines of numbers. **`printf`** is a printing command like `echo`, but it does not add a newline by itself: you write `\\n` wherever you want a line break. So `printf '10\\n9\\n100\\n'` prints the three lines `10`, `9` and `100`. It is a handy way to feed test lines into a pipeline."
+    },
+    {
+     "type": "code",
+     "code": "$ printf '10\\n9\\n100\\n' | sort\n10\n100\n9\n$ printf '10\\n9\\n100\\n' | sort -n\n9\n10\n100",
+     "caption": "Plain sort compares character by character (1 < 9), so 100 comes before 9. Use -n for numbers."
+    },
+    {
+     "type": "pitfall",
+     "text": "`sort` without `-n` sorts numbers as text: `100` comes before `9`. Student numbers that all have the same number of digits sort correctly either way, but marks like 9, 72, 100 need `sort -n`."
+    },
+    {
+     "type": "md",
+     "text": "### Tees: save *and* pass along\n\nRedirection sends output to a file; a pipe sends it to another command. To do **both**, use `tee`. The `tee` command reads standard input and copies it to **standard output and to one or more files**. Like the letter T in plumbing, the data continues down the pipeline while a copy is saved.\n\nBecause `tee` is an ordinary command, you can put it anywhere in a pipeline to save an intermediate result:\n\n```bash\ndate | tee fulldate.txt | cut -d\" \" -f1\nfortune | tee fortune.txt | cowsay | tee cow.txt | cowsay -n\n```\n\n### Building a pipeline from an English description\n\nQuiz 1 asked: *extract the student numbers from `classlist`, sort them ascending, save all of them to a file `snum` (in sorted order), and print the first three.* Translate each phrase into one command, in order:\n\n1. extract the student numbers: `cut -f3 classlist`\n2. sort ascending: `sort`\n3. save all of them (sorted) and keep going: `tee snum`\n4. print only the first three: `head -n3`"
+    },
+    {
+     "type": "code",
+     "code": "$ cut -f3 classlist | sort | tee snum | head -n3\n1990000\n2999999\n3001111\n$ cat snum\n1990000\n2999999\n3001111\n3100025",
+     "caption": "The tee must come AFTER sort (the file must be sorted) and BEFORE head (the file must contain all the numbers)."
+    },
+    {
+     "type": "try",
+     "text": "Make the class list yourself: `printf 'Cade\\tBarry\\t3100025\\nDay\\tHolly\\t2999999\\nFriese\\tAndy\\t3001111\\nYu\\tSue\\t1990000\\n' > classlist` (`\\t` is a TAB). Then run `cut -f3 classlist | sort | tee snum | head -n3` and `cat snum`."
+    },
+    {
+     "type": "why",
+     "q": "Why would `cut -f3 classlist | sort | head -n3 | tee snum` lose marks?",
+     "a": "`tee` would only see the three lines that `head` let through, so `snum` would contain three numbers instead of all of them."
+    },
+    {
+     "type": "check",
+     "q": "Write a pipeline that prints how many lines in `words.txt` are different (count of distinct lines).",
+     "a": "`sort words.txt | uniq | wc -l`"
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- fd **0** = stdin, **1** = stdout, **2** = stderr.\n- `>` overwrites, `>>` appends, `<` reads stdin from a file, `2>` redirects errors, `2> /dev/null` discards them.\n- `> file 2>&1` puts both streams in one file; redirections are processed **left to right**. `>&2` sends stdout to stderr.\n- `|` connects stdout to the next command's stdin; stderr does not go through the pipe.\n- `tee file` saves a copy of the stream and passes it on; place it exactly where the data has the form you want saved."
     }
-  ],
-  "flashcards": [
+   ]
+  },
+  {
+   "id": "d3-expansions",
+   "title": "Shell expansions",
+   "notebook": "bash/expansions.ipynb",
+   "priority": "high",
+   "examNote": "Know the **order** of the seven expansions and which happen inside double quotes. Quiz 1 used command substitution (`perm=$(stat -c %a \"$src\")`, Q4) and arithmetic expansion (`$(( ... / 2 ))`, Q3A) inside scripts; you will write those once variables (Day 4) are covered. \"What does this print?\" questions on brace expansion and word splitting are easy marks.",
+   "blocks": [
     {
-      "id": "d3-fc-01",
-      "topic": "d3-streams",
-      "front": "File descriptor numbers of stdin, stdout, stderr?",
-      "back": "0 = standard input, 1 = standard output, 2 = standard error."
+     "type": "md",
+     "text": "### What is an expansion?\n\nThe shell splits each command line into **tokens** (words and operators). Before running the command, it performs **expansions**: it replaces some tokens with new strings. For example, in `echo $((1 + 1))`, the shell replaces `$((1 + 1))` with `2` and then runs `echo 2`. The command never sees the original text.\n\nThere are **seven** kinds of expansion, performed **in this order** (memorize it):\n\n1. **brace expansion**: `{a,b}`, `{1..5}`\n2. **tilde expansion**: `~`\n3. **parameter expansion**: `$name`, `${name}`\n4. **command substitution**: `$(command)`\n5. **arithmetic expansion**: `$(( expression ))`\n6. **word splitting**\n7. **filename expansion** (globbing): `*`, `?`, `[...]`\n\nCommand substitution and arithmetic expansion have the **same precedence**: if a line has several of them, they are done left to right.\n\nA memory aid: **B**rave **T**urtles **P**addle **C**alm **A**rctic **W**ater **F**ast (Brace, Tilde, Parameter, Command, Arithmetic, Word splitting, Filename)."
     },
     {
-      "id": "d3-fc-02",
-      "topic": "d3-streams",
-      "front": "Where are stdin, stdout and stderr connected by default?",
-      "back": "stdin: the keyboard. stdout and stderr: the terminal."
+     "type": "check",
+     "q": "List the seven expansions in order.",
+     "a": "Brace, tilde, parameter, command substitution, arithmetic (same level as command substitution), word splitting, filename expansion."
     },
     {
-      "id": "d3-fc-03",
-      "topic": "d3-streams",
-      "front": "What is a file descriptor?",
-      "back": "A small integer that identifies an open stream of a process (0, 1, 2 for the standard streams)."
+     "type": "try",
+     "text": "Run `echo {a,b,c}`, `echo {9..0}` and `echo file{1..3}.txt`. Then, in your practice folder, run `mkdir week{01..03}` and `ls`."
     },
     {
-      "id": "d3-fc-04",
-      "topic": "d3-streams",
-      "front": "How do you end keyboard input to a command like `sort`?",
-      "back": "Press Ctrl-d (end of input)."
+     "type": "md",
+     "text": "### Brace expansion\n\nBrace expansion **generates strings that follow a pattern**. Its form is *preamble*`{`*expression*`}`*postscript*. The optional preamble is glued to the front of every generated string and the optional postscript to the back. The *expression* is either:\n\n- two or more **comma-separated** strings: `{a,b,c}`, or\n- a **sequence expression** `{x..y}` or `{x..y..incr}` where `x` and `y` are integers or single characters and `incr` is an optional step size.\n\nBrace expansion is pure text generation. Unlike `*`, it does **not** look at which files exist."
     },
     {
-      "id": "d3-fc-05",
-      "topic": "d3-streams",
-      "front": "Command to overwrite `myfile` with the string OOPS (Quiz 1)",
-      "back": "`echo OOPS > myfile`"
+     "type": "code",
+     "code": "$ echo {a,b,c}\na b c\n$ echo before_{and,\\&,also}_after\nbefore_and_after before_&_after before_also_after\n$ echo {9..0}\n9 8 7 6 5 4 3 2 1 0\n$ echo {10..20..2}\n10 12 14 16 18 20\n$ echo {a..z..2}\na c e g i k m o q s u w y\n$ echo file{1..3}.txt\nfile1.txt file2.txt file3.txt\n$ echo /usr/{ucb/{ex,edit},lib/{a,how_ex}}\n/usr/ucb/ex /usr/ucb/edit /usr/lib/a /usr/lib/how_ex",
+     "caption": "The last one is a nested brace expansion from the Bash manual."
     },
     {
-      "id": "d3-fc-06",
-      "topic": "d3-streams",
-      "front": "`>` vs `>>`",
-      "back": "`>` creates or **overwrites** the file; `>>` creates or **appends** to it."
+     "type": "md",
+     "text": "Leading zeros are kept: `{01..12}` gives `01 02 ... 12`. Two brace expansions next to each other give every combination, which is handy for creating many files or directories at once:\n\n```bash\nmkdir {2019..2022}-{01..12}     # 48 directories 2019-01 ... 2022-12\ntouch file{00..30}.txt          # file00.txt ... file30.txt\n```"
     },
     {
-      "id": "d3-fc-07",
-      "topic": "d3-streams",
-      "front": "Is the `1` in `1> file` required?",
-      "back": "No. `> file` means `1> file`. The `2` in `2> file` **is** required."
+     "type": "code",
+     "code": "$ echo {a,b}{1,2}\na1 a2 b1 b2"
     },
     {
-      "id": "d3-fc-08",
-      "topic": "d3-streams",
-      "front": "Redirect only the error messages of `cmd` to `err.txt`",
-      "back": "`cmd 2> err.txt`"
+     "type": "check",
+     "q": "What does `echo x{1..3}y` print?",
+     "a": "`x1y x2y x3y`"
     },
     {
-      "id": "d3-fc-09",
-      "topic": "d3-streams",
-      "front": "Send stdout of `cmd` to out.txt and stderr to err.txt",
-      "back": "`cmd > out.txt 2> err.txt`"
+     "type": "md",
+     "text": "### Tilde expansion\n\nA `~` at the start of a word expands to the absolute path of **your home directory** (the value of `HOME`). `~username` expands to the home directory of *username*.\n\n```bash\n$ echo ~            # if your home directory is /home/user1\n/home/user1\n$ echo ~/notes\n/home/user1/notes\n```\n\n### Parameter expansion\n\n**Parameter expansion** happens when you get the value of a variable or parameter by writing `$name` (or `${name}`). You have already used one: `$?`, the exit status (Day 1).\n\nA **variable** is a name that holds a string. Just enough to follow today's examples:\n\n- `name=value` stores *value* in the variable *name*. There must be **no spaces around `=`**.\n- `$name` is replaced by the stored value. A name that was never given a value expands to nothing.\n\nDay 4 covers variables properly. Later today, `$1`, `$2`, ... in a script (the command line arguments) are parameter expansions too."
     },
     {
-      "id": "d3-fc-10",
-      "topic": "d3-streams",
-      "front": "Send both stdout and stderr of `cmd` to `all.txt`",
-      "back": "`cmd > all.txt 2>&1` (bash shorthand: `cmd &> all.txt`)."
+     "type": "code",
+     "code": "$ course=CISC220\n$ echo \"I am taking $course\"\nI am taking CISC220"
     },
     {
-      "id": "d3-fc-11",
-      "topic": "d3-streams",
-      "front": "What does `2>&1` mean?",
-      "back": "Make fd 2 (stderr) a copy of fd 1 (stdout): send errors to wherever stdout points **at that moment**."
+     "type": "check",
+     "q": "What does `x=5; echo x $x` print?",
+     "a": "`x 5`. The first `x` is just a word; `$x` is replaced by the value `5`."
     },
     {
-      "id": "d3-fc-12",
-      "topic": "d3-streams",
-      "front": "In what order does the shell process redirections?",
-      "back": "Left to right. So `> f 2>&1` sends both to f, but `2>&1 > f` leaves errors on the terminal."
+     "type": "pitfall",
+     "text": "Brace expansion happens **first**, before variables are expanded. So `n=3; echo {1..$n}` prints `{1..3}` literally: when brace expansion ran, the text was `{1..$n}`, which is not a valid sequence, so it was left alone."
     },
     {
-      "id": "d3-fc-13",
-      "topic": "d3-streams",
-      "front": "What is `/dev/null`?",
-      "back": "The null device: a file that discards everything written to it (and reports success)."
+     "type": "md",
+     "text": "### Command substitution: `$( )`\n\n`$(command)` runs *command* (in a subshell) and **replaces itself with the command's standard output**. Trailing newlines are removed. This is how you use a command's output inside a string, or store it in a variable:\n\n```bash\necho \"Today is $(date +%A), it's $(date +%H:%M)\"   # date +%A prints the weekday, +%H:%M the time\nmoo=$(cowsay \"Mooooo!\")     # prints nothing: the output is stored in moo\necho \"$moo\"                 # now print it\n```"
     },
     {
-      "id": "d3-fc-14",
-      "topic": "d3-streams",
-      "front": "Run `cmd` but throw away its error messages",
-      "back": "`cmd 2> /dev/null`"
+     "type": "code",
+     "code": "$ echo \"classlist has $(wc -l < classlist) lines\"\nclasslist has 4 lines\n$ n=$(cut -f3 classlist | sort | head -n1)\n$ echo \"smallest student number: $n\"\nsmallest student number: 1990000",
+     "caption": "Using the 4-line classlist from the Streams lesson."
     },
     {
-      "id": "d3-fc-15",
-      "topic": "d3-streams",
-      "front": "How does a script print an error message on stderr?",
-      "back": "`echo \"message\" >&2` (stdout of echo is redirected to fd 2)."
+     "type": "check",
+     "q": "What is the difference between `x=$(date)` and `x=date`?",
+     "a": "`x=$(date)` runs `date` and stores its output; `x=date` stores the four-letter string `date`."
     },
     {
-      "id": "d3-fc-16",
-      "topic": "d3-streams",
-      "front": "Redirect stdin of `sort` to read `unsorted.txt`",
-      "back": "`sort < unsorted.txt` (same as `sort 0< unsorted.txt`)."
+     "type": "md",
+     "text": "### Arithmetic expansion: `$(( ))`\n\n`$(( expression ))` evaluates an **integer** arithmetic expression and substitutes the result. Division throws away the remainder (`7 / 2` is `3`); `%` gives the remainder. Arithmetic is rare at the command line but common in scripts (Day 5 covers arithmetic in full).\n\n```bash\n$ echo $(( 1 + 1 ))\n2\n$ mkdir dir$((2 * 5))       # creates dir10\n```"
     },
     {
-      "id": "d3-fc-17",
-      "topic": "d3-streams",
-      "front": "Print only the number of lines in `classlist` (no file name)",
-      "back": "`wc -l < classlist`"
+     "type": "check",
+     "q": "What does `echo $(( 17 / 5 )) $(( 17 % 5 ))` print?",
+     "a": "`3 2` (integer division, then remainder)."
     },
     {
-      "id": "d3-fc-18",
-      "topic": "d3-streams",
-      "front": "What does a pipe `|` connect?",
-      "back": "The **stdout** of the left command to the **stdin** of the right command. stderr is not piped."
+     "type": "md",
+     "text": "### Word splitting\n\nAfter the earlier expansions, **anything not inside double quotes** undergoes **word splitting**: the result is split into separate words (fields) wherever there are field separator characters. By default the separators are **space, tab and newline**, stored in the variable `IFS` (*internal field separator*). Several separators in a row count as **one** separator.\n\nThis is why spaces in file names cause trouble. `unzip CISC220 Assignment solutions.zip` gives `unzip` three arguments (`CISC220`, `Assignment`, `solutions.zip`). Quoting or escaping prevents the split."
     },
     {
-      "id": "d3-fc-19",
-      "topic": "d3-streams",
-      "front": "What does `tee file` do?",
-      "back": "Copies its stdin to stdout **and** to the file(s) named, so a pipeline can save an intermediate result and keep going."
+     "type": "code",
+     "code": "$ str=\"field1    field2       field3\n\n\nfield4\"\n$ echo $str\nfield1 field2 field3 field4\n$ echo \"$str\"\nfield1    field2       field3\n\n\nfield4",
+     "caption": "Unquoted: the runs of spaces and newlines became single word breaks, and echo joins its arguments with one space. Quoted: one argument, printed exactly."
     },
     {
-      "id": "d3-fc-20",
-      "topic": "d3-streams",
-      "front": "Why is `sort data > data` a bug?",
-      "back": "The shell truncates `data` before sort runs, so sort reads an empty file and data ends up empty."
+     "type": "md",
+     "text": "You can change `IFS` temporarily to split on something else, such as commas. Save the old value in another variable and put it back afterwards:\n\n```bash\nstr=\"123456,Ester,Polly\"\nOLDIFS=$IFS      # save the normal separators\nIFS=\",\"         # split on commas only\necho $str        # prints: 123456 Ester Polly\nIFS=$OLDIFS      # restore normal word splitting\n```\n\nUnquoted, `$str` is split at the commas into three words, and `echo` prints them separated by spaces. (The notebook also feeds the three words to a `for` loop; loops are Day 6.)"
     },
     {
-      "id": "d3-fc-21",
-      "topic": "d3-streams",
-      "front": "`sort -n` vs `sort`",
-      "back": "`-n` sorts numerically (9 before 10); plain sort compares as text (10, 100, 9)."
+     "type": "why",
+     "q": "Why does `echo $(cut -f3 classlist)` print all the student numbers on one line?",
+     "a": "The command substitution is unquoted, so its output is word split on the newlines. `echo` receives four separate arguments and prints them separated by single spaces."
     },
     {
-      "id": "d3-fc-22",
-      "topic": "d3-streams",
-      "front": "Sort numbers largest first",
-      "back": "`sort -n -r` (or `sort -nr`)."
+     "type": "md",
+     "text": "### Filename expansion\n\nThe **last** expansion is filename expansion: words containing `*`, `?` or `[...]` are replaced with the matching file names (Day 2). Because it comes after word splitting, a variable that holds `*` expands to file names when used unquoted.\n\n### What happens inside quotes?\n\n| | brace | tilde | parameter `$x` | command `$( )` | arithmetic `$(( ))` | word splitting | filename `*` |\n|---|---|---|---|---|---|---|---|\n| unquoted | yes | yes | yes | yes | yes | yes | yes |\n| `\"double\"` | no | no | **yes** | **yes** | **yes** | no | no |\n| `'single'` | no | no | no | no | no | no | no |\n\nDouble quotes keep `$` working (parameter, command and arithmetic expansion) but **prevent word splitting and filename expansion** (and brace and tilde expansion). That is exactly why the course writes `\"$var\"`: the value is used as **one** word, exactly as stored, even if it contains spaces or `*`."
     },
     {
-      "id": "d3-fc-23",
-      "topic": "d3-streams",
-      "front": "What does `uniq` remove? What does `uniq -d` print?",
-      "back": "`uniq` removes **adjacent** duplicate lines (sort first). `uniq -d` prints one copy of each duplicated line only."
+     "type": "code",
+     "code": "$ echo \"{a,b}\" \"~\" '$HOME' \"$((2+3))\"\n{a,b} ~ $HOME 5\n$ v='f*'\n$ echo \"$v\"\nf*\n$ echo $v\nf1 f2",
+     "caption": "The directory contains files f1 and f2."
     },
     {
-      "id": "d3-fc-24",
-      "topic": "d3-streams",
-      "front": "Print the first 3 / last 3 lines",
-      "back": "`head -n3` / `tail -n3` (also `head -n 3`)."
+     "type": "check",
+     "q": "Which expansions still happen inside double quotes?",
+     "a": "Parameter expansion, command substitution and arithmetic expansion (the ones that start with `$`)."
     },
     {
-      "id": "d3-fc-25",
-      "topic": "d3-streams",
-      "front": "Default field delimiter of `cut`",
-      "back": "The TAB character. Use `-d` to choose another, e.g. `cut -d\" \" -f1` or `cut -d: -f1`."
-    },
-    {
-      "id": "d3-fc-26",
-      "topic": "d3-streams",
-      "front": "Pipeline: student numbers (field 3) of classlist, sorted, all saved to snum, print first three",
-      "back": "`cut -f3 classlist | sort | tee snum | head -n3`"
-    },
-    {
-      "id": "d3-fc-27",
-      "topic": "d3-streams",
-      "front": "Count the distinct lines of words.txt",
-      "back": "`sort words.txt | uniq | wc -l`"
-    },
-    {
-      "id": "d3-fc-28",
-      "topic": "d3-expansions",
-      "front": "The seven expansions in order",
-      "back": "1 brace, 2 tilde, 3 parameter, 4 command substitution, 5 arithmetic (4 and 5 same precedence, left to right), 6 word splitting, 7 filename expansion."
-    },
-    {
-      "id": "d3-fc-29",
-      "topic": "d3-expansions",
-      "front": "Form of brace expansion",
-      "back": "preamble`{`expression`}`postscript, where expression is comma-separated strings or a sequence `x..y..incr`."
-    },
-    {
-      "id": "d3-fc-30",
-      "topic": "d3-expansions",
-      "front": "`echo {10..20..2}`",
-      "back": "`10 12 14 16 18 20`"
-    },
-    {
-      "id": "d3-fc-31",
-      "topic": "d3-expansions",
-      "front": "`echo {a,b}{1,2}`",
-      "back": "`a1 a2 b1 b2`"
-    },
-    {
-      "id": "d3-fc-32",
-      "topic": "d3-expansions",
-      "front": "Create directories week01 ... week12 in one command",
-      "back": "`mkdir week{01..12}` (leading zeros are kept)."
-    },
-    {
-      "id": "d3-fc-33",
-      "topic": "d3-expansions",
-      "front": "`n=3; echo {1..$n}` prints?",
-      "back": "`{1..3}`: brace expansion runs before parameter expansion, so `{1..$n}` is not a valid sequence."
-    },
-    {
-      "id": "d3-fc-34",
-      "topic": "d3-expansions",
-      "front": "What does `~` expand to? `~bob`?",
-      "back": "Your home directory (`$HOME`). `~bob` is bob's home directory."
-    },
-    {
-      "id": "d3-fc-35",
-      "topic": "d3-expansions",
-      "front": "What is command substitution?",
-      "back": "`$(command)`: runs the command in a subshell and replaces itself with the command's stdout (trailing newlines removed)."
-    },
-    {
-      "id": "d3-fc-36",
-      "topic": "d3-expansions",
-      "front": "Store the output of `date` in variable `now`",
-      "back": "`now=$(date)`"
-    },
-    {
-      "id": "d3-fc-37",
-      "topic": "d3-expansions",
-      "front": "What is arithmetic expansion? `echo $((7 / 2))`?",
-      "back": "`$(( expr ))` evaluates integer arithmetic and substitutes the result. Prints `3` (integer division)."
-    },
-    {
-      "id": "d3-fc-38",
-      "topic": "d3-expansions",
-      "front": "What is word splitting?",
-      "back": "Unquoted results of expansions are split into separate words at IFS characters (space, tab, newline by default); runs of separators count as one."
-    },
-    {
-      "id": "d3-fc-39",
-      "topic": "d3-expansions",
-      "front": "What is `IFS`?",
-      "back": "The internal field separator variable: the characters word splitting splits on (default space, tab, newline)."
-    },
-    {
-      "id": "d3-fc-40",
-      "topic": "d3-expansions",
-      "front": "Which expansions happen inside double quotes?",
-      "back": "Only parameter `$x`, command substitution `$( )` and arithmetic `$(( ))`. No brace, tilde, word splitting or filename expansion."
-    },
-    {
-      "id": "d3-fc-41",
-      "topic": "d3-expansions",
-      "front": "Which expansions happen inside single quotes?",
-      "back": "None. Every character is literal."
-    },
-    {
-      "id": "d3-fc-42",
-      "topic": "d3-expansions",
-      "front": "Why does the course always write `\"$var\"`?",
-      "back": "Double quotes stop word splitting and filename expansion, so the value is passed as one argument exactly as stored (spaces, `*` and all)."
-    },
-    {
-      "id": "d3-fc-43",
-      "topic": "d3-tr",
-      "front": "Where does `tr` get its input?",
-      "back": "Standard input only (no file argument): `tr a-z A-Z < file` or `echo \"$x\" | tr a-z A-Z`."
-    },
-    {
-      "id": "d3-fc-44",
-      "topic": "d3-tr",
-      "front": "Three ways to specify a tr sequence",
-      "back": "A string (`ABC`), a range (`A-Z`, not portable), a POSIX class (`[:upper:]`)."
-    },
-    {
-      "id": "d3-fc-45",
-      "topic": "d3-tr",
-      "front": "`tr` when seq1 is longer than seq2",
-      "back": "GNU tr repeats the last char of seq2 to fill it (`tr 0-9 X` maps all digits to X). POSIX: undefined, so not portable."
-    },
-    {
-      "id": "d3-fc-46",
-      "topic": "d3-tr",
-      "front": "Portable way to map every digit to X",
-      "back": "`tr '[:digit:]' '[X*]'` (`[c*]` repeats c as needed)."
-    },
-    {
-      "id": "d3-fc-47",
-      "topic": "d3-tr",
-      "front": "`tr` when seq1 has a duplicated character",
-      "back": "Undefined. GNU: the last mapping wins (`tr cisc CIS` turns cisc220 into SISS220)."
-    },
-    {
-      "id": "d3-fc-48",
-      "topic": "d3-tr",
-      "front": "`tr -d` / `tr -s`",
-      "back": "`-d` deletes the characters in seq1; `-s` squeezes runs of a repeated seq1 character into one."
-    },
-    {
-      "id": "d3-fc-49",
-      "topic": "d3-tr",
-      "front": "`tr -ds seq1 seq2`",
-      "back": "First deletes the characters in seq1, then squeezes repeats of characters in seq2."
-    },
-    {
-      "id": "d3-fc-50",
-      "topic": "d3-tr",
-      "front": "Replace every TAB with a comma in classlist, saving to classlist.csv",
-      "back": "`tr '\\t' ',' < classlist > classlist.csv`"
+     "type": "md",
+     "text": "### Key points\n\n- Order: **brace, tilde, parameter, command substitution / arithmetic, word splitting, filename**.\n- Brace expansion generates text (`{a,b}`, `{1..10..2}`, `{01..12}`) and does not care what files exist; it runs before variables are expanded.\n- `$(cmd)` is replaced by cmd's stdout; `$((expr))` by an integer result.\n- Unquoted results are word split on space, tab and newline (`IFS`), then globbed.\n- Double quotes allow only the `$` expansions; single quotes allow none."
     }
-  ],
-  "quiz": [
+   ]
+  },
+  {
+   "id": "d4-scripts",
+   "title": "Your first scripts: shebang, running, comments, arguments",
+   "notebook": "bash/introduction_to_bash_scripting.ipynb",
+   "priority": "high",
+   "examNote": "Quiz 1 Q2E: *from inside a script, how can you print the number of command line arguments?* (`echo $#`). Every long question on Quiz 1 was a script (Q4 copy permissions, 4 marks; Q5 `trash.sh`, 10 marks) built on today's basics: the shebang, `$1`, `$2` and quoting. Those two also need variables (Day 4). On the paper exam you write scripts by hand, so practise typing them out from memory.",
+   "blocks": [
     {
-      "topic": "d3-streams",
-      "type": "mcq",
-      "q": "Which file descriptor number refers to standard error?",
-      "options": [
-        "0",
-        "1",
-        "2",
-        "3"
-      ],
-      "answer": 2,
-      "explain": "0 is stdin, 1 is stdout, 2 is stderr. There is no fourth standard stream.",
-      "id": "d3-q-01"
+     "type": "md",
+     "text": "A **Bash script** is a plain-text file that holds a list of commands. When you run the script, Bash reads the file and runs the commands one after another, exactly as if you had typed them at the prompt. So **anything you can type in the terminal can go in a script**: paths, globs, quoting, redirections, pipes and expansions all work inside scripts too.\n\nThe course naming conventions for script files:\n\n- end with `.sh` (for example `hello.sh`)\n- start with a lowercase letter\n- use only letters, digits and `_`, with `_` between words (for example `make_backup.sh`)"
     },
     {
-      "topic": "d3-streams",
-      "type": "short",
-      "q": "What single command overwrites the contents of a file named `report` with the string `EMPTY`? Use a redirection.",
-      "answer": "`echo EMPTY > report`",
-      "explain": "`>` truncates the file and writes echo's output. `>>` would append instead (wrong). `printf 'EMPTY\\n' > report` is also fine.",
-      "id": "d3-q-02"
+     "type": "md",
+     "text": "### Your first script, step by step\n\n**Step 1: open a new file in a text editor.** Use the editor from Day 1. Make a folder for your scripts, go into it, and open a new file named `hello.sh`:"
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "Starting in an empty directory, what does this print?",
-      "code": "echo one > f\necho two >> f\necho three > f\necho four >> f\ncat f",
-      "answer": "three\nfour",
-      "explain": "The third command overwrites f (losing one and two); the fourth appends.",
-      "id": "d3-q-03"
+     "type": "code",
+     "code": "$ mkdir -p ~/scripts\n$ cd ~/scripts\n$ gnome-text-editor hello.sh",
+     "caption": "Use gedit hello.sh on older Ubuntu, or nano hello.sh inside the terminal."
     },
     {
-      "topic": "d3-streams",
-      "type": "mcq",
-      "q": "The directory contains a file `a` and no file `zzz`. After `ls a zzz 2>&1 > out.txt`, what is on the terminal?",
-      "options": [
-        "Nothing; both lines are in out.txt",
-        "The error message about zzz",
-        "The line `a`",
-        "Both the line `a` and the error message"
-      ],
-      "answer": 1,
-      "explain": "Redirections go left to right. `2>&1` copies fd 1 while it is still the terminal, so stderr stays on the terminal. Then `> out.txt` moves only stdout (the line `a`) into the file. To capture both, write `> out.txt 2>&1`.",
-      "id": "d3-q-04"
+     "type": "md",
+     "text": "**Step 2: type the script.** Type these three lines exactly (the middle line is empty):"
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "The directory contains a file `a` and no file `zzz`. What does this print?",
-      "code": "ls a zzz 2> /dev/null\necho \"status $?\"",
-      "answer": "a\nstatus 2",
-      "explain": "The error message is discarded by `2> /dev/null`, but `ls` still lists `a`. Because one argument failed, `ls` exits with status 2 (nonzero = an error happened).",
-      "id": "d3-q-05"
+     "type": "code",
+     "code": "#!/bin/bash\n\necho 'Hello, world!'",
+     "caption": "hello.sh"
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "What does this print? (Only stdout goes through a pipe.)",
-      "code": "echo hello >&2 | tr a-z A-Z",
-      "answer": "hello",
-      "explain": "`>&2` sends echo's output to stderr, which goes straight to the terminal. Nothing reaches `tr` through the pipe, so the output is not uppercased.",
-      "id": "d3-q-06"
+     "type": "md",
+     "text": "The first line, `#!/bin/bash`, is called the **shebang** (or *hash-bang*, from the two characters `#` and `!`). It must be the **very first line**, with `#!` as the first two characters (no blank line or space before it). It tells the operating system which program should run the rest of the file: here `/bin/bash`, the Bash shell. On the exam, **start every script with `#!/bin/bash`**.\n\n**Step 3: save.** Press **Ctrl + S** and close the editor (in nano: Ctrl + O, Enter, Ctrl + X). Back in the terminal, check what you saved:"
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "printf '10\\n9\\n100\\n' | sort",
-      "answer": "10\n100\n9",
-      "explain": "Without `-n`, sort compares the lines as text, character by character: `1` < `9`, and `10` is a prefix of `100`. Use `sort -n` to get 9, 10, 100.",
-      "id": "d3-q-07"
+     "type": "code",
+     "code": "$ cat hello.sh\n#!/bin/bash\n\necho 'Hello, world!'\n$ ls -l hello.sh\n-rw-r--r-- 1 user1 user1 34 Sep 15 10:00 hello.sh",
+     "caption": "A new file has no x (execute) permission yet."
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "printf '10\\n9\\n100\\n42\\n' | sort -n -r | head -n2",
-      "answer": "100\n42",
-      "explain": "Numeric, reversed: 100 42 10 9; head keeps the first two.",
-      "id": "d3-q-08"
+     "type": "md",
+     "text": "**Step 4: make it executable.** A script file must be **readable and executable** for you to run it by name. If you try too early, the shell refuses:"
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "printf 'b\\na\\nb\\nb\\na\\n' | uniq",
-      "answer": "b\na\nb\na",
-      "explain": "uniq only removes duplicates that are **adjacent**: the two consecutive `b` lines become one; the rest are not next to an identical line.",
-      "id": "d3-q-09"
+     "type": "code",
+     "code": "$ ./hello.sh\nbash: ./hello.sh: Permission denied\n$ chmod u+x hello.sh\n$ ls -l hello.sh\n-rwxr--r-- 1 user1 user1 34 Sep 15 10:00 hello.sh",
+     "caption": "chmod u+x (Day 2) adds execute permission for the owner, you. chmod +x hello.sh also works: it adds x for everyone."
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "printf 'b\\na\\nb\\nb\\na\\nc\\n' | sort | uniq -d",
-      "answer": "a\nb",
-      "explain": "After sorting: a a b b b c. `uniq -d` prints one copy of each line that is repeated; c appears once, so it is not printed.",
-      "id": "d3-q-10"
+     "type": "md",
+     "text": "You only need to `chmod` a script **once**. Editing and saving it again later keeps its permissions.\n\n**Step 5: run it from its folder.** Type `./` followed by the file name:"
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWhat does this print?",
-      "code": "cut -f2 classlist | tail -n2",
-      "answer": "Andy\nSue",
-      "explain": "Field 2 is the first name; tail keeps the last two lines.",
-      "id": "d3-q-11"
+     "type": "code",
+     "code": "$ ./hello.sh\nHello, world!"
     },
     {
-      "topic": "d3-streams",
-      "type": "output",
-      "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWhat does this print?",
-      "code": "cut -f3 classlist | sort | tee snum | head -n2\nwc -l < snum",
-      "answer": "1990000\n2999999\n4",
-      "explain": "tee saves **all** four sorted numbers to snum before head keeps only two.",
-      "id": "d3-q-12"
+     "type": "md",
+     "text": "`./hello.sh` means \"the file `hello.sh` in the current directory `.`\". You need the `./` because, for a bare command name like `ls`, the shell only searches the directories listed in your *path*, and the current directory is normally not one of them. `./hello.sh` is a relative pathname, so the shell does not search: it runs exactly that file. Any other pathname works too, for example `~/scripts/hello.sh` from any folder.\n\nYou can also run a script with `bash hello.sh`. That starts a new Bash and hands it the file as an argument, so it works **even without execute permission** (Bash only needs to *read* the file)."
     },
     {
-      "topic": "d3-streams",
-      "type": "mcq",
-      "q": "Which pipeline extracts the student numbers from `classlist`, sorts them, saves **all** of them to `snum`, and prints the first three?",
-      "options": [
-        "`cut -f3 classlist | sort | head -n3 | tee snum`",
-        "`cut -f3 classlist | tee snum | sort | head -n3`",
-        "`cut -f3 classlist | sort | tee snum | head -n3`",
-        "`cut -f3 classlist | sort > snum | head -n3`"
-      ],
-      "answer": 2,
-      "explain": "tee must come after sort (so the file is sorted) and before head (so the file has all numbers). Option A saves only three; B saves them unsorted; D redirects stdout to the file, so nothing flows into head and nothing is printed.",
-      "id": "d3-q-13"
+     "type": "try",
+     "text": "Do steps 1 to 5 now: create `~/scripts/hello.sh`, try `./hello.sh` before `chmod` and read the error, then `chmod u+x hello.sh` and run it again. Finally run `cd ~` and try `./hello.sh` from there: read that error too."
     },
     {
-      "topic": "d3-streams",
-      "type": "short",
-      "q": "`words.txt` has one word per line. Write a pipeline that prints how many **different** words it contains.",
-      "answer": "`sort words.txt | uniq | wc -l`",
-      "explain": "Sort first so duplicates are adjacent, uniq removes them, wc -l counts. `cat words.txt | sort | uniq | wc -l` is equally correct.",
-      "id": "d3-q-14"
+     "type": "check",
+     "q": "You saved `hello.sh` in the current directory. Give the two commands that make it executable for you and then run it.",
+     "a": "`chmod u+x hello.sh` then `./hello.sh`. (Without execute permission you could still run it with `bash hello.sh`.)"
     },
     {
-      "topic": "d3-expansions",
-      "type": "mcq",
-      "q": "Which list gives the shell expansions in the order they are performed?",
-      "options": [
-        "tilde, brace, parameter, arithmetic, command, filename, word splitting",
-        "brace, tilde, parameter, command substitution/arithmetic, word splitting, filename",
-        "filename, word splitting, brace, tilde, parameter, command substitution/arithmetic",
-        "parameter, brace, tilde, command substitution/arithmetic, filename, word splitting"
-      ],
-      "answer": 1,
-      "explain": "Brace expansion is first and filename expansion is last; word splitting comes just before filename expansion.",
-      "id": "d3-q-15"
+     "type": "md",
+     "text": "### When it doesn't run: reading the error message\n\n| You see | What it means | Fix |\n|---|---|---|\n| `bash: ./hello.sh: Permission denied` | The file exists but has **no execute permission**. | `chmod u+x hello.sh` (or run `bash hello.sh`). |\n| `bash: ./hello.sh: No such file or directory` | There is **no file with that name in the current directory**: you are in the wrong folder, or the name is misspelled. | Run `pwd` and `ls`; `cd` to the script's folder, or type its full pathname. |\n| `hello.sh: command not found` | You left out the `./`, so the shell searched the path and did not look in the current directory. | Type `./hello.sh`. |\n| `cannot execute: required file not found` (older Bash: `bad interpreter: No such file or directory`) | The **shebang line is wrong**, for example `#!/bin/bsh`: the program it names does not exist. | Fix the first line to read exactly `#!/bin/bash`. |"
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "echo {a,b}{1,2}",
-      "answer": "a1 a2 b1 b2",
-      "explain": "Two adjacent brace expansions produce every combination, the left one varying slowest.",
-      "id": "d3-q-16"
+     "type": "why",
+     "q": "Why does typing just `hello.sh` usually give `command not found`, while `./hello.sh` works?",
+     "a": "A bare name is searched for only in the directories on the path, and the current directory is normally not on it. `./hello.sh` is a pathname, so the shell does not search: it runs exactly that file."
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "echo lab{1..9..3}.sh",
-      "answer": "lab1.sh lab4.sh lab7.sh",
-      "explain": "Sequence 1 to 9 in steps of 3: 1 4 7 (10 would be past 9). Preamble `lab`, postscript `.sh`.",
-      "id": "d3-q-17"
+     "type": "check",
+     "q": "Your script is `~/scripts/count.sh` and your terminal is in `~`. You type `./count.sh` and get `No such file or directory`. Give two ways to run it.",
+     "a": "`cd ~/scripts` and then `./count.sh`, or type its pathname from where you are: `scripts/count.sh` (or `~/scripts/count.sh`). `./count.sh` looked for the file in `~`, where it is not."
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "n=3\necho {1..$n}",
-      "answer": "{1..3}",
-      "explain": "Brace expansion happens **before** parameter expansion. When braces were expanded the text was `{1..$n}`, not a valid sequence, so it was left alone; then `$n` became 3.",
-      "id": "d3-q-18"
+     "type": "md",
+     "text": "### Any command can go in a script\n\nThe notebook's `fortunecow.sh` is a one-line pipeline (`fortune | cowsay -f moose`). Its `makesh.sh` does something useful: it creates a skeleton script named `tmp.sh`:\n\n```bash\n#!/bin/bash\n\necho '#!/bin/bash' > tmp.sh\nchmod u+x tmp.sh\n```\n\nRunning it prints nothing (the Unix *rule of silence*: quiet on success), but `ls` afterwards shows the new, executable `tmp.sh`. The `'#!/bin/bash'` is in single quotes, so it is just text that `echo` writes into the file."
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print? Assume the current directory is empty.",
-      "code": "echo a{1,2}.txt *.zzz",
-      "answer": "a1.txt a2.txt *.zzz",
-      "explain": "Brace expansion generates names whether or not the files exist. The glob `*.zzz` matches nothing, so bash leaves it unchanged.",
-      "id": "d3-q-19"
+     "type": "md",
+     "text": "### Comments\n\n`#` starts a **comment**: the shell ignores the `#` and everything after it to the end of the line. Use comments to say what the script does. They can be on their own line or after a command:\n\n```bash\n#!/bin/bash\n\n# makesh.sh: create a skeleton script named tmp.sh\n\necho '#!/bin/bash' > tmp.sh    # write the shebang into tmp.sh\nchmod u+x tmp.sh\n```\n\nTwo details:\n\n- A **quoted or escaped** `#` is not a comment. `echo '# This is not a comment'` prints `# This is not a comment`.\n- A comment always runs **to the end of the line**, so you cannot put one in the middle of a command. `ls #list_all_.txt_files .txt` is just `ls`.\n\n(The shebang starts with `#` too: to Bash it is a comment, but the operating system reads it first.)\n\nEvery command sets an **exit status** (Day 1): `0` for success, `1` to `255` for failure, read with `$?`. A script sets one too: the status of the **last command it ran**. The notebook's `comment.sh` contains only comments, so it runs nothing and succeeds. (How a script chooses its own exit status comes on Day 5.)"
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "Assume `HOME` is `/home/user1`. What does this print?",
-      "code": "echo ~ \"~\" '$HOME' \"$HOME\"",
-      "answer": "/home/user1 ~ $HOME /home/user1",
-      "explain": "Tilde expansion does not happen inside quotes. Single quotes stop parameter expansion; double quotes allow it.",
-      "id": "d3-q-20"
+     "type": "code",
+     "code": "$ ./comment.sh\n$ echo $?\n0",
+     "caption": "comment.sh contains only the shebang and comments."
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "echo \"{x,y}\" \"$(( 6 * 7 ))\" '$(( 6 * 7 ))'",
-      "answer": "{x,y} 42 $(( 6 * 7 ))",
-      "explain": "Double quotes stop brace expansion but allow arithmetic expansion. Single quotes stop everything.",
-      "id": "d3-q-21"
+     "type": "check",
+     "q": "What does the script line `ls *.txt # list text files` run?",
+     "a": "`ls *.txt`. Everything from `#` onward is a comment, so it is ignored."
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "echo $(( 17 / 5 )) $(( 17 % 5 )) $(( 2 + 3 * 4 ))",
-      "answer": "3 2 14",
-      "explain": "Integer division drops the remainder; % is the remainder; * binds tighter than +.",
-      "id": "d3-q-22"
+     "type": "md",
+     "text": "### Command line arguments: positional parameters\n\nScripts take command line arguments like any other command (`./greet.sh Sam`). Bash stores them in **positional parameters** and a few **special parameters**, and you get their values with `$`, just like `$?`:\n\n| Parameter | Meaning |\n|---|---|\n| `$0` | the pathname used to run the script, e.g. `./args.sh` |\n| `$1`, `$2`, ... `$9` | the first, second, ... ninth argument |\n| `${10}`, `${11}`, ... | the tenth argument and later: **braces required** |\n| `$#` | the **number** of arguments (not counting `$0`) |\n| `\"$@\"` | all the arguments, each kept as a separate word |\n\nYou cannot assign to these with `=`; the shell sets them when the script starts. Asking for an argument that was not given is **not an error**: `$3` just expands to the empty string.\n\nSuppose `args.sh` contains:\n\n```bash\n#!/bin/bash\n\n# args.sh: show the arguments\n\necho \"$# arguments: first=$1 second=$2\"\necho \"called as $0\"\n```"
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "x=\"a    b\nc\"\necho $x\necho \"$x\"",
-      "answer": "a b c\na    b\nc",
-      "explain": "Unquoted, `$x` is word split on spaces and the newline into three words, which echo joins with single spaces. Quoted, the value is one argument printed exactly.",
-      "id": "d3-q-23"
+     "type": "code",
+     "code": "$ ./args.sh \"a b\" c\n2 arguments: first=a b second=c\ncalled as ./args.sh\n$ ./args.sh\n0 arguments: first= second=\ncalled as ./args.sh"
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWhat does this print?",
-      "code": "echo $(cut -f1 classlist)\necho \"There are $(wc -l < classlist) students\"",
-      "answer": "Cade Day Friese Yu\nThere are 4 students",
-      "explain": "The first command substitution is unquoted, so its four lines are word split into four arguments. In the second, the substitution is inside double quotes, which is fine: command substitution still happens there.",
-      "id": "d3-q-24"
+     "type": "md",
+     "text": "Notice that `\"a b\"` is **one** argument: the quotes on the command line kept the space inside it (Day 2). The quotes themselves are not part of `$1`. The parameters are inside double quotes in the script, and double quotes still allow `$` expansions."
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "str=\"123456,Ester,Polly\"\nOLDIFS=$IFS\nIFS=\",\"\nfor field in $str; do\n    echo \"<$field>\"\ndone\nIFS=$OLDIFS",
-      "answer": "<123456>\n<Ester>\n<Polly>",
-      "explain": "With IFS set to a comma, word splitting of the unquoted `$str` produces three fields.",
-      "id": "d3-q-25"
+     "type": "try",
+     "text": "Create `args.sh` in `~/scripts` with the editor, `chmod u+x args.sh`, and run it as `./args.sh`, `./args.sh one two three` and `./args.sh \"one two\" three`. Predict `$#` each time before you press Enter."
     },
     {
-      "topic": "d3-expansions",
-      "type": "output",
-      "q": "The current directory contains exactly the files `f1` and `f2`. What does this print?",
-      "code": "v='f*'\necho \"$v\"\necho $v",
-      "answer": "f*\nf1 f2",
-      "explain": "Quoted: no filename expansion, so the literal `f*` is printed. Unquoted: filename expansion (the last expansion) replaces `f*` with the matching names.",
-      "id": "d3-q-26"
+     "type": "pitfall",
+     "text": "`$10` is **not** the tenth argument. Bash reads it as `$1` followed by the character `0`. With arguments `a b c d e f g h i j`, `echo \"$10 ${10}\"` prints `a0 j`. Always write `${10}`, `${11}`, ..."
     },
     {
-      "topic": "d3-tr",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "echo hello | tr el ip",
-      "answer": "hippo",
-      "explain": "e->i and l->p; h and o are not in seq1, so they pass through unchanged.",
-      "id": "d3-q-27"
+     "type": "check",
+     "q": "A script is run as `./s.sh one \"two three\" four`. What are `$#`, `$2` and `$0`?",
+     "a": "`$#` is `3`, `$2` is `two three`, and `$0` is `./s.sh`."
     },
     {
-      "topic": "d3-tr",
-      "type": "output",
-      "q": "What does this print? (GNU tr)",
-      "code": "echo cisc220 | tr '0-9' 'X'",
-      "answer": "ciscXXX",
-      "explain": "seq1 (10 digits) is longer than seq2 (1 char). GNU tr repeats the last character of seq2, so every digit becomes X. POSIX says this is undefined; the portable form is `tr '[:digit:]' '[X*]'`.",
-      "id": "d3-q-28"
+     "type": "md",
+     "text": "Quiz 1 Q2E asked: *from inside a script, how can you print the number of command line arguments?* Answer: `echo $#`.\n\nThe notebook's `hellou.sh` greets whoever is named in the first argument. Braces are always allowed around a parameter name: `${1}` is the same as `$1`.\n\n```bash\n#!/bin/bash\n\n# hellou.sh\n\necho \"Hello, ${1}!\"\n```\n\n`./hellou.sh Sam` prints `Hello, Sam!`; with no argument it prints `Hello, !`."
     },
     {
-      "topic": "d3-tr",
-      "type": "output",
-      "q": "What does this print? (GNU tr)",
-      "code": "echo cisc220 | tr 'cisc' 'CIS'",
-      "answer": "SISS220",
-      "explain": "seq2 is extended to CISS. `c` appears twice in seq1 (undefined behaviour); in GNU tr the last mapping, c->S, wins. So c->S, i->I, s->S.",
-      "id": "d3-q-29"
+     "type": "md",
+     "text": "### Arguments in a pipeline\n\nArguments make a pipeline reusable: the user chooses the file. This script prints the three smallest student numbers of any class list named by `$1`:\n\n```bash\n#!/bin/bash\n\n# lowest3.sh: the three smallest student numbers in class list file $1\n\ncut -f3 \"$1\" | sort | head -n3\n```\n\nAlways write `\"$1\"` **with double quotes** where a file name goes. Unquoted, a name with a space such as `class list 2` would be word split into the three arguments `class`, `list` and `2` (yesterday's quoting lesson and today's word splitting)."
     },
     {
-      "topic": "d3-tr",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "echo 'a  b    c' | tr -s ' '\necho '2022-10-21' | tr -d '-'\necho bookkeeper | tr -s 'a-z'",
-      "answer": "a b c\n20221021\nbokeper",
-      "explain": "-s squeezes runs of the same character; -d deletes. In bookkeeper the oo, kk and ee runs each become one letter.",
-      "id": "d3-q-30"
+     "type": "code",
+     "code": "$ ./lowest3.sh classlist\n1990000\n2999999\n3001111",
+     "caption": "classlist is the 4-line file from the Streams lesson."
     },
     {
-      "topic": "d3-tr",
-      "type": "output",
-      "q": "What does this print?",
-      "code": "echo 'Hello World' | tr '[:upper:]' '[:lower:]' | tr ' ' '\\n'",
-      "answer": "hello\nworld",
-      "explain": "First lowercase everything, then turn the space into a newline.",
-      "id": "d3-q-31"
+     "type": "check",
+     "q": "Write the one command line (after the shebang) of a script that prints the number of lines in the file named by its first argument, and nothing else.",
+     "a": "`wc -l < \"$1\"` (with `<`, `wc` prints only the number). `wc -l \"$1\"` would also print the file name."
     },
     {
-      "topic": "d3-tr",
-      "type": "mcq",
-      "q": "Which command is an **error** (or does not do what is intended)?",
-      "options": [
-        "`tr a-z A-Z < notes.txt`",
-        "`cat notes.txt | tr a-z A-Z`",
-        "`tr a-z A-Z notes.txt`",
-        "`tr '[:lower:]' '[:upper:]' < notes.txt`"
-      ],
-      "answer": 2,
-      "explain": "tr reads only standard input; it does not accept a file name. With GNU tr, option C fails with `extra operand`.",
-      "id": "d3-q-32"
+     "type": "md",
+     "text": "### All the arguments: `\"$@\"` (and `$*`)\n\n`\"$@\"` (**with** the double quotes) expands to all the arguments as separate words, exactly as given: `\"$1\" \"$2\" \"$3\" ...`. It is the safe way to pass every argument on to another command:\n\n```bash\n#!/bin/bash\n\n# countlines.sh: count the lines of every file named on the command line\n\nwc -l \"$@\"\n```"
     },
     {
-      "topic": "d3-tr",
-      "type": "short",
-      "q": "Assignment 3's `tr220.sh` exits with an error in two situations involving seq1 and seq2. What are they, and why does the course treat them as errors?",
-      "answer": "(1) seq1 is longer than seq2; (2) seq1 contains a duplicated character. Both are cases where the result of `tr` is undefined or non-portable (GNU repeats the last char of seq2; with duplicates, which mapping wins is not specified).",
-      "explain": "Wording can vary; the key words are *longer* and *duplicated/repeated characters* and *undefined*.",
-      "id": "d3-q-33"
+     "type": "code",
+     "code": "$ ./countlines.sh classlist \"my notes.txt\"\n 4 classlist\n 2 my notes.txt\n 6 total",
+     "caption": "my notes.txt has 2 lines. Each argument reached wc as one word, space and all."
+    },
+    {
+     "type": "md",
+     "text": "Without the quotes, `$@` is word split, so the argument `my notes.txt` becomes the two words `my` and `notes.txt`, and `wc` complains that neither exists. `\"$*\"` joins all the arguments into **one** string separated by spaces; you will rarely want that. You will use `\"$@\"` most with `for` loops on Day 6."
+    },
+    {
+     "type": "check",
+     "q": "A script runs `ls -l \"$@\"`. It is called as `./l.sh \"a b\" c`. What arguments does `ls` receive?",
+     "a": "Two: `a b` and `c`. With `ls -l $@` (unquoted) it would receive three: `a`, `b` and `c`."
+    },
+    {
+     "type": "md",
+     "text": "### Putting it together\n\nThe notebook improves `makesh.sh` so the user chooses the file name with `$1`. With the quoting the course requires:\n\n```bash\n#!/bin/bash\n\n# namedsh.sh: create an executable skeleton script named $1\n\necho '#!/bin/bash' > \"$1\"\nchmod u+x \"$1\"\n```\n\nRunning `./namedsh.sh myscript.sh` creates `myscript.sh` containing the shebang, with execute permission for the owner."
+    },
+    {
+     "type": "md",
+     "text": "### Script tasks in the drills\n\nFrom today the drills (`./drill.sh start 3`) include **script tasks**. Their header says where to save the file, for example `(script: write ~/cisc220_drills/scripts/day3/greet.sh)`.\n\n1. Open that exact file in your editor: `gnome-text-editor ~/cisc220_drills/scripts/day3/greet.sh` (the folder was made by `./drill.sh start 3`).\n2. Write the script, starting with `#!/bin/bash`, and save it.\n3. Run `./drill.sh check 3`. You do **not** need `chmod` for this: the checker **copies** your script into a fresh sandbox folder (the one named in the task, usually `home/user1`, where files like `classlist` are), **makes it executable**, and runs test commands there such as `./greet.sh Sam`. It runs the reference solution the same way and compares standard output, standard error, the exit status and the files left behind.\n\nTo try your script by hand first, copy it into your practice sandbox and run it there:\n\n```bash\ncd ~/cisc220_drills/play/day3/home/user1\ncp ~/cisc220_drills/scripts/day3/greet.sh .\nchmod u+x greet.sh\n./greet.sh Sam\n```"
+    },
+    {
+     "type": "try",
+     "text": "Run `./drill.sh start 3` in the `drills` folder, read the first script task, write the script in `~/cisc220_drills/scripts/day3/`, and run `./drill.sh check 3`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Write the script in an editor, first line `#!/bin/bash`, save; `chmod u+x f.sh` once; run it from its folder with `./f.sh` (or `bash f.sh`).\n- `Permission denied` = no execute permission; `No such file or directory` = no such file in the current folder (or a wrong shebang).\n- `#` starts a comment that runs to the end of the line, unless it is quoted.\n- `$1`...`$9`, then `${10}`; `$#` is the number of arguments (`echo $#`); `$0` is how the script was called; `\"$@\"` is all arguments, separately.\n- Quote arguments where file names go: `cut -f3 \"$1\"`. A script's exit status is that of its last command."
     }
-  ],
-  "write": [
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "d3-fc-01",
+   "topic": "d3-streams",
+   "front": "File descriptor numbers of stdin, stdout, stderr?",
+   "back": "0 = standard input, 1 = standard output, 2 = standard error."
+  },
+  {
+   "id": "d3-fc-04",
+   "topic": "d3-streams",
+   "front": "How do you end keyboard input to a command like `sort`?",
+   "back": "Press Ctrl-d (end of input)."
+  },
+  {
+   "id": "d3-fc-05",
+   "topic": "d3-streams",
+   "front": "Command to overwrite `myfile` with the string OOPS (Quiz 1)",
+   "back": "`echo OOPS > myfile`"
+  },
+  {
+   "id": "d3-fc-06",
+   "topic": "d3-streams",
+   "front": "`>` vs `>>`",
+   "back": "`>` creates or **overwrites** the file; `>>` creates or **appends** to it."
+  },
+  {
+   "id": "d3-fc-07",
+   "topic": "d3-streams",
+   "front": "Is the `1` in `1> file` required?",
+   "back": "No. `> file` means `1> file`. The `2` in `2> file` **is** required."
+  },
+  {
+   "id": "d3-fc-08",
+   "topic": "d3-streams",
+   "front": "Redirect only the error messages of `cmd` to `err.txt`",
+   "back": "`cmd 2> err.txt`"
+  },
+  {
+   "id": "d3-fc-09",
+   "topic": "d3-streams",
+   "front": "Send stdout of `cmd` to out.txt and stderr to err.txt",
+   "back": "`cmd > out.txt 2> err.txt`"
+  },
+  {
+   "id": "d3-fc-10",
+   "topic": "d3-streams",
+   "front": "Send both stdout and stderr of `cmd` to `all.txt`",
+   "back": "`cmd > all.txt 2>&1` (bash shorthand: `cmd &> all.txt`)."
+  },
+  {
+   "id": "d3-fc-11",
+   "topic": "d3-streams",
+   "front": "What does `2>&1` mean?",
+   "back": "Make fd 2 (stderr) a copy of fd 1 (stdout): send errors to wherever stdout points **at that moment**."
+  },
+  {
+   "id": "d3-fc-12",
+   "topic": "d3-streams",
+   "front": "In what order does the shell process redirections?",
+   "back": "Left to right. So `> f 2>&1` sends both to f, but `2>&1 > f` leaves errors on the terminal."
+  },
+  {
+   "id": "d3-fc-13",
+   "topic": "d3-streams",
+   "front": "What is `/dev/null`?",
+   "back": "The null device: a file that discards everything written to it (and reports success)."
+  },
+  {
+   "id": "d3-fc-14",
+   "topic": "d3-streams",
+   "front": "Run `cmd` but throw away its error messages",
+   "back": "`cmd 2> /dev/null`"
+  },
+  {
+   "id": "d3-fc-15",
+   "topic": "d3-streams",
+   "front": "How does a script print an error message on stderr?",
+   "back": "`echo \"message\" >&2`: `>&2` (short for `1>&2`) sends echo's stdout to fd 2."
+  },
+  {
+   "id": "d3-fc-17",
+   "topic": "d3-streams",
+   "front": "Print only the number of lines in `classlist` (no file name)",
+   "back": "`wc -l < classlist`"
+  },
+  {
+   "id": "d3-fc-18",
+   "topic": "d3-streams",
+   "front": "What does a pipe `|` connect?",
+   "back": "The **stdout** of the left command to the **stdin** of the right command. stderr is not piped."
+  },
+  {
+   "id": "d3-fc-19",
+   "topic": "d3-streams",
+   "front": "What does `tee file` do?",
+   "back": "Copies its stdin to stdout **and** to the file(s) named, so a pipeline can save an intermediate result and keep going."
+  },
+  {
+   "id": "d3-fc-20",
+   "topic": "d3-streams",
+   "front": "Why is `sort data > data` a bug?",
+   "back": "The shell truncates `data` before sort runs, so sort reads an empty file and data ends up empty."
+  },
+  {
+   "id": "d3-fc-21",
+   "topic": "d3-streams",
+   "front": "`sort -n` vs `sort`",
+   "back": "`-n` sorts numerically (9 before 10); plain sort compares as text (10, 100, 9)."
+  },
+  {
+   "id": "d3-fc-23",
+   "topic": "d3-streams",
+   "front": "What does `uniq` remove? What does `uniq -d` print?",
+   "back": "`uniq` removes **adjacent** duplicate lines (sort first). `uniq -d` prints one copy of each duplicated line only."
+  },
+  {
+   "id": "d3-fc-25",
+   "topic": "d3-streams",
+   "front": "Default field delimiter of `cut`",
+   "back": "The TAB character. Use `-d` to choose another, e.g. `cut -d\" \" -f1` or `cut -d: -f1`."
+  },
+  {
+   "id": "d3-fc-26",
+   "topic": "d3-streams",
+   "front": "Pipeline: student numbers (field 3) of classlist, sorted, all saved to snum, print first three",
+   "back": "`cut -f3 classlist | sort | tee snum | head -n3`"
+  },
+  {
+   "id": "d3-fc-27",
+   "topic": "d3-streams",
+   "front": "Count the distinct lines of words.txt",
+   "back": "`sort words.txt | uniq | wc -l`"
+  },
+  {
+   "id": "d3-fc-28",
+   "topic": "d3-expansions",
+   "front": "The seven expansions in order",
+   "back": "1 brace, 2 tilde, 3 parameter, 4 command substitution, 5 arithmetic (4 and 5 same precedence, left to right), 6 word splitting, 7 filename expansion."
+  },
+  {
+   "id": "d3-fc-31",
+   "topic": "d3-expansions",
+   "front": "`echo {a,b}{1,2}`",
+   "back": "`a1 a2 b1 b2`"
+  },
+  {
+   "id": "d3-fc-32",
+   "topic": "d3-expansions",
+   "front": "Create directories week01 ... week12 in one command",
+   "back": "`mkdir week{01..12}` (leading zeros are kept)."
+  },
+  {
+   "id": "d3-fc-33",
+   "topic": "d3-expansions",
+   "front": "`n=3; echo {1..$n}` prints?",
+   "back": "`{1..3}`: brace expansion runs before parameter expansion, so `{1..$n}` is not a valid sequence."
+  },
+  {
+   "id": "d3-fc-34",
+   "topic": "d3-expansions",
+   "front": "What does `~` expand to? `~bob`?",
+   "back": "Your home directory (`$HOME`). `~bob` is bob's home directory."
+  },
+  {
+   "id": "d3-fc-35",
+   "topic": "d3-expansions",
+   "front": "What is command substitution?",
+   "back": "`$(command)`: runs the command in a subshell and replaces itself with the command's stdout (trailing newlines removed)."
+  },
+  {
+   "id": "d3-fc-36",
+   "topic": "d3-expansions",
+   "front": "Store the output of `date` in variable `now`",
+   "back": "`now=$(date)`"
+  },
+  {
+   "id": "d3-fc-37",
+   "topic": "d3-expansions",
+   "front": "What is arithmetic expansion? `echo $((7 / 2))`?",
+   "back": "`$(( expr ))` evaluates integer arithmetic and substitutes the result. Prints `3` (integer division)."
+  },
+  {
+   "id": "d3-fc-38",
+   "topic": "d3-expansions",
+   "front": "What is word splitting?",
+   "back": "Unquoted results of expansions are split into separate words at IFS characters (space, tab, newline by default); runs of separators count as one."
+  },
+  {
+   "id": "d3-fc-40",
+   "topic": "d3-expansions",
+   "front": "Which expansions happen inside double quotes?",
+   "back": "Only parameter `$x`, command substitution `$( )` and arithmetic `$(( ))`. No brace, tilde, word splitting or filename expansion."
+  },
+  {
+   "id": "d3-fc-41",
+   "topic": "d3-expansions",
+   "front": "Which expansions happen inside single quotes?",
+   "back": "None. Every character is literal."
+  },
+  {
+   "id": "d3-fc-42",
+   "topic": "d3-expansions",
+   "front": "Why does the course always write `\"$var\"`?",
+   "back": "Double quotes stop word splitting and filename expansion, so the value is passed as one argument exactly as stored (spaces, `*` and all)."
+  },
+  {
+   "id": "d3-fc-43",
+   "topic": "d3-expansions",
+   "front": "How do you store a value in a variable and use it (just enough for today)?",
+   "back": "`name=value` with **no spaces** around `=`, then `$name` for the value. `n=3; echo $n` prints `3`."
+  },
+  {
+   "id": "d4-fc-01",
+   "topic": "d4-scripts",
+   "front": "What must the first line of a Bash script be, and what is it called?",
+   "back": "`#!/bin/bash`, the **shebang** (hash-bang). It names the program that interprets the script."
+  },
+  {
+   "id": "d4-fc-02",
+   "topic": "d4-scripts",
+   "front": "How do you make `go.sh` executable for yourself and run it from its directory?",
+   "back": "`chmod u+x go.sh` (once), then `./go.sh`"
+  },
+  {
+   "id": "d4-fc-03",
+   "topic": "d4-scripts",
+   "front": "How can you run `go.sh` without execute permission?",
+   "back": "`bash go.sh` (Bash only needs to read the file)."
+  },
+  {
+   "id": "d4-fc-04",
+   "topic": "d4-scripts",
+   "front": "Why `./go.sh` and not just `go.sh`?",
+   "back": "Bare names are looked up only in the directories on the path, which normally does not include the current directory. `./go.sh` is a pathname to the file."
+  },
+  {
+   "id": "d4-fc-05",
+   "topic": "d4-scripts",
+   "front": "What character starts a comment, and where does the comment end?",
+   "back": "`#`; it runs to the end of the line. A quoted or escaped `#` is not a comment."
+  },
+  {
+   "id": "d3-fc-44",
+   "topic": "d4-scripts",
+   "front": "The steps to create and run your first script `hello.sh`",
+   "back": "1. `gnome-text-editor hello.sh` (or gedit / nano) 2. first line `#!/bin/bash`, then the commands 3. save (Ctrl + S) 4. `chmod u+x hello.sh` 5. `./hello.sh` from the same folder."
+  },
+  {
+   "id": "d3-fc-45",
+   "topic": "d4-scripts",
+   "front": "`./go.sh` prints `Permission denied`. What is wrong?",
+   "back": "go.sh has no execute permission. Fix: `chmod u+x go.sh` (or run it with `bash go.sh`)."
+  },
+  {
+   "id": "d3-fc-46",
+   "topic": "d4-scripts",
+   "front": "`./go.sh` prints `No such file or directory`. What is wrong?",
+   "back": "There is no `go.sh` in the current directory: wrong folder or misspelled name. Check with `pwd` and `ls`, then `cd` to its folder or type its full pathname. (If the shebang names a program that doesn't exist, you get a similar \"not found\" error.)"
+  },
+  {
+   "id": "d4-fc-06",
+   "topic": "d4-scripts",
+   "front": "`$0`",
+   "back": "The pathname used to run the script, e.g. `./trash.sh`."
+  },
+  {
+   "id": "d4-fc-07",
+   "topic": "d4-scripts",
+   "front": "`$1`, `$2`, ..., `$9`",
+   "back": "The first, second, ..., ninth command line argument (empty if not given)."
+  },
+  {
+   "id": "d4-fc-08",
+   "topic": "d4-scripts",
+   "front": "How do you get the tenth argument? What does `$10` mean?",
+   "back": "`${10}`. `$10` is `$1` followed by the character `0`."
+  },
+  {
+   "id": "d4-fc-09",
+   "topic": "d4-scripts",
+   "front": "`$#`",
+   "back": "The number of command line arguments (not counting `$0`). Quiz 1: print it with `echo $#`."
+  },
+  {
+   "id": "d4-fc-10",
+   "topic": "d4-scripts",
+   "front": "`\"$@\"`",
+   "back": "All the command line arguments, each as a separate word, exactly as given: `\"$1\" \"$2\" ...`"
+  },
+  {
+   "id": "d4-fc-11",
+   "topic": "d4-scripts",
+   "front": "`\"$*\"` vs `\"$@\"`",
+   "back": "`\"$*\"` joins all arguments into one string separated by spaces; `\"$@\"` keeps them as separate words."
+  },
+  {
+   "id": "d4-fc-12",
+   "topic": "d4-scripts",
+   "front": "`$?`",
+   "back": "The exit status of the most recently completed command (0 = success, 1-255 = failure)."
+  },
+  {
+   "id": "d4-fc-15",
+   "topic": "d4-scripts",
+   "front": "What is a script's exit status when it simply runs to the end?",
+   "back": "The exit status of the last command it ran (check it with `echo $?` right after)."
+  },
+  {
+   "id": "d4-fc-16",
+   "topic": "d4-scripts",
+   "front": "Is using an argument that was not given (e.g. `$3` with 2 arguments) an error?",
+   "back": "No. It expands to the empty string."
+  },
+  {
+   "id": "d3-fc-47",
+   "topic": "d4-scripts",
+   "front": "Why write `cut -f3 \"$1\"` rather than `cut -f3 $1` in a script?",
+   "back": "The double quotes stop word splitting, so a file name with spaces (e.g. `class list 2`) stays one argument."
+  },
+  {
+   "id": "d3-fc-48",
+   "topic": "d4-scripts",
+   "front": "Drill script tasks: where do you save the script, and do you need `chmod`?",
+   "back": "In `~/cisc220_drills/scripts/day3/NAME.sh`. No `chmod`: the checker copies it into the task's sandbox folder, makes it executable and runs the tests there."
+  }
+ ],
+ "quiz": [
+  {
+   "topic": "d3-streams",
+   "type": "short",
+   "q": "What single command overwrites the contents of a file named `report` with the string `EMPTY`? Use a redirection.",
+   "answer": "`echo EMPTY > report`",
+   "explain": "`>` truncates the file and writes echo's output. `>>` would append instead (wrong). `printf 'EMPTY\\n' > report` is also fine.",
+   "id": "d3-q-02"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "output",
+   "q": "Starting in an empty directory, what does this print?",
+   "code": "echo one > f\necho two >> f\necho three > f\necho four >> f\ncat f",
+   "answer": "three\nfour",
+   "explain": "The third command overwrites f (losing one and two); the fourth appends.",
+   "id": "d3-q-03"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "mcq",
+   "q": "The directory contains a file `a` and no file `zzz`. After `ls a zzz 2>&1 > out.txt`, what is on the terminal?",
+   "options": [
+    "Nothing; both lines are in out.txt",
+    "The error message about zzz",
+    "The line `a`",
+    "Both the line `a` and the error message"
+   ],
+   "answer": 1,
+   "explain": "Redirections go left to right. `2>&1` copies fd 1 while it is still the terminal, so stderr stays on the terminal. Then `> out.txt` moves only stdout (the line `a`) into the file. To capture both, write `> out.txt 2>&1`.",
+   "id": "d3-q-04"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "output",
+   "q": "The directory contains a file `a` and no file `zzz`. What does this print?",
+   "code": "ls a zzz 2> /dev/null\necho \"status $?\"",
+   "answer": "a\nstatus 2",
+   "explain": "The error message is discarded by `2> /dev/null`, but `ls` still lists `a`. Because one argument failed, `ls` exits with status 2 (nonzero = an error happened).",
+   "id": "d3-q-05"
+  },
+  {
+   "id": "d4-q-05",
+   "topic": "d3-streams",
+   "type": "mcq",
+   "q": "Which line in a script prints `error` to **standard error**?",
+   "options": [
+    "`echo error 2>&1`",
+    "`echo error >&2`",
+    "`echo error > 2`",
+    "`echo >&2 error > /dev/null`"
+   ],
+   "answer": 1,
+   "explain": "`>&2` sends stdout into stderr. `2>&1` does the opposite (stderr into stdout). `> 2` writes to a file named `2`. The last one redirects stdout again to `/dev/null` after `>&2`, so the message is lost (the later redirection wins)."
+  },
+  {
+   "id": "d3-q-27",
+   "topic": "d3-streams",
+   "type": "output",
+   "q": "The directory contains a file `a` and no file `zzz`. What appears on the terminal? (Only stdout goes through a pipe.)",
+   "code": "ls a zzz | wc -l",
+   "answer": "ls: cannot access 'zzz': No such file or directory\n1",
+   "explain": "The error message is on stderr, which is not piped, so it goes straight to the terminal. Only the line `a` goes through the pipe, so `wc -l` counts 1 line."
+  },
+  {
+   "topic": "d3-streams",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "printf '10\\n9\\n100\\n' | sort",
+   "answer": "10\n100\n9",
+   "explain": "Without `-n`, sort compares the lines as text, character by character: `1` < `9`, and `10` is a prefix of `100`. Use `sort -n` to get 9, 10, 100.",
+   "id": "d3-q-07"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "printf 'b\\na\\nb\\nb\\na\\nc\\n' | sort | uniq -d",
+   "answer": "a\nb",
+   "explain": "After sorting: a a b b b c. `uniq -d` prints one copy of each line that is repeated; c appears once, so it is not printed.",
+   "id": "d3-q-10"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "output",
+   "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWhat does this print?",
+   "code": "cut -f2 classlist | tail -n2",
+   "answer": "Andy\nSue",
+   "explain": "Field 2 is the first name; tail keeps the last two lines.",
+   "id": "d3-q-11"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "output",
+   "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWhat does this print?",
+   "code": "cut -f3 classlist | sort | tee snum | head -n2\nwc -l < snum",
+   "answer": "1990000\n2999999\n4",
+   "explain": "tee saves **all** four sorted numbers to snum before head keeps only two.",
+   "id": "d3-q-12"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "mcq",
+   "q": "Which pipeline extracts the student numbers from `classlist`, sorts them, saves **all** of them to `snum`, and prints the first three?",
+   "options": [
+    "`cut -f3 classlist | sort | head -n3 | tee snum`",
+    "`cut -f3 classlist | tee snum | sort | head -n3`",
+    "`cut -f3 classlist | sort | tee snum | head -n3`",
+    "`cut -f3 classlist | sort > snum | head -n3`"
+   ],
+   "answer": 2,
+   "explain": "tee must come after sort (so the file is sorted) and before head (so the file has all numbers). Option A saves only three; B saves them unsorted; D redirects stdout to the file, so nothing flows into head and nothing is printed.",
+   "id": "d3-q-13"
+  },
+  {
+   "topic": "d3-streams",
+   "type": "short",
+   "q": "`words.txt` has one word per line. Write a pipeline that prints how many **different** words it contains.",
+   "answer": "`sort words.txt | uniq | wc -l`",
+   "explain": "Sort first so duplicates are adjacent, uniq removes them, wc -l counts. `cat words.txt | sort | uniq | wc -l` is equally correct.",
+   "id": "d3-q-14"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "mcq",
+   "q": "Which list gives the shell expansions in the order they are performed?",
+   "options": [
+    "tilde, brace, parameter, arithmetic, command, filename, word splitting",
+    "brace, tilde, parameter, command substitution/arithmetic, word splitting, filename",
+    "filename, word splitting, brace, tilde, parameter, command substitution/arithmetic",
+    "parameter, brace, tilde, command substitution/arithmetic, filename, word splitting"
+   ],
+   "answer": 1,
+   "explain": "Brace expansion is first and filename expansion is last; word splitting comes just before filename expansion.",
+   "id": "d3-q-15"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "echo {a,b}{1,2}",
+   "answer": "a1 a2 b1 b2",
+   "explain": "Two adjacent brace expansions produce every combination, the left one varying slowest.",
+   "id": "d3-q-16"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "echo lab{1..9..3}.sh",
+   "answer": "lab1.sh lab4.sh lab7.sh",
+   "explain": "Sequence 1 to 9 in steps of 3: 1 4 7 (10 would be past 9). Preamble `lab`, postscript `.sh`.",
+   "id": "d3-q-17"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "n=3\necho {1..$n}",
+   "answer": "{1..3}",
+   "explain": "Brace expansion happens **before** parameter expansion. When braces were expanded the text was `{1..$n}`, not a valid sequence, so it was left alone; then `$n` became 3.",
+   "id": "d3-q-18"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "What does this print? Assume the current directory is empty.",
+   "code": "echo a{1,2}.txt *.zzz",
+   "answer": "a1.txt a2.txt *.zzz",
+   "explain": "Brace expansion generates names whether or not the files exist. The glob `*.zzz` matches nothing, so bash leaves it unchanged.",
+   "id": "d3-q-19"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "Assume `HOME` is `/home/user1`. What does this print?",
+   "code": "echo ~ \"~\" '$HOME' \"$HOME\"",
+   "answer": "/home/user1 ~ $HOME /home/user1",
+   "explain": "Tilde expansion does not happen inside quotes. Single quotes stop parameter expansion; double quotes allow it.",
+   "id": "d3-q-20"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "echo $(( 17 / 5 )) $(( 17 % 5 )) $(( 2 + 3 * 4 ))",
+   "answer": "3 2 14",
+   "explain": "Integer division drops the remainder; % is the remainder; * binds tighter than +.",
+   "id": "d3-q-22"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "x=\"a    b\nc\"\necho $x\necho \"$x\"",
+   "answer": "a b c\na    b\nc",
+   "explain": "Unquoted, `$x` is word split on spaces and the newline into three words, which echo joins with single spaces. Quoted, the value is one argument printed exactly.",
+   "id": "d3-q-23"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWhat does this print?",
+   "code": "echo $(cut -f1 classlist)\necho \"There are $(wc -l < classlist) students\"",
+   "answer": "Cade Day Friese Yu\nThere are 4 students",
+   "explain": "The first command substitution is unquoted, so its four lines are word split into four arguments. In the second, the substitution is inside double quotes, which is fine: command substitution still happens there.",
+   "id": "d3-q-24"
+  },
+  {
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "The current directory contains exactly the files `f1` and `f2`. What does this print?",
+   "code": "v='f*'\necho \"$v\"\necho $v",
+   "answer": "f*\nf1 f2",
+   "explain": "Quoted: no filename expansion, so the literal `f*` is printed. Unquoted: filename expansion (the last expansion) replaces `f*` with the matching names.",
+   "id": "d3-q-26"
+  },
+  {
+   "id": "d3-q-28",
+   "topic": "d3-expansions",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "str=\"123456,Ester,Polly\"\nOLDIFS=$IFS\nIFS=\",\"\necho $str\necho \"$str\"\nIFS=$OLDIFS",
+   "answer": "123456 Ester Polly\n123456,Ester,Polly",
+   "explain": "With `IFS` set to a comma, the unquoted `$str` is word split at the commas into three words, which echo joins with spaces. Quoted, there is no word splitting, so the commas stay."
+  },
+  {
+   "id": "d4-q-01",
+   "topic": "d4-scripts",
+   "type": "mcq",
+   "q": "You just saved `hello.sh` (permissions `rw-r--r--`) in the current directory. Which command runs it **without** changing its permissions?",
+   "options": [
+    "`./hello.sh`",
+    "`hello.sh`",
+    "`bash hello.sh`",
+    "`run hello.sh`"
+   ],
+   "answer": 2,
+   "explain": "`bash hello.sh` only needs read permission. `./hello.sh` fails with `Permission denied` until you `chmod u+x hello.sh`. Plain `hello.sh` is searched for on the path (not the current directory). `run` is not a command."
+  },
+  {
+   "id": "d3-q-29",
+   "topic": "d4-scripts",
+   "type": "mcq",
+   "q": "You wrote `count.sh` and saved it. Running `./count.sh` prints `bash: ./count.sh: Permission denied`. What fixes it?",
+   "options": [
+    "`chmod u+x count.sh`, then `./count.sh` again",
+    "`chmod u+r count.sh`, then `./count.sh` again",
+    "Type `count.sh` without the `./`",
+    "Add a second `#!/bin/bash` line"
+   ],
+   "answer": 0,
+   "explain": "Permission denied means the file has no execute permission. A file you just created is already readable by you, so `u+r` changes nothing. Without `./` the shell searches the path and reports `command not found`. The shebang is not the problem."
+  },
+  {
+   "id": "d3-q-30",
+   "topic": "d4-scripts",
+   "type": "mcq",
+   "q": "`hello.sh` is in `~/scripts` and is executable. Your terminal is in `~`. You type `./hello.sh` and get `No such file or directory`. Why?",
+   "options": [
+    "The script has no execute permission",
+    "There is no `hello.sh` in the current directory `~`",
+    "The script's last command failed",
+    "Scripts can only be run with `bash hello.sh`"
+   ],
+   "answer": 1,
+   "explain": "`./hello.sh` means *the file hello.sh in the current directory*. Run `cd ~/scripts` first, or type `scripts/hello.sh`. A missing execute permission gives `Permission denied` instead."
+  },
+  {
+   "id": "d4-q-02",
+   "topic": "d4-scripts",
+   "type": "output",
+   "q": "`args.sh` contains:\n\n```bash\n#!/bin/bash\necho \"$#: $1 | $2\"\n```\n\nWhat does `./args.sh \"a b\" c` print?",
+   "code": "./args.sh \"a b\" c",
+   "answer": "2: a b | c",
+   "explain": "The quotes make `a b` a single argument, so there are 2 arguments, `$1` is `a b`, and `$2` is `c`."
+  },
+  {
+   "id": "d3-q-31",
+   "topic": "d4-scripts",
+   "type": "output",
+   "q": "`count.sh` contains:\n\n```bash\n#!/bin/bash\necho $#\n```\n\nWhat does this print?",
+   "code": "./count.sh a \"b c\" '' d",
+   "answer": "4",
+   "explain": "`$#` counts the arguments: `a`, `b c` (one argument, thanks to the quotes), the empty string `''` (still an argument) and `d`."
+  },
+  {
+   "id": "d4-q-03",
+   "topic": "d4-scripts",
+   "type": "output",
+   "q": "`ten.sh` contains:\n\n```bash\n#!/bin/bash\necho \"$10 ${10}\"\n```\n\nWhat does this print?",
+   "code": "./ten.sh a b c d e f g h i j",
+   "answer": "a0 j",
+   "explain": "`$10` is `$1` (`a`) followed by the character `0`. Only `${10}` gives the tenth argument, `j`."
+  },
+  {
+   "id": "d4-q-06",
+   "topic": "d4-scripts",
+   "type": "short",
+   "q": "From inside a script, how do you print the number of command line arguments? (Quiz 1)",
+   "answer": "`echo $#`",
+   "explain": "Accept `echo \"$#\"` or `echo ${#}`."
+  },
+  {
+   "id": "d3-q-32",
+   "topic": "d4-scripts",
+   "type": "output",
+   "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\n`first.sh` contains:\n\n```bash\n#!/bin/bash\ncut -f2 \"$1\" | sort | head -n \"$2\"\n```\n\nWhat does this print?",
+   "code": "./first.sh classlist 2",
+   "answer": "Andy\nBarry",
+   "explain": "`$1` is `classlist` and `$2` is `2`. Field 2 is the first names; sorted they are Andy, Barry, Holly, Sue; `head -n 2` keeps two."
+  },
+  {
+   "id": "d3-q-33",
+   "topic": "d4-scripts",
+   "type": "output",
+   "q": "`show.sh` contains:\n\n```bash\n#!/bin/bash\n\n# show.sh\necho \"$0 was given $# arguments\"   # count them\necho \"$@\"\n```\n\nWhat does this print?",
+   "code": "./show.sh one   \"two  three\"",
+   "answer": "./show.sh was given 2 arguments\none two  three",
+   "explain": "`$0` is the pathname used to run the script. The extra spaces between arguments on the command line just separate words, so there are 2 arguments. `\"$@\"` passes them to echo separately; echo joins them with one space, and the two spaces inside `two  three` are kept because they are part of that argument. The comment prints nothing."
+  }
+ ],
+ "write": [
+  {
+   "id": "d3-w-01",
+   "topic": "d3-streams",
+   "stage": "worked",
+   "marks": 2,
+   "prompt": "The file `scores` has one line per student: name, section and score, separated by TAB characters. For example:\n\n```\nAhmed\t002\t88\nBlake\t001\t9\nChen\t001\t100\n```\n\nWrite a **single pipeline** that extracts the scores, sorts them from **highest to lowest** (numerically), saves **all** of the sorted scores in a file named `ranked`, and prints only the **top five** scores.",
+   "starter": "",
+   "solution": "cut -f3 scores | sort -n -r | tee ranked | head -n5",
+   "explain": "Translate each phrase, in order:\n\n1. *extracts the scores*: the score is field 3 and the delimiter is TAB, which is `cut`'s default: `cut -f3 scores`.\n2. *highest to lowest, numerically*: `sort -n -r`. Without `-n`, 9 would sort above 88 because text comparison sees `9` > `8`.\n3. *saves all of the sorted scores*: `tee ranked`. It must come **after** sort (the file must be sorted) and **before** head (the file must contain every score).\n4. *prints only the top five*: `head -n5`.\n\n`sort -nr` and `head -n 5` are equally correct.",
+   "rubric": [
     {
-      "id": "d3-w-01",
-      "topic": "d3-streams",
-      "stage": "worked",
-      "marks": 2,
-      "prompt": "The file `scores` has one line per student: name, section and score, separated by TAB characters. For example:\n\n```\nAhmed\t002\t88\nBlake\t001\t9\nChen\t001\t100\n```\n\nWrite a **single pipeline** that extracts the scores, sorts them from **highest to lowest** (numerically), saves **all** of the sorted scores in a file named `ranked`, and prints only the **top five** scores.",
-      "starter": "",
-      "solution": "cut -f3 scores | sort -n -r | tee ranked | head -n5",
-      "explain": "Translate each phrase, in order:\n\n1. *extracts the scores*: the score is field 3 and the delimiter is TAB, which is `cut`'s default: `cut -f3 scores`.\n2. *highest to lowest, numerically*: `sort -n -r`. Without `-n`, 9 would sort above 88 because text comparison sees `9` > `8`.\n3. *saves all of the sorted scores*: `tee ranked`. It must come **after** sort (the file must be sorted) and **before** head (the file must contain every score).\n4. *prints only the top five*: `head -n5`.\n\n`sort -nr` and `head -n 5` are equally correct.",
-      "rubric": [
-        {
-          "marks": 1,
-          "item": "`cut -f3` then `sort -n -r` (numeric and reversed)"
-        },
-        {
-          "marks": 1,
-          "item": "`tee ranked` placed between sort and head, then `head -n5`"
-        }
-      ],
-      "pitfalls": [
-        "Putting `tee` after `head` (saves only five scores).",
-        "Forgetting `-n` (text sort puts 9 above 88).",
-        "Using `> ranked` in the middle of a pipeline: it sends the output to the file and nothing reaches head."
-      ]
+     "marks": 1,
+     "item": "`cut -f3` then `sort -n -r` (numeric and reversed)"
     },
     {
-      "id": "d3-w-02",
-      "topic": "d3-streams",
-      "stage": "faded",
-      "marks": 3,
-      "prompt": "A program `./build.sh` prints normal messages to standard output and error messages to standard error. Fill in the blanks so that each command does what its comment says.",
-      "starter": "# (a) normal output to out.txt, errors to err.txt\n./build.sh ____ out.txt ____ err.txt\n\n# (b) both normal output and errors into log.txt\n./build.sh > log.txt ____\n\n# (c) normal output on the terminal, errors thrown away\n./build.sh ____",
-      "solution": "# (a) normal output to out.txt, errors to err.txt\n./build.sh > out.txt 2> err.txt\n\n# (b) both normal output and errors into log.txt\n./build.sh > log.txt 2>&1\n\n# (c) normal output on the terminal, errors thrown away\n./build.sh 2> /dev/null",
-      "explain": "(a) `>` (or `1>`) redirects fd 1 and `2>` redirects fd 2. (b) After stdout points at log.txt, `2>&1` makes stderr a copy of it; the order matters. (c) `/dev/null` discards whatever is written to it.",
-      "rubric": [
-        {
-          "marks": 1,
-          "item": "(a) `>` and `2>`"
-        },
-        {
-          "marks": 1,
-          "item": "(b) `2>&1` after the stdout redirection"
-        },
-        {
-          "marks": 1,
-          "item": "(c) `2> /dev/null`"
-        }
-      ],
-      "pitfalls": [
-        "Writing `2>&1` before `> log.txt`.",
-        "Writing `> /dev/null` in (c), which throws away the normal output instead."
-      ]
-    },
-    {
-      "id": "d3-w-03",
-      "topic": "d3-streams",
-      "stage": "faded",
-      "marks": 2,
-      "prompt": "`classlist` has lines of the form last name TAB first name TAB student number. Complete the pipeline so that it prints the **number of different first names** in the file.",
-      "starter": "cut ____ classlist | ____ | ____ | wc ____",
-      "solution": "cut -f2 classlist | sort | uniq | wc -l",
-      "explain": "Field 2 is the first name. `uniq` only removes adjacent duplicates, so `sort` must come before it. `wc -l` counts the remaining lines.",
-      "rubric": [
-        {
-          "marks": 1,
-          "item": "`cut -f2` and `wc -l`"
-        },
-        {
-          "marks": 1,
-          "item": "`sort` before `uniq`"
-        }
-      ],
-      "pitfalls": [
-        "`uniq` without `sort` counts some names twice.",
-        "`wc` without `-l` prints lines, words and bytes."
-      ]
-    },
-    {
-      "id": "d3-w-04",
-      "topic": "d3-expansions",
-      "stage": "faded",
-      "marks": 3,
-      "prompt": "Fill in the blanks using **expansions**.\n\n(a) Create the directories `A1`, `A2`, ..., `A6` with one mkdir command.\n\n(b) Print `There are N files here` where N is the number of names that `ls` prints in the current directory.\n\n(c) Print the number of minutes in a week (let the shell compute it).",
-      "starter": "mkdir A____\necho \"There are ____ files here\"\necho ____",
-      "solution": "mkdir A{1..6}\necho \"There are $(ls | wc -l) files here\"\necho $(( 7 * 24 * 60 ))",
-      "explain": "(a) A sequence brace expansion with the preamble `A`. (b) Command substitution runs the pipeline and inserts its output; it still works inside double quotes. (c) Arithmetic expansion computes 10080.",
-      "rubric": [
-        {
-          "marks": 1,
-          "item": "`A{1..6}` (or `A{1,2,3,4,5,6}`)"
-        },
-        {
-          "marks": 1,
-          "item": "`$(ls | wc -l)`"
-        },
-        {
-          "marks": 1,
-          "item": "`$(( 7 * 24 * 60 ))`"
-        }
-      ],
-      "pitfalls": [
-        "Writing `$(7 * 24 * 60)`: single parentheses are command substitution and try to run a command named 7.",
-        "Single-quoting the sentence in (b) stops the substitution."
-      ]
-    },
-    {
-      "id": "d3-w-05",
-      "topic": "d3-tr",
-      "stage": "blank",
-      "marks": 4,
-      "prompt": "Write a script `lastnames.sh` that takes one command line argument: the name of a classlist file (last name TAB first name TAB student number on each line). The script prints the **last names** converted to **uppercase**, sorted in **reverse** alphabetical order, one per line. The file name might contain spaces.\n\n(Inside a script, `$1` is the first command line argument.)",
-      "starter": "",
-      "solution": "#!/bin/bash\n\ncut -f1 \"$1\" | tr a-z A-Z | sort -r",
-      "explain": "`cut -f1` extracts the last names, `tr a-z A-Z` (or `tr '[:lower:]' '[:upper:]'`) uppercases them, `sort -r` reverses the order. Quoting `\"$1\"` keeps a file name with spaces as one argument.",
-      "rubric": [
-        {
-          "marks": 1,
-          "item": "`#!/bin/bash` and `\"$1\"` quoted"
-        },
-        {
-          "marks": 1,
-          "item": "`cut -f1`"
-        },
-        {
-          "marks": 1,
-          "item": "`tr` from lowercase to uppercase, fed by the pipe"
-        },
-        {
-          "marks": 1,
-          "item": "`sort -r`"
-        }
-      ],
-      "pitfalls": [
-        "`tr a-z A-Z \"$1\"`: tr does not take a file name.",
-        "Unquoted `$1` breaks on file names with spaces."
-      ]
-    },
-    {
-      "id": "d3-w-06",
-      "topic": "d3-streams",
-      "stage": "blank",
-      "marks": 4,
-      "prompt": "Write a script `snumsave.sh` that takes two command line arguments: `$1` is the name of a classlist file (last name TAB first name TAB student number) and `$2` is the name of an output file. The script\n\n1. writes the student numbers, sorted in ascending order, into the file named by `$2` (overwriting it), and\n2. prints the message `saved N student numbers` where N is the number of lines in that output file.",
-      "starter": "",
-      "solution": "#!/bin/bash\n\ncut -f3 \"$1\" | sort > \"$2\"\necho \"saved $(wc -l < \"$2\") student numbers\"",
-      "explain": "The first line is a pipeline whose final stdout is redirected into the output file. The second line uses command substitution; `wc -l < file` prints only the number (no file name). Nested double quotes inside `$( )` are fine.",
-      "rubric": [
-        {
-          "marks": 1,
-          "item": "`cut -f3 \"$1\" | sort`"
-        },
-        {
-          "marks": 1,
-          "item": "`> \"$2\"` at the end of the pipeline"
-        },
-        {
-          "marks": 1,
-          "item": "Command substitution with `wc -l` that yields only the number (`< \"$2\"` or `cut -f3 \"$1\" | wc -l`)"
-        },
-        {
-          "marks": 1,
-          "item": "Exact message text; variables quoted"
-        }
-      ],
-      "pitfalls": [
-        "`wc -l \"$2\"` inside the message prints `saved 4 out.txt student numbers`.",
-        "`sort > \"$2\" \"$1\"` style mix-ups: keep the redirection at the end of the pipeline."
-      ]
-    },
-    {
-      "id": "d3-w-07",
-      "topic": "d3-tr",
-      "stage": "blank",
-      "marks": 2,
-      "prompt": "A variable `path` holds a colon-separated list of directories, for example `/usr/bin:/bin:/home/user1/bin`. Write **one** command that prints each directory on its own line.",
-      "starter": "",
-      "solution": "echo \"$path\" | tr ':' '\\n'",
-      "explain": "tr reads stdin, so feed it the value with echo (or `printf '%s\\n' \"$path\"`). Each `:` is translated into a newline.",
-      "rubric": [
-        {
-          "marks": 1,
-          "item": "Feeds `\"$path\"` to tr through a pipe"
-        },
-        {
-          "marks": 1,
-          "item": "`tr ':' '\\n'`"
-        }
-      ],
-      "pitfalls": [
-        "`tr ':' '\\n' \"$path\"`: tr takes no file/string argument.",
-        "Using `cut -d:`: it selects fields but does not put them on separate lines."
-      ]
+     "marks": 1,
+     "item": "`tee ranked` placed between sort and head, then `head -n5`"
     }
-  ]
+   ],
+   "pitfalls": [
+    "Putting `tee` after `head` (saves only five scores).",
+    "Forgetting `-n` (text sort puts 9 above 88).",
+    "Using `> ranked` in the middle of a pipeline: it sends the output to the file and nothing reaches head."
+   ]
+  },
+  {
+   "id": "d3-w-07",
+   "topic": "d4-scripts",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write a script `firstn.sh` that is run as `./firstn.sh FILE N`. It prints one line `FILE has L lines` (where L is the number of lines in FILE), and then the first N lines of FILE in **sorted** order. File names may contain spaces.\n\nExample: `./firstn.sh classlist 2` prints\n\n```\nclasslist has 4 lines\nCade\tBarry\t3100025\nDay\tHolly\t2999999\n```",
+   "starter": "",
+   "solution": "#!/bin/bash\n\n# firstn.sh: show how long FILE is, then its first N lines in sorted order\n\necho \"$1 has $(wc -l < \"$1\") lines\"\nsort \"$1\" | head -n \"$2\"",
+   "explain": "1. `#!/bin/bash` first, always.\n2. `$1` is FILE and `$2` is N: the shell sets them from the command line.\n3. The message is one `echo` with a command substitution inside double quotes. `wc -l < \"$1\"` prints only the number; `wc -l \"$1\"` would add the file name. The double quotes inside `$( )` are fine: they belong to the inner command.\n4. *First N lines in sorted order* means sort first, then cut it down: `sort \"$1\" | head -n \"$2\"`. Doing `head` first would sort only the first N lines of the file.\n5. Every `$1` and `$2` is quoted, so a file name like `class list 2` stays one argument.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "Shebang `#!/bin/bash` on the first line"
+    },
+    {
+     "marks": 1,
+     "item": "`echo` with `$1` and a command substitution giving only the line count (`wc -l < \"$1\"`)"
+    },
+    {
+     "marks": 1,
+     "item": "`sort \"$1\" | head -n \"$2\"` (sort before head)"
+    },
+    {
+     "marks": 1,
+     "item": "Arguments quoted everywhere"
+    }
+   ],
+   "pitfalls": [
+    "`head -n \"$2\" \"$1\" | sort` sorts only the first N lines of the file, not the whole file.",
+    "`$(wc -l \"$1\")` puts the file name into the message twice.",
+    "Writing `$(wc -l < $1)`: unquoted, a file name with a space breaks."
+   ]
+  },
+  {
+   "id": "d3-w-02",
+   "topic": "d3-streams",
+   "stage": "faded",
+   "marks": 3,
+   "prompt": "A program `./build.sh` prints normal messages to standard output and error messages to standard error. Fill in the blanks so that each command does what its comment says.",
+   "starter": "# (a) normal output to out.txt, errors to err.txt\n./build.sh ____ out.txt ____ err.txt\n\n# (b) both normal output and errors into log.txt\n./build.sh > log.txt ____\n\n# (c) normal output on the terminal, errors thrown away\n./build.sh ____",
+   "solution": "# (a) normal output to out.txt, errors to err.txt\n./build.sh > out.txt 2> err.txt\n\n# (b) both normal output and errors into log.txt\n./build.sh > log.txt 2>&1\n\n# (c) normal output on the terminal, errors thrown away\n./build.sh 2> /dev/null",
+   "explain": "(a) `>` (or `1>`) redirects fd 1 and `2>` redirects fd 2. (b) After stdout points at log.txt, `2>&1` makes stderr a copy of it; the order matters. (c) `/dev/null` discards whatever is written to it.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "(a) `>` and `2>`"
+    },
+    {
+     "marks": 1,
+     "item": "(b) `2>&1` after the stdout redirection"
+    },
+    {
+     "marks": 1,
+     "item": "(c) `2> /dev/null`"
+    }
+   ],
+   "pitfalls": [
+    "Writing `2>&1` before `> log.txt`.",
+    "Writing `> /dev/null` in (c), which throws away the normal output instead."
+   ]
+  },
+  {
+   "id": "d3-w-04",
+   "topic": "d3-expansions",
+   "stage": "faded",
+   "marks": 3,
+   "prompt": "Fill in the blanks using **expansions**.\n\n(a) Create the directories `A1`, `A2`, ..., `A6` with one mkdir command.\n\n(b) Print `There are N files here` where N is the number of names that `ls` prints in the current directory.\n\n(c) Print the number of minutes in a week (let the shell compute it).",
+   "starter": "mkdir A____\necho \"There are ____ files here\"\necho ____",
+   "solution": "mkdir A{1..6}\necho \"There are $(ls | wc -l) files here\"\necho $(( 7 * 24 * 60 ))",
+   "explain": "(a) A sequence brace expansion with the preamble `A`. (b) Command substitution runs the pipeline and inserts its output; it still works inside double quotes. (c) Arithmetic expansion computes 10080.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`A{1..6}` (or `A{1,2,3,4,5,6}`)"
+    },
+    {
+     "marks": 1,
+     "item": "`$(ls | wc -l)`"
+    },
+    {
+     "marks": 1,
+     "item": "`$(( 7 * 24 * 60 ))`"
+    }
+   ],
+   "pitfalls": [
+    "Writing `$(7 * 24 * 60)`: single parentheses are command substitution and try to run a command named 7.",
+    "Single-quoting the sentence in (b) stops the substitution."
+   ]
+  },
+  {
+   "id": "d3-w-08",
+   "topic": "d4-scripts",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Fill in the blanks of `info.sh` so that each line prints what its comment says. For example, `./info.sh red \"light blue\"` should print\n\n```\nscript: ./info.sh\ncount: 2\nfirst: red\n```\n\nand then a long listing (`ls -ld`) of the files named by **all** the arguments, each argument kept whole.",
+   "starter": "#!/bin/bash\n\n# info.sh: describe how the script was called\n\necho \"script: ____\"    # the pathname used to run the script\necho \"count: ____\"     # the number of arguments\necho \"first: ____\"     # the first argument\nls -ld ____            # every argument, each as one word",
+   "solution": "#!/bin/bash\n\n# info.sh: describe how the script was called\n\necho \"script: $0\"    # the pathname used to run the script\necho \"count: $#\"     # the number of arguments\necho \"first: $1\"     # the first argument\nls -ld \"$@\"            # every argument, each as one word",
+   "explain": "`$0` is the pathname used to run the script, `$#` the number of arguments (Quiz 1 Q2E: `echo $#`), `$1` the first argument. `\"$@\"` (with the quotes) passes every argument as a separate word, so `light blue` reaches `ls` as one name.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`$0`"
+    },
+    {
+     "marks": 1,
+     "item": "`$#`"
+    },
+    {
+     "marks": 1,
+     "item": "`$1`"
+    },
+    {
+     "marks": 1,
+     "item": "`\"$@\"` with the double quotes"
+    }
+   ],
+   "pitfalls": [
+    "Writing `$@` without quotes: `light blue` is split into `light` and `blue`.",
+    "Confusing `$0` (the script's pathname) with `$1` (the first argument)."
+   ]
+  },
+  {
+   "id": "d3-w-06",
+   "topic": "d4-scripts",
+   "stage": "blank",
+   "marks": 4,
+   "prompt": "Write a script `snumsave.sh` that takes two command line arguments: `$1` is the name of a classlist file (last name TAB first name TAB student number) and `$2` is the name of an output file. The script\n\n1. writes the student numbers, sorted in ascending order, into the file named by `$2` (overwriting it), and\n2. prints the message `saved N student numbers` where N is the number of lines in that output file.",
+   "starter": "",
+   "solution": "#!/bin/bash\n\ncut -f3 \"$1\" | sort > \"$2\"\necho \"saved $(wc -l < \"$2\") student numbers\"",
+   "explain": "The first line is a pipeline whose final stdout is redirected into the output file. The second line uses command substitution; `wc -l < file` prints only the number (no file name). Nested double quotes inside `$( )` are fine.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`cut -f3 \"$1\" | sort`"
+    },
+    {
+     "marks": 1,
+     "item": "`> \"$2\"` at the end of the pipeline"
+    },
+    {
+     "marks": 1,
+     "item": "Command substitution with `wc -l` that yields only the number (`< \"$2\"` or `cut -f3 \"$1\" | wc -l`)"
+    },
+    {
+     "marks": 1,
+     "item": "Exact message text; variables quoted"
+    }
+   ],
+   "pitfalls": [
+    "`wc -l \"$2\"` inside the message prints `saved 4 out.txt student numbers`.",
+    "`sort > \"$2\" \"$1\"` style mix-ups: keep the redirection at the end of the pipeline."
+   ]
+  },
+  {
+   "id": "d3-w-09",
+   "topic": "d4-scripts",
+   "stage": "blank",
+   "marks": 4,
+   "prompt": "Write a script `mkweeks.sh` that is run as `./mkweeks.sh COURSE`. Assume the directory COURSE does not exist yet. The script\n\n1. creates the directory COURSE containing the twelve directories `week01`, `week02`, ..., `week12`, using **one** `mkdir` command, and\n2. prints the line `COURSE: N folders` where N is counted by the script itself with `ls` and `wc` (it should be 12).\n\nThe name COURSE may contain spaces.\n\nExample: `./mkweeks.sh CISC220` creates `CISC220/week01` ... `CISC220/week12` and prints `CISC220: 12 folders`.",
+   "starter": "",
+   "solution": "#!/bin/bash\n\n# mkweeks.sh: make COURSE/week01 ... COURSE/week12\n\nmkdir -p \"$1\"/week{01..12}\necho \"$1: $(ls \"$1\" | wc -l) folders\"",
+   "explain": "`-p` creates COURSE as well as the week directories inside it. The brace expansion is outside the quotes (braces do not expand inside quotes), while `\"$1\"` is quoted; written side by side they make one word per week, such as `CISC220/week01`. `ls \"$1\" | wc -l` counts the names inside COURSE. `mkdir \"$1\" \"$1\"/week{01..12}` is equally correct.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "Shebang on the first line"
+    },
+    {
+     "marks": 1,
+     "item": "One `mkdir` that also creates COURSE (`-p`, or `\"$1\"` listed first)"
+    },
+    {
+     "marks": 1,
+     "item": "`week{01..12}` brace expansion (leading zeros) after `\"$1\"/`, with `$1` quoted"
+    },
+    {
+     "marks": 1,
+     "item": "`echo` with `$1` and `$(ls \"$1\" | wc -l)`"
+    }
+   ],
+   "pitfalls": [
+    "`\"$1/week{01..12}\"`: inside quotes the braces are not expanded, so one directory named `week{01..12}` is made.",
+    "`week{1..12}` gives `week1`, not `week01`.",
+    "Forgetting `-p`: mkdir cannot create `CISC220/week01` before `CISC220` exists."
+   ]
+  }
+ ]
 }
