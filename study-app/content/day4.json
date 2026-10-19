@@ -20,6 +20,10 @@
      "caption": "Prints: 2some string"
     },
     {
+     "type": "try",
+     "text": "In your practice folder (`cd ~/practice`), type the four lines above one at a time. Then run `echo a` and `echo $a` and compare. Finally type `x = 5` to see the error for yourself."
+    },
+    {
      "type": "md",
      "text": "Spaces break assignment because the shell splits a line into words at spaces (Day 1), and the first word is the command:"
     },
@@ -29,7 +33,7 @@
     },
     {
      "type": "md",
-     "text": "`x = 5` runs a command named `x` with arguments `=` and `5`. `x= 5` sets `x` to empty just for a command named `5`, which does not exist.\n\n### Getting the value: parameter expansion\n\nWrite `$` in front of the name to get the value: `$var` or `${var}`. Replacing `${var}` with its value is called **parameter expansion** (or variable expansion). Without the `$`, a name is just text: `echo a` prints `a`, while `echo $a` prints `2`.\n\nBash variables are **untyped**: every value is a string. A value made only of digits can be used as a number in arithmetic (later today). There are **no floating-point numbers** in Bash.\n\n**Concatenation** is just writing expansions next to each other, so Quiz 1 Q2F's answer is:\n\n```bash\nstr3=$str1$str2\n```"
+     "text": "`x = 5` runs a command named `x` with arguments `=` and `5`. `x= 5` sets `x` to empty just for a command named `5`, which does not exist.\n\n### Getting the value: parameter expansion\n\nWrite `$` in front of the name to get the value: `$var` or `${var}`. Replacing `${var}` with its value is called **parameter expansion** (or variable expansion). Without the `$`, a name is just text: `echo a` prints `a`, while `echo $a` prints `2`.\n\nBash variables are **untyped**: every value is a string. A value made only of digits can be used as a number in arithmetic expansion `$(( ))` (Day 3). There are **no floating-point numbers** in Bash.\n\n**Concatenation** is just writing expansions next to each other, so Quiz 1 Q2F's answer is:\n\n```bash\nstr3=$str1$str2\n```"
     },
     {
      "type": "check",
@@ -48,6 +52,10 @@
     {
      "type": "md",
      "text": "`in_` is a valid variable name, so `$in_.bak` means \"the value of `in_`, then `.bak`\". `in_` was never set, so `out` becomes just `.bak`. The fix is braces, which mark exactly where the name ends:\n\n```bash\n#!/bin/bash\n\n# backup.sh\nin=\"$1\"\nout=\"${in}_.bak\"\ncp \"$in\" \"$out\"\n```\n\nNow `./backup.sh \"my file\"` creates `my file_.bak`. **Rule:** when a variable is directly followed by a letter, digit or `_`, write `${name}`."
+    },
+    {
+     "type": "try",
+     "text": "In `~/practice`, create `bad_backup.sh` and `backup.sh` with your editor (copy the two scripts above) and run `chmod u+x bad_backup.sh backup.sh`. Then run `touch \"my file\"`, `./bad_backup.sh \"my file\"`, `ls -A`, `./backup.sh \"my file\"`, `ls -A`. You should see `.bak` appear first, then `my file_.bak`."
     },
     {
      "type": "why",
@@ -78,7 +86,7 @@
     },
     {
      "type": "md",
-     "text": "### What is expanded in an assignment\n\nOn the right of `=`, Bash performs **tilde expansion, parameter expansion, command substitution and arithmetic expansion**, but **not** brace expansion or filename (glob) expansion:"
+     "text": "### What is expanded in an assignment\n\nOn the right of `=`, Bash performs **tilde expansion, parameter expansion, command substitution and arithmetic expansion**, but **not** brace expansion or filename (glob) expansion. (Arithmetic expansion `$(( ))` is the Day 3 one: it is replaced by the integer result.)"
     },
     {
      "type": "code",
@@ -124,12 +132,16 @@
     },
     {
      "type": "md",
-     "text": "- A **negative offset** counts from the end, but needs a **space** before the minus: `${s: -3}`. Without it, `${s:-3}` is a different expansion (a default value, below) and gives the whole string.\n- A **negative length** means \"stop before this many characters from the end\": `${s:1:-2}` goes from index 1 up to but not including the second-last character.\n- The offset and length are arithmetic, so they can be variables or expressions: `${s:n}` and `${s:0:n}` work with or without `$` on `n`.\n\nQuiz 1 Q3A: print the first half of `s` (even length):\n\n```bash\nn=$(( ${#s} / 2 ))\necho \"${s:0:n}\"\n```\n\nand `echo \"${s:n}\"` would print the second half."
+     "text": "- A **negative offset** counts from the end, but needs a **space** before the minus: `${s: -3}`. Without it, `${s:-3}` is a different expansion (a default value, below) and gives the whole string.\n- A **negative length** means \"stop before this many characters from the end\": `${s:1:-2}` goes from index 1 up to but not including the second-last character.\n- The offset and length are arithmetic, so they can be variables or expressions: `${s:n}` and `${s:0:n}` work with or without `$` on `n`.\n\nQuiz 1 Q3A: print the first half of `s` (even length):\n\n```bash\nn=$(( ${#s} / 2 ))\necho \"${s:0:n}\"\n```\n\n`$(( ))` is arithmetic expansion (Day 3): `${#s}` is expanded first, then divided by 2. Integer division drops any remainder, so for a length of 7 `n` would be 3. `echo \"${s:n}\"` would print the second half. (The posted answer writes `${s:0:$n}`; the `$` is optional there.)"
     },
     {
      "type": "check",
      "q": "`s=\"hello\"`. What do `${s:1:3}` and `${s: -2}` give?",
      "a": "`ell` (3 characters starting at index 1) and `lo` (the last 2 characters)."
+    },
+    {
+     "type": "try",
+     "text": "At the prompt, set `s=abcdefghij` and run `echo \"${s:3:4}\"`, `echo \"${s: -3}\"` and `echo \"${s:-3}\"`. Predict each answer before you press Enter. Then run `n=$(( ${#s} / 2 ))` and `echo \"${s:0:n}\"`."
     },
     {
      "type": "md",
@@ -154,6 +166,10 @@
     {
      "type": "pitfall",
      "text": "If the pattern does not match, nothing is removed. With `p=myfile` (no `/`), `${p%/*}` is still `myfile`, not `.`. That is why Quiz 1 Q5 promised the pathname always includes the directory (`./myfile`, where `${p%/*}` is `.`)."
+    },
+    {
+     "type": "try",
+     "text": "Set `p=/home/user1/somedir/myfile` and try all four: `echo \"${p#*/}\"`, `echo \"${p##*/}\"`, `echo \"${p%/*}\"`, `echo \"${p%%/*}\"`. Which one gives the directory and which gives the filename? (`${p%%/*}` prints an empty line: the longest end part matching `/*` is the whole string.)"
     },
     {
      "type": "check",
@@ -214,8 +230,8 @@
     },
     {
      "type": "code",
-     "code": "$ x=\"sparring with a purple porpoise\"\n$ printf %s \"$x\" | tr 'p' 't'\nstarring with a turtle tortoise\n$ echo \"ca.queensu.cs.cisc124\" | tr '.' '/'\nca/queensu/cs/cisc124\n$ echo hello | tr el ip\nhippo",
-     "caption": "In the last one e becomes i and l becomes p (position 1 maps to position 1, position 2 to position 2)."
+     "code": "$ x=\"sparring with a purple porpoise\"\n$ y=$(printf %s \"$x\" | tr 'p' 't')\n$ echo \"$y\"\nstarring with a turtle tortoise\n$ echo \"ca.queensu.cs.cisc124\" | tr '.' '/'\nca/queensu/cs/cisc124\n$ echo hello | tr el ip\nhippo",
+     "caption": "The first two lines are the notebook's way to change a variable's text with tr. In the last one e becomes i and l becomes p (position 1 maps to position 1, position 2 to position 2)."
     },
     {
      "type": "check",
@@ -225,6 +241,10 @@
     {
      "type": "pitfall",
      "text": "`tr a-z A-Z words.txt` is an error: `tr` does not accept a file name. Use `tr a-z A-Z < words.txt` or `cat words.txt | tr a-z A-Z`."
+    },
+    {
+     "type": "try",
+     "text": "In `~/practice`, run `echo hello | tr el ip`, then `tr a-z A-Z < animals.txt` (the file from Day 1), then `tr a-z A-Z animals.txt` to see the error message for a file name argument."
     },
     {
      "type": "md",
@@ -245,7 +265,7 @@
     },
     {
      "type": "md",
-     "text": "### Duplicated characters in `seq1`: undefined\n\nIf `seq1` contains the **same character twice**, the result is **undefined** (the standard does not say which translation wins). With GNU `tr`, the **last** occurrence wins:\n\n```bash\n$ echo cisc220 | tr 'cisc' 'CIS'\nSISS220\n```\n\nHere `seq2` is extended to `CISS`, so `c` is mapped first to `C` and then to `S`; the later mapping wins, giving `SISS220`. Assignment 3's `tr220.sh` refuses this case: it checks `seq1` for duplicated characters (with `hasdups`) and also rejects a `seq1` that is longer than `seq2`, the two undefined/non-portable cases above."
+     "text": "### Duplicated characters in `seq1`: undefined\n\nIf `seq1` contains the **same character twice**, the result is **undefined** (the standard does not say which translation wins). With GNU `tr`, the **last** occurrence wins:\n\n```bash\n$ echo cisc220 | tr 'cisc' 'CIS'\nSISS220\n```\n\nHere `seq2` is extended to `CISS`, so `c` is mapped first to `C` and then to `S`; the later mapping wins, giving `SISS220`. Assignment 3's `tr220.sh` refuses this case: it checks `seq1` for duplicated characters and also rejects a `seq1` that is longer than `seq2`, the two undefined/non-portable cases above."
     },
     {
      "type": "check",
@@ -260,6 +280,10 @@
      "type": "code",
      "code": "$ echo \"2022-10-21\" | tr -d '-'\n20221021\n$ echo \"a     bcd  ef g\" | tr -s ' '\na bcd ef g\n$ echo bookkeeper | tr -s 'a-z'\nbokeper\n$ echo \"aaabbb--ccc\" | tr -ds '-' 'a-z'\nabc",
      "caption": "Squeezing only merges repeats that are next to each other: bookkeeper becomes bokeper."
+    },
+    {
+     "type": "try",
+     "text": "Run `echo \"a     bcd  ef g\" | tr -s ' '` and `echo 2022-10-21 | tr -d '-'`. Then predict, and check, what `echo bookkeeper | tr -s 'a-z'` prints."
     },
     {
      "type": "why",
@@ -282,19 +306,37 @@
    "title": "Regular expressions, =~ and grep",
    "notebook": "bash/regex.ipynb",
    "priority": "high",
-   "examNote": "Quiz 2 Q1A: *what does `?` mean in a regex?* (zero or one instances of the preceding atom). Quiz 2 Q1B: *a regex matching strings that start and end with a lowercase letter*. Assignment 3 Q1 (`testpw.sh`) checks a password with `=~` and `[:space:]`, `[:alpha:]`, `[:digit:]`, `[:punct:]`, the model for a long written question.",
+   "examNote": "Quiz 2 Q1A: *what does `?` mean in a regex?* (zero or one instances of the preceding atom). Quiz 2 Q1B: *a regex matching strings that start and end with a lowercase letter*. Assignment 3 Q1 (`testpw.sh`) checks a password with `=~` and `[:space:]`, `[:alpha:]`, `[:digit:]`, `[:punct:]`, the model for a long written question. Today you write its regex tests; its usage check and exit status need `if` (Day 5).",
    "blocks": [
     {
      "type": "md",
-     "text": "A **regular expression** (regex) is a string that describes a search **pattern** for text. You use one when you need to ask \"does this text look like X?\": an integer, a phone number, a password with at least one digit.\n\nBash uses the **POSIX extended regular expression** syntax. Warning: regexes use some of the same symbols as Bash's glob patterns (`*`, `?`, `[ ]`) but with **different meanings**. Keep them apart:\n\n| Symbol | Glob pattern (Day 2, `==`) | Regular expression |\n|---|---|---|\n| `*` | any sequence of characters | **zero or more of the preceding atom** |\n| `?` | exactly one character | **zero or one of the preceding atom** |\n| `.` | a literal dot | **any single character** |"
+     "text": "A **regular expression** (regex) is a string that describes a search **pattern** for text. You use one when you need to ask \"does this text look like X?\": an integer, a phone number, a password with at least one digit.\n\nBash uses the **POSIX extended regular expression** syntax. Warning: regexes use some of the same symbols as Bash's glob patterns (`*`, `?`, `[ ]`) but with **different meanings**. Keep them apart:\n\n| Symbol | Glob pattern (Day 2 globs, and `${s%pattern}` today) | Regular expression |\n|---|---|---|\n| `*` | any sequence of characters | **zero or more of the preceding atom** |\n| `?` | exactly one character | **zero or one of the preceding atom** |\n| `.` | a literal dot | **any single character** |"
     },
     {
      "type": "md",
-     "text": "### The `=~` operator\n\nInside `[[ ]]`, `=~` does regex matching:\n\n```bash\nif [[ $str =~ $re ]]; then\n    echo \"$str matches $re\"\nfi\n```\n\nIt is true if **any part** of `$str` matches the pattern (the match does not have to cover the whole string unless you use anchors, see below). The course's `test_regex.sh` script is handy for experimenting:"
+     "text": "### The `=~` operator inside `[[ ]]`\n\nTo test a string against a regex, Bash uses the `=~` operator inside **`[[ ]]`**:\n\n```bash\n[[ $str =~ $re ]]\n```\n\n`[[ ... ]]` is a **command** that tests something. Like every command it sets an **exit status** (Day 1): **0** (success, \"true\") when the test passes and **1** (\"false\") when it fails. It prints nothing. You see the result with `echo $?`, or you act on it with `&&` (run the next command only on success) and `||` (run it only on failure), exactly as on Day 1. Two rules:\n\n- Put a **space** after `[[`, before `]]` and around `=~`: they are separate words.\n- `=~` is true if **any part** of `$str` matches the regex. The match does not have to cover the whole string unless you use anchors (below).\n\n`[[ ]]` can test many other things (files, equal strings, numbers), and the notebook writes its regex tests inside **`if` statements**. Both come on Day 5. Today you only need `[[ $str =~ $re ]]` together with `$?`, `&&` and `||`."
     },
     {
      "type": "code",
-     "code": "#!/bin/bash\n\n# test_regex.sh\n\nif (( $# != 2 )); then\n    echo \"Usage: test_regex string regex\" >&2\n    exit 1\nfi\nstr=$1\nre=$2\nif [[ $str =~ $re ]]; then\n    echo \"The string $str is matched by the regex $re\"\nelse\n    echo \"The string $str is not matched by the regex $re\"\nfi"
+     "code": "$ [[ walrus =~ a ]]\n$ echo $?\n0\n$ [[ hello =~ a ]]\n$ echo $?\n1\n$ [[ sandman =~ and ]] && echo match\nmatch\n$ [[ hello =~ a ]] || echo \"no match\"\nno match",
+     "caption": "walrus contains an a and hello does not; sandman contains and."
+    },
+    {
+     "type": "check",
+     "q": "What does `[[ cat =~ at ]]; echo $?` print, and why?",
+     "a": "`0`. The test succeeds because `cat` contains `at` somewhere."
+    },
+    {
+     "type": "md",
+     "text": "The notebook's `test_regex.sh` is handy for experimenting. The notebook's version uses `if` (Day 5); here is the same script written with what you know today. Both lines run the same test: `&&` prints the first message only when the string matched, and `||` prints the second message only when it did not."
+    },
+    {
+     "type": "code",
+     "code": "#!/bin/bash\n\n# test_regex.sh: does the string $1 match the regex $2?\n\nstr=$1\nre=$2\n[[ $str =~ $re ]] && echo \"The string $str is matched by the regex $re\"\n[[ $str =~ $re ]] || echo \"The string $str is not matched by the regex $re\""
+    },
+    {
+     "type": "try",
+     "text": "In `~/practice`, create `test_regex.sh` with your editor (copy the script above) and run `chmod u+x test_regex.sh`. Then run `./test_regex.sh hello a` and `./test_regex.sh walrus a`. Keep the script: use it to test every regex in the rest of this lesson. Put the regex in single quotes (`./test_regex.sh color '^colou?r$'`) so the shell passes it on unchanged."
     },
     {
      "type": "md",
@@ -310,7 +352,8 @@
     },
     {
      "type": "code",
-     "code": "$ re=\"a.c\"\n$ if [[ abc =~ $re ]]; then echo \"match\"; else echo \"no match\"; fi\nmatch\n$ if [[ abc =~ \"$re\" ]]; then echo \"match\"; else echo \"no match\"; fi\nno match"
+     "code": "$ re=\"a.c\"\n$ [[ abc =~ $re ]]; echo $?\n0\n$ [[ abc =~ \"$re\" ]]; echo $?\n1",
+     "caption": "Unquoted, the . in the regex means any character, so abc matches. Quoted, Bash looks for the literal text a.c."
     },
     {
      "type": "check",
@@ -393,8 +436,12 @@
      "code": "$ cat pets.txt\ncat\ndog\ncatalog\nCat\nbobcat\n$ grep -En 'o' pets.txt\n2:dog\n3:catalog\n5:bobcat\n$ grep -Ei 'cat$' pets.txt\ncat\nCat\nbobcat"
     },
     {
+     "type": "try",
+     "text": "In `~/practice`, make `pets.txt` with the five lines above (`printf '%s\\n' cat dog catalog Cat bobcat > pets.txt` writes them in one go). Run the two `grep` commands, then `grep -E 'cat' pets.txt` and `grep -E '^cat$' pets.txt`, and explain the differences."
+    },
+    {
      "type": "md",
-     "text": "The notebook also finds `for` loops in a Java file with `grep -En \"for[[:blank:]]*[(]\" AllWordsLookup.java`: `for`, then zero or more blanks, then a literal `(` (the `(` is a metacharacter, so it is put inside `[ ]`). And a crossword helper: `grep -Ei \"^.ak.s$\" /usr/share/dict/words` finds five-letter words like `makes` and `takes`.\n\n`grep` also sets its exit status: `0` if some line matched, `1` if none did. So it can be an `if` condition:\n\n```bash\nif grep -E '^dog$' pets.txt > /dev/null; then\n    echo \"found\"\nfi\n```"
+     "text": "The notebook also finds `for` loops in a Java file with `grep -En \"for[[:blank:]]*[(]\" AllWordsLookup.java`: `for`, then zero or more blanks, then a literal `(` (the `(` is a metacharacter, so it is put inside `[ ]`). And a crossword helper: `grep -Ei \"^.ak.s$\" /usr/share/dict/words` finds five-letter words like `makes` and `takes`.\n\n`grep` also sets its exit status: `0` if some line matched, `1` if none did. So you can act on it with `&&` and `||`, throwing its output away with `> /dev/null` (Day 3):\n\n```bash\ngrep -E '^dog$' pets.txt > /dev/null && echo \"found\"\n```\n\n(On Day 5 you will also see `grep` used as the condition of an `if`.)"
     },
     {
      "type": "check",
@@ -403,19 +450,34 @@
     },
     {
      "type": "md",
-     "text": "### Putting it together: a validator script (Assignment 3 Q1 style)\n\nChecking that input \"looks right\" combines everything today: a usage check, `=~` with classes, `${#s}` for length (Day 4), `!`, and stderr messages. The trick for \"print a message for **every** failing rule\" is to **not exit early**: remember failure in a variable and exit at the end."
+     "text": "### Putting it together: a password checker (Assignment 3 Q1 style)\n\nAssignment 3 Q1 (`testpw.sh`) checks that a password is strong and prints a message for **every** rule it breaks. The heart of it is five regex tests, one line per rule:\n\n- A rule that is broken when the regex **matches** (whitespace is not allowed) uses `&&`: print the message when the test succeeds.\n- A rule that is broken when the regex does **not** match (must contain a digit) uses `||`: print the message when the test fails.\n\nThe length rule needs no arithmetic: `.{8}` means \"any 8 characters in a row\", so `[[ $pw =~ .{8} ]]` is true exactly when the password has at least 8 characters. The messages are errors, so they go to standard error with `>&2` (Day 3). Because no line uses `exit`, every rule is checked and every failing rule is reported."
     },
     {
      "type": "code",
-     "code": "#!/bin/bash\n\n# isint.sh: is the argument an integer?\n\nif (( $# != 1 )); then\n    echo \"Usage: isint.sh value\" >&2\n    exit 1\nfi\n\nif [[ $1 =~ ^[-+]?[0-9]+$ ]]; then\n    echo \"$1 is an integer\"\nelse\n    echo \"$1 is not an integer\"\n    exit 2\nfi"
+     "code": "#!/bin/bash\n\n# testpw.sh: report every rule that the password $1 breaks\n\npw=$1\n\n[[ $pw =~ [[:space:]] ]] && echo \"password cannot contain whitespace\" >&2\n[[ $pw =~ .{8} ]] || echo \"password length less than 8\" >&2\n[[ $pw =~ [[:alpha:]] ]] || echo \"password must contain at least one letter\" >&2\n[[ $pw =~ [[:digit:]] ]] || echo \"password must contain at least one digit\" >&2\n[[ $pw =~ [[:punct:]] ]] || echo \"password must contain at least one symbol\" >&2"
     },
     {
      "type": "code",
-     "code": "$ ./isint.sh -7\n-7 is an integer\n$ ./isint.sh 4x2\n4x2 is not an integer\n$ echo $?\n2\n$ ./isint.sh\nUsage: isint.sh value"
+     "code": "$ ./testpw.sh abc\npassword length less than 8\npassword must contain at least one digit\npassword must contain at least one symbol\n$ ./testpw.sh 'abc123!@'\n$ ./testpw.sh 'my pass 1'\npassword cannot contain whitespace\npassword must contain at least one symbol",
+     "caption": "A strong password prints nothing. Single quotes keep the ! and the spaces inside one argument."
+    },
+    {
+     "type": "why",
+     "q": "Why does the digit rule use `||` but the whitespace rule use `&&`?",
+     "a": "`[[ $pw =~ [[:digit:]] ]]` succeeds when there IS a digit, which is good, so the message must print when the test fails: `||`. `[[ $pw =~ [[:space:]] ]]` succeeds when there IS whitespace, which is bad, so the message prints when the test succeeds: `&&`."
     },
     {
      "type": "md",
-     "text": "### Key points\n\n- `[[ $str =~ $re ]]` is true if **any part** of `str` matches; use `^` and `$` to match the whole string. Never quote the regex.\n- `.` any char, `[ ]` one char from a set, `[^ ]` one char not in the set, `*` 0+, `+` 1+, `?` 0 or 1, `{m,n}` m to n, `|` or, `( )` group.\n- A quantifier applies to the preceding **atom** (character, bracket expression, or group).\n- POSIX classes go inside brackets: `[[:digit:]]`, `[[:alpha:]]`, `[[:space:]]`, `[[:punct:]]`.\n- `grep -E regex file` prints matching lines; `-n` line numbers, `-i` ignore case."
+     "text": "The full assignment also checks the number of arguments (printing a usage message) and exits with status 2 if any rule failed. Those parts need `if`, which you learn on Day 5. The regex tests stay exactly the same."
+    },
+    {
+     "type": "check",
+     "q": "Write the line that prints `password must contain at least one letter` to standard error when `pw` has no letter.",
+     "a": "`[[ $pw =~ [[:alpha:]] ]] || echo \"password must contain at least one letter\" >&2`"
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `[[ $str =~ $re ]]` is a test command: exit status 0 if **any part** of `str` matches, 1 if not. Use `^` and `$` to match the whole string. Never quote the regex.\n- Act on the result with `echo $?`, `&&` and `||` (Day 1); `if` comes on Day 5.\n- `.` any char, `[ ]` one char from a set, `[^ ]` one char not in the set, `*` 0+, `+` 1+, `?` 0 or 1, `{m,n}` m to n, `|` or, `( )` group.\n- A quantifier applies to the preceding **atom** (character, bracket expression, or group).\n- POSIX classes go inside brackets: `[[:digit:]]`, `[[:alpha:]]`, `[[:space:]]`, `[[:punct:]]`.\n- `grep -E regex file` prints matching lines; `-n` line numbers, `-i` ignore case."
     }
    ]
   }
@@ -458,12 +520,6 @@
    "back": "The empty string (no error)."
   },
   {
-   "id": "d4-fc-23",
-   "topic": "d4-variables",
-   "front": "How do you remove a variable?",
-   "back": "`unset var`"
-  },
-  {
    "id": "d4-fc-24",
    "topic": "d4-variables",
    "front": "Why write `cp \"$in\" \"$out\"` rather than `cp $in $out`?",
@@ -480,12 +536,6 @@
    "topic": "d4-variables",
    "front": "Which expansions happen on the right of an assignment, and which do not?",
    "back": "Tilde, parameter, command substitution and arithmetic do; brace and filename (glob) expansion do not."
-  },
-  {
-   "id": "d4-fc-27",
-   "topic": "d4-variables",
-   "front": "Does Bash have floating-point arithmetic?",
-   "back": "No. Values are strings; digit strings can be used as integers."
   },
   {
    "id": "d4-fc-28",
@@ -590,12 +640,6 @@
    "back": "Like `:-`, but also assigns `word` to `var`. Not allowed on positional parameters."
   },
   {
-   "id": "d4-fc-45",
-   "topic": "d4-strings",
-   "front": "`${var:+word}`",
-   "back": "`word` if `var` is set and non-empty, otherwise nothing."
-  },
-  {
    "id": "d4-fc-46",
    "topic": "d4-strings",
    "front": "`${var:?word}`",
@@ -650,22 +694,34 @@
    "back": "`tr '\\t' ',' < classlist > classlist.csv`"
   },
   {
-   "id": "d5-fc-31",
-   "topic": "d5-regex",
-   "front": "What is a regular expression?",
-   "back": "A string that specifies a search pattern. Bash uses the POSIX extended regex syntax."
-  },
-  {
    "id": "d5-fc-32",
    "topic": "d5-regex",
    "front": "When is `[[ $str =~ $re ]]` true?",
-   "back": "When **any part** of `str` matches the regex `re` (use `^`/`$` to match the whole string)."
+   "back": "When **any part** of `str` matches the regex `re`: its exit status is then 0 (use `^`/`$` to match the whole string)."
   },
   {
    "id": "d5-fc-33",
    "topic": "d5-regex",
    "front": "What happens if you quote the regex: `[[ $s =~ \"$re\" ]]`?",
    "back": "The regex is matched as a plain string (no metacharacters). Quoting part of a regex makes that part literal."
+  },
+  {
+   "id": "d4-fc-70",
+   "topic": "d5-regex",
+   "front": "What does `[[ $s =~ $re ]]` print, and how do you see its result?",
+   "back": "Nothing. It sets the exit status: 0 if it matched, 1 if not. See it with `echo $?`, or act on it with `&&` / `||`. Spaces after `[[` and before `]]` are required."
+  },
+  {
+   "id": "d4-fc-71",
+   "topic": "d5-regex",
+   "front": "Print `has a digit` if `s` contains a digit (one line, no `if`).",
+   "back": "`[[ $s =~ [[:digit:]] ]] && echo \"has a digit\"`"
+  },
+  {
+   "id": "d4-fc-72",
+   "topic": "d5-regex",
+   "front": "Regex test: is `pw` at least 8 characters long?",
+   "back": "`[[ $pw =~ .{8} ]]` (8 characters in a row somewhere; same as `[[ $pw =~ ^.{8,}$ ]]`)."
   },
   {
    "id": "d5-fc-34",
@@ -749,7 +805,7 @@
    "id": "d5-fc-47",
    "topic": "d5-regex",
    "front": "Exit status of `grep`",
-   "back": "`0` if at least one line matched, `1` if none matched; so `if grep ... > /dev/null; then` works."
+   "back": "`0` if at least one line matched, `1` if none matched; so `grep -E 're' file > /dev/null && echo found` works."
   },
   {
    "id": "d5-fc-48",
@@ -774,15 +830,6 @@
    "explain": "No spaces around `=`, and no `$` on the left. `x = 5` and `x =5` run a command named `x`; `$x=5` expands `x` first and tries to run the result as a command."
   },
   {
-   "id": "d4-q-09",
-   "topic": "d4-variables",
-   "type": "output",
-   "q": "What does this print?",
-   "code": "a=2\nb=\"some string\"\nc=$a$b\necho \"$c\"",
-   "answer": "2some string",
-   "explain": "Writing two expansions side by side concatenates them."
-  },
-  {
    "id": "d4-q-10",
    "topic": "d4-variables",
    "type": "output",
@@ -799,15 +846,6 @@
    "code": "yrs={2020..2029..3}\necho \"$yrs\"\nsum=$(( 5 + 3 ))\necho \"$sum\"",
    "answer": "{2020..2029..3}\n8",
    "explain": "Brace expansion does not happen in an assignment, so `yrs` holds the literal text. Arithmetic expansion does happen."
-  },
-  {
-   "id": "d4-q-12",
-   "topic": "d4-variables",
-   "type": "output",
-   "q": "What does this print?",
-   "code": "name=Sam\necho \"Hello, ${name}!\"\necho 'Hello, ${name}!'",
-   "answer": "Hello, Sam!\nHello, ${name}!",
-   "explain": "Double quotes allow parameter expansion; single quotes turn all expansion off."
   },
   {
    "id": "d4-q-13",
@@ -921,15 +959,6 @@
    "explain": "Without a colon only *unset* triggers the default; with a colon, *empty* does too."
   },
   {
-   "id": "d4-q-24",
-   "topic": "d4-strings",
-   "type": "output",
-   "q": "What does this print?",
-   "code": "unset v\necho \"${v:=hello}\"\necho \"$v\"\nw=abc\necho \"[${w:+set}]\"",
-   "answer": "hello\nhello\n[set]",
-   "explain": "`:=` substitutes and also assigns the default, so `v` keeps `hello`. `:+` gives the alternate word because `w` is non-empty."
-  },
-  {
    "id": "d4-q-25",
    "topic": "d4-strings",
    "type": "mcq",
@@ -978,15 +1007,6 @@
    "answer": "a b c\n20221021\nbokeper",
    "explain": "-s squeezes runs of the same character; -d deletes. In bookkeeper the oo, kk and ee runs each become one letter.",
    "id": "d3-q-30"
-  },
-  {
-   "topic": "d3-tr",
-   "type": "output",
-   "q": "What does this print?",
-   "code": "echo 'Hello World' | tr '[:upper:]' '[:lower:]' | tr ' ' '\\n'",
-   "answer": "hello\nworld",
-   "explain": "First lowercase everything, then turn the space into a newline.",
-   "id": "d3-q-31"
   },
   {
    "topic": "d3-tr",
@@ -1039,20 +1059,6 @@
    "explain": "`^[a-z]+$` rejects `x-ray` (it allows only letters). `^[a-z].*[a-z]$` rejects `a` (it needs two characters). `[a-z].*[a-z]` has no anchors, so it matches `1ab2`. `^[a-z](.*[a-z])?$` handles all cases. (The Quiz 2 key also accepted A and B.)"
   },
   {
-   "id": "d5-q-20",
-   "topic": "d5-regex",
-   "type": "mcq",
-   "q": "Which strings does `^s[aei]t$` match?",
-   "options": [
-    "`sat`, `set`, `sit` only",
-    "`sat`, `set`, `sit`, `seat`, `saeit`",
-    "any string containing `sat`, `set` or `sit`",
-    "`s`, then any characters, then `t`"
-   ],
-   "answer": 0,
-   "explain": "`[aei]` matches exactly one character from the set, and the anchors force the whole string to be three characters."
-  },
-  {
    "id": "d5-q-21",
    "topic": "d5-regex",
    "type": "mcq",
@@ -1081,40 +1087,40 @@
    "explain": "`|` splits the whole regex: \"starts with b\" OR \"ends with cat\". `scat` ends with `cat`. `abc` and `cab` neither start with b nor end with cat."
   },
   {
+   "id": "d4-q-50",
+   "topic": "d5-regex",
+   "type": "output",
+   "q": "What does this print?",
+   "code": "s=\"cisc220\"\n[[ $s =~ [0-9] ]]; echo $?\n[[ $s =~ ^[0-9] ]]; echo $?\n[[ $s =~ ^[a-z]+[0-9]+$ ]] && echo \"course code\"",
+   "answer": "0\n1\ncourse code",
+   "explain": "`[[ ]]` prints nothing; `echo $?` shows its exit status. `cisc220` contains a digit (status 0) but does not start with one (status 1). It is letters followed by digits and nothing else, so the last test succeeds and `&&` runs the `echo`."
+  },
+  {
    "id": "d5-q-23",
    "topic": "d5-regex",
    "type": "output",
    "q": "What does this print?",
-   "code": "re=\"a.c\"\nif [[ abc =~ $re ]]; then echo \"match 1\"; else echo \"no match 1\"; fi\nif [[ abc =~ \"$re\" ]]; then echo \"match 2\"; else echo \"no match 2\"; fi",
-   "answer": "match 1\nno match 2",
-   "explain": "Unquoted, `.` is a metacharacter (any character), so `abc` matches. Quoted, the regex is matched as the literal string `a.c`, which `abc` does not contain."
+   "code": "re=\"a.c\"\n[[ abc =~ $re ]]; echo $?\n[[ abc =~ \"$re\" ]]; echo $?",
+   "answer": "0\n1",
+   "explain": "Unquoted, `.` is a metacharacter (any character), so `abc` matches and the status is 0. Quoted, the regex is matched as the literal string `a.c`, which `abc` does not contain, so the status is 1."
   },
   {
    "id": "d5-q-24",
    "topic": "d5-regex",
    "type": "output",
    "q": "What does this print?",
-   "code": "re=\"^(19|20)[0-9][0-9]$\"\nif [[ 1999 =~ $re ]]; then echo \"1999 yes\"; else echo \"1999 no\"; fi\nif [[ 1899 =~ $re ]]; then echo \"1899 yes\"; else echo \"1899 no\"; fi\nif [[ 20245 =~ $re ]]; then echo \"20245 yes\"; else echo \"20245 no\"; fi",
-   "answer": "1999 yes\n1899 no\n20245 no",
-   "explain": "The regex matches exactly four characters: `19` or `20`, then two digits. `1899` starts with 18; `20245` has five characters, and `$` forbids the extra one."
+   "code": "re=\"^(19|20)[0-9][0-9]$\"\n[[ 1999 =~ $re ]] && echo \"1999 yes\"\n[[ 1899 =~ $re ]] && echo \"1899 yes\"\n[[ 20245 =~ $re ]] && echo \"20245 yes\"",
+   "answer": "1999 yes",
+   "explain": "`&&` runs `echo` only when the test succeeds. The regex matches exactly four characters: `19` or `20`, then two digits. `1899` starts with 18; `20245` has five characters, and `$` forbids the extra one."
   },
   {
    "id": "d5-q-25",
    "topic": "d5-regex",
    "type": "output",
    "q": "What does this print?",
-   "code": "s=hello\nif [[ $s =~ ^h.*o$ ]]; then echo A; fi\nif [[ $s =~ l{2} ]]; then echo B; fi\nif [[ $s =~ ^l ]]; then echo C; fi",
+   "code": "s=hello\n[[ $s =~ ^h.*o$ ]] && echo A\n[[ $s =~ l{2} ]] && echo B\n[[ $s =~ ^l ]] && echo C",
    "answer": "A\nB",
    "explain": "`^h.*o$`: starts with h, anything, ends with o: yes. `l{2}`: two l's in a row somewhere: yes (`ll`). `^l`: does not start with l."
-  },
-  {
-   "id": "d5-q-26",
-   "topic": "d5-regex",
-   "type": "output",
-   "q": "The file `pets.txt` contains these five lines: `cat`, `dog`, `catalog`, `Cat`, `bobcat`. What does this print?",
-   "code": "grep -Ei 'cat$' pets.txt",
-   "answer": "cat\nCat\nbobcat",
-   "explain": "Lines ending with `cat`, ignoring case (`-i`). `catalog` contains cat but does not end with it; `dog` has no cat."
   },
   {
    "id": "d5-q-27",
@@ -1237,53 +1243,45 @@
    ]
   },
   {
-   "id": "d5-w-05",
+   "id": "d4-w-20",
    "topic": "d5-regex",
    "stage": "worked",
-   "marks": 10,
-   "prompt": "(Assignment 3 Q1) Write `testpw.sh` that tests whether its first command line argument is a strong password. Extra arguments are ignored. If there are no arguments, print `Usage: testpw.sh password` to standard error and exit with status 1.\n\nA strong password: (1) contains no whitespace, (2) has length at least 8, (3) contains at least one letter, (4) at least one digit, (5) at least one punctuation/symbol character. For **every** requirement that fails, print its message to standard error, in this order:\n\n- `password cannot contain whitespace`\n- `password length less than 8`\n- `password must contain at least one letter`\n- `password must contain at least one digit`\n- `password must contain at least one symbol`\n\nExit with status 2 if any requirement failed, otherwise exit with status 0 (printing nothing).",
+   "marks": 6,
+   "prompt": "**Assignment 3 Q1, regex part.** Write `testpw.sh` that checks whether its first command line argument is a strong password. A strong password: (1) contains no whitespace, (2) has length at least 8, (3) contains at least one letter, (4) at least one digit, (5) at least one punctuation/symbol character. For **every** requirement that fails, print its message to standard error, in this order:\n\n- `password cannot contain whitespace`\n- `password length less than 8`\n- `password must contain at least one letter`\n- `password must contain at least one digit`\n- `password must contain at least one symbol`\n\nA strong password prints nothing. Assume exactly one argument is always given. (The real assignment also prints a usage message and exits with status 2; those parts need `if`, which you add on Day 5.)",
    "starter": "",
-   "solution": "#!/bin/bash\n\n# testpw.sh: is a password strong?\n\nif (( $# == 0 )); then\n    echo \"Usage: testpw.sh password\" >&2\n    exit 1\nfi\n\npw=$1\nstatus=0\n\nif [[ $pw =~ [[:space:]] ]]; then\n    echo \"password cannot contain whitespace\" >&2\n    status=2\nfi\n\nif (( ${#pw} < 8 )); then\n    echo \"password length less than 8\" >&2\n    status=2\nfi\n\nif [[ ! $pw =~ [[:alpha:]] ]]; then\n    echo \"password must contain at least one letter\" >&2\n    status=2\nfi\n\nif [[ ! $pw =~ [[:digit:]] ]]; then\n    echo \"password must contain at least one digit\" >&2\n    status=2\nfi\n\nif [[ ! $pw =~ [[:punct:]] ]]; then\n    echo \"password must contain at least one symbol\" >&2\n    status=2\nfi\n\nexit $status",
-   "explain": "Structure first, details second:\n\n1. **Usage check** with `(( $# == 0 ))`: only *zero* arguments is an error, because extra arguments are ignored.\n2. **A status variable.** The script must report *every* failing rule, so it cannot `exit` at the first failure. `status=0` at the start; each failing check sets `status=2`; the last line is `exit $status`.\n3. **One independent `if` per rule**, in the required order (not `elif`: an `elif` chain would stop after the first failure).\n4. **The tests**: no anchors are needed, because \"contains\" means *anywhere*. `[[ $pw =~ [[:space:]] ]]` is true if there is whitespace (bad). For \"must contain\", negate: `[[ ! $pw =~ [[:digit:]] ]]`. Length uses `${#pw}` from Day 4.\n5. Every message goes to stderr with `>&2`.\n\nTry it: `./testpw.sh abc` prints three messages (length, digit, symbol) and exits 2; `./testpw.sh 'abc123!@'` prints nothing and exits 0.",
+   "solution": "#!/bin/bash\n\n# testpw.sh: report every rule that the password $1 breaks\n\npw=$1\n\n[[ $pw =~ [[:space:]] ]] && echo \"password cannot contain whitespace\" >&2\n[[ $pw =~ .{8} ]] || echo \"password length less than 8\" >&2\n[[ $pw =~ [[:alpha:]] ]] || echo \"password must contain at least one letter\" >&2\n[[ $pw =~ [[:digit:]] ]] || echo \"password must contain at least one digit\" >&2\n[[ $pw =~ [[:punct:]] ]] || echo \"password must contain at least one symbol\" >&2",
+   "explain": "1. `pw=$1` gives the argument a readable name.\n2. **One line per rule, in the required order.** No line exits, so every rule is checked and every failing rule is reported.\n3. **`&&` or `||`?** `[[ $pw =~ [[:space:]] ]]` succeeds when there is whitespace, which breaks the rule, so the message follows `&&`. The other four tests succeed when the password is fine, so their messages follow `||` (print only when the test fails).\n4. **No anchors** in the class tests, because \"contains\" means *anywhere*. `[[:space:]]` needs both pairs of brackets.\n5. **Length:** `.{8}` is any 8 characters in a row, which exists only if the password has at least 8 characters. (On Day 5 you could also write `(( ${#pw} < 8 ))`.)\n6. Every message is an error, so it goes to stderr with `>&2`.\n\nTry it: `./testpw.sh abc` prints three messages (length, digit, symbol); `./testpw.sh 'abc123!@'` prints nothing.",
    "rubric": [
     {
      "marks": 1,
-     "item": "Usage message to stderr and exit 1 when `$# == 0`"
+     "item": "Whitespace rule: `[[ $pw =~ [[:space:]] ]] &&` message (regex not quoted)"
     },
     {
      "marks": 1,
-     "item": "Whitespace check with `=~ [[:space:]]` (regex not quoted)"
+     "item": "Length rule: `[[ $pw =~ .{8} ]] ||` message (or an equivalent regex such as `^.{8,}$`)"
     },
     {
      "marks": 1,
-     "item": "Length check `(( ${#pw} < 8 ))`"
-    },
-    {
-     "marks": 2,
-     "item": "Letter and digit checks with `!` and `[[:alpha:]]` / `[[:digit:]]`"
+     "item": "Letter rule with `[[:alpha:]]` and `||`"
     },
     {
      "marks": 1,
-     "item": "Symbol check with `[[:punct:]]`"
+     "item": "Digit rule with `[[:digit:]]` and `||`"
     },
     {
      "marks": 1,
-     "item": "All five messages exact, in order, to stderr"
-    },
-    {
-     "marks": 2,
-     "item": "Status variable: all failing rules reported (independent ifs), `exit 2` if any failed"
+     "item": "Symbol rule with `[[:punct:]]` and `||`"
     },
     {
      "marks": 1,
-     "item": "Exit 0 and no output for a strong password"
+     "item": "All five messages exact, in order, sent to stderr with `>&2`"
     }
    ],
    "pitfalls": [
-    "Quoting the regex: `=~ \"[[:digit:]]\"` looks for the literal text `[[:digit:]]`",
-    "Writing `[:digit:]` without the outer brackets (that is a bracket expression of the characters `: d i g t`)",
-    "Using `exit 2` inside each check, which stops after the first failure",
-    "Using `elif`, which also stops after the first failure"
+    "Quoting the regex: `=~ \"[[:digit:]]\"` looks for the literal text `[[:digit:]]`.",
+    "Writing `[:digit:]` without the outer brackets (that is a bracket expression of the characters `: d i g t`).",
+    "Swapping `&&` and `||`: the message would print exactly when the password is fine.",
+    "Using `exit` after a message: the later rules would never be checked."
    ]
   },
   {
@@ -1326,7 +1324,7 @@
    "prompt": "Write `swap.sh STRING` that prints the second half of `STRING` followed immediately by the first half, on one line. The first half has `${#s} / 2` characters (integer division). Examples: `./swap.sh abcdef` prints `defabc`; `./swap.sh abcde` prints `cdeab`. Fill in the blanks.",
    "starter": "#!/bin/bash\n\n# swap.sh: print the second half of $1 then the first half\n\ns=$1\nn=____\nfirst=${s:____}\nsecond=${s:____}\necho \"____\"",
    "solution": "#!/bin/bash\n\n# swap.sh: print the second half of $1 then the first half\n\ns=$1\nn=$(( ${#s} / 2 ))\nfirst=${s:0:n}\nsecond=${s:n}\necho \"$second$first\"",
-   "explain": "Same idea as Quiz 1 Q3A. `${s:0:n}` is the first `n` characters, `${s:n}` is everything from index `n` to the end. Concatenation is just writing `$second$first` side by side.",
+   "explain": "Same idea as Quiz 1 Q3A. `$(( ))` is arithmetic expansion (Day 3), and `/` is integer division, so for `abcde` `n` is 2. `${s:0:n}` is the first `n` characters, `${s:n}` is everything from index `n` to the end. Concatenation is just writing `$second$first` side by side.",
    "rubric": [
     {
      "marks": 1,
@@ -1371,71 +1369,18 @@
    ]
   },
   {
-   "id": "d5-w-06",
-   "topic": "d5-regex",
-   "stage": "faded",
-   "marks": 10,
-   "prompt": "Complete `checkuser.sh` that checks a username given as the first command line argument (extra arguments are ignored). With no arguments, print `Usage: checkuser.sh username` to standard error and exit 1. Check these rules in order and print the message to standard error for **every** rule that fails:\n\n1. `username cannot contain whitespace`\n2. `username length must be from 3 to 12`\n3. `username must start with a lowercase letter`\n4. `username cannot contain uppercase letters`\n5. `username must contain at least one digit`\n\nExit 2 if any rule failed; otherwise print nothing and exit 0.",
-   "starter": "#!/bin/bash\n\n# checkuser.sh: check that a username follows the rules\n\nif (( ____ )); then\n    echo \"Usage: checkuser.sh username\" ____\n    exit 1\nfi\n\nuser=$1\nstatus=0\n\nif [[ $user =~ ____ ]]; then\n    echo \"username cannot contain whitespace\" >&2\n    status=2\nfi\n\nif (( ____ )); then\n    echo \"username length must be from 3 to 12\" >&2\n    status=2\nfi\n\nif [[ ____ ]]; then\n    echo \"username must start with a lowercase letter\" >&2\n    status=2\nfi\n\nif [[ $user =~ ____ ]]; then\n    echo \"username cannot contain uppercase letters\" >&2\n    status=2\nfi\n\nif [[ ____ ]]; then\n    echo \"username must contain at least one digit\" >&2\n    status=2\nfi\n\nexit ____",
-   "solution": "#!/bin/bash\n\n# checkuser.sh: check that a username follows the rules\n\nif (( $# == 0 )); then\n    echo \"Usage: checkuser.sh username\" >&2\n    exit 1\nfi\n\nuser=$1\nstatus=0\n\nif [[ $user =~ [[:space:]] ]]; then\n    echo \"username cannot contain whitespace\" >&2\n    status=2\nfi\n\nif (( ${#user} < 3 || ${#user} > 12 )); then\n    echo \"username length must be from 3 to 12\" >&2\n    status=2\nfi\n\nif [[ ! $user =~ ^[a-z] ]]; then\n    echo \"username must start with a lowercase letter\" >&2\n    status=2\nfi\n\nif [[ $user =~ [[:upper:]] ]]; then\n    echo \"username cannot contain uppercase letters\" >&2\n    status=2\nfi\n\nif [[ ! $user =~ [[:digit:]] ]]; then\n    echo \"username must contain at least one digit\" >&2\n    status=2\nfi\n\nexit $status",
-   "explain": "Blanks in order: `$# == 0`; `>&2`; `[[:space:]]`; `${#user} < 3 || ${#user} > 12`; `! $user =~ ^[a-z]`; `[[:upper:]]`; `! $user =~ [[:digit:]]`; `$status`.\n\nCompare with `testpw.sh`: the same skeleton (usage check, `status` variable, one `if` per rule, `exit $status`). The new idea is rule 3, the only rule about a *position*: `^[a-z]` anchors the letter at the start. Rule 2 combines two comparisons with `||` inside `(( ))`. For `Ab` the script prints rules 2, 3, 4 and 5.",
-   "rubric": [
-    {
-     "marks": 1,
-     "item": "`$# == 0` usage check, message to stderr (`>&2`)"
-    },
-    {
-     "marks": 1,
-     "item": "`[[:space:]]` whitespace test"
-    },
-    {
-     "marks": 2,
-     "item": "Length test with `${#user}` and `||` covering both bounds"
-    },
-    {
-     "marks": 2,
-     "item": "Start test `! $user =~ ^[a-z]` (anchored, negated)"
-    },
-    {
-     "marks": 1,
-     "item": "`[[:upper:]]` test"
-    },
-    {
-     "marks": 2,
-     "item": "Digit test negated with `!`"
-    },
-    {
-     "marks": 1,
-     "item": "`exit $status`"
-    }
-   ],
-   "pitfalls": [
-    "Writing `^[a-z]+$` for rule 3: that would also reject `jsmith42`",
-    "Using `&&` in the length test: a length cannot be both below 3 and above 12",
-    "Forgetting `!` in the \"must start with\" and \"must contain\" rules"
-   ]
-  },
-  {
-   "id": "d4-w-06",
+   "id": "d4-w-21",
    "topic": "d4-strings",
    "stage": "blank",
-   "marks": 8,
-   "prompt": "Write a script `mkbackup.sh` that takes one command line argument, the pathname of a file. The pathname always includes the directory the file is in (for example `./notes.txt` or `/home/user1/docs/my notes.txt`).\n\n1. If the script does not get exactly one argument, print `Usage: mkbackup.sh pathname` to standard error and exit with status 1.\n2. Find the directory `dir` that the file is in, and the file's name `name` (without the directory).\n3. Create a directory named `backup` inside `dir`.\n4. Copy the file into `backup`, naming the copy `name.bak` (so `my notes.txt` is copied to `my notes.txt.bak`).\n5. Make the copy read-only for the owner and give no permissions to anyone else.\n6. Print `backed up NAME to DIR/backup` where `NAME` is the file's name and `DIR` is the directory.\n\nIgnore the error if `backup` already exists.",
+   "marks": 7,
+   "prompt": "Write a script `mkbackup.sh` that takes one command line argument, the pathname of a file. The pathname always includes the directory the file is in (for example `./notes.txt` or `/home/user1/docs/my notes.txt`).\n\n1. Find the directory `dir` that the file is in, and the file's name `name` (without the directory).\n2. Create a directory named `backup` inside `dir`.\n3. Copy the file into `backup`, naming the copy `name.bak` (so `my notes.txt` is copied to `my notes.txt.bak`).\n4. Make the copy read-only for the owner and give no permissions to anyone else.\n5. Print `backed up NAME to DIR/backup` where `NAME` is the file's name and `DIR` is the directory.\n\nNo error checking is required: one argument is always given and the file exists. Ignore the error if `backup` already exists.",
    "starter": "",
-   "solution": "#!/bin/bash\n\n# mkbackup.sh: copy a file into a backup directory next to it\n\nif (( $# != 1 )); then\n    echo \"Usage: mkbackup.sh pathname\" >&2\n    exit 1\nfi\n\npathname=$1\ndir=${pathname%/*}\nname=${pathname##*/}\n\nbackupdir=$dir/backup\nmkdir \"$backupdir\"\ncp \"$pathname\" \"$backupdir/$name.bak\"\nchmod 400 \"$backupdir/$name.bak\"\necho \"backed up $name to $backupdir\"",
-   "explain": "Running `./mkbackup.sh \"pics/old stuff/cat 1.jpg\"` prints `backed up cat 1.jpg to pics/old stuff/backup` and creates `pics/old stuff/backup/cat 1.jpg.bak` with permissions `r--------`.",
+   "solution": "#!/bin/bash\n\n# mkbackup.sh: copy a file into a backup directory next to it\n\npathname=$1\ndir=${pathname%/*}\nname=${pathname##*/}\n\nbackupdir=$dir/backup\nmkdir \"$backupdir\"\ncp \"$pathname\" \"$backupdir/$name.bak\"\nchmod 400 \"$backupdir/$name.bak\"\necho \"backed up $name to $backupdir\"",
+   "explain": "Running `./mkbackup.sh \"pics/old stuff/cat 1.jpg\"` prints `backed up cat 1.jpg to pics/old stuff/backup` and creates `pics/old stuff/backup/cat 1.jpg.bak` with permissions `r--------`. The structure is the same as `trash.sh`: split the pathname with `%/*` and `##*/`, build the new directory name once, then quote every pathname.",
    "rubric": [
     {
      "marks": 1,
-     "item": "Checks `$#` is exactly 1"
-    },
-    {
-     "marks": 1,
-     "item": "Usage message to stderr and `exit 1`"
-    },
-    {
-     "marks": 1,
-     "item": "`dir=${pathname%/*}`"
+     "item": "`#!/bin/bash` and `dir=${pathname%/*}` (or `${1%/*}`)"
     },
     {
      "marks": 1,
@@ -1455,49 +1400,17 @@
     },
     {
      "marks": 1,
-     "item": "Correct message, and all pathnames quoted"
+     "item": "Correct message with `echo` in double quotes"
+    },
+    {
+     "marks": 1,
+     "item": "All pathnames quoted"
     }
    ],
    "pitfalls": [
     "Swapping `%` and `##`: test them on `/home/user1/docs/a.txt` before you hand in.",
     "Forgetting the quotes: the example name has spaces in both the directory and the file.",
     "`chmod 400` must be applied to the copy, not the original or the directory."
-   ]
-  },
-  {
-   "id": "d4-w-07",
-   "topic": "d4-strings",
-   "stage": "blank",
-   "marks": 5,
-   "prompt": "Write `userid.sh FIRST LAST` that prints a user id made of the **first letter of FIRST** followed by **at most the first 7 characters of LAST**, all in lowercase. If it does not get exactly 2 arguments, it prints `Usage: userid.sh first last` to standard error and exits with status 1.\n\nExamples: `./userid.sh Barry Cade` prints `bcade`; `./userid.sh Holly Fitzgerald` prints `hfitzger`.",
-   "starter": "",
-   "solution": "#!/bin/bash\n\n# userid.sh: make a user id from a first and last name\n\nif (( $# != 2 )); then\n    echo \"Usage: userid.sh first last\" >&2\n    exit 1\nfi\n\nfirst=$1\nlast=$2\nid=${first:0:1}${last:0:7}\necho \"${id,,}\"",
-   "explain": "`${last:0:7}` is safe for short names: asking for more characters than exist just gives the whole string (`Cade`). `${id,,}` converts every character to lowercase.",
-   "rubric": [
-    {
-     "marks": 1,
-     "item": "Argument count check with `$#`"
-    },
-    {
-     "marks": 1,
-     "item": "Usage to stderr and `exit 1`"
-    },
-    {
-     "marks": 1,
-     "item": "`${first:0:1}` for the first letter"
-    },
-    {
-     "marks": 1,
-     "item": "`${last:0:7}` for at most 7 characters"
-    },
-    {
-     "marks": 1,
-     "item": "Concatenates and lowercases with `${id,,}`"
-    }
-   ],
-   "pitfalls": [
-    "`${last:1:7}` starts at the second character: indexes start at 0.",
-    "`${id^^}` is uppercase; lowercase is `,,`."
    ]
   },
   {
@@ -1533,76 +1446,45 @@
    ]
   },
   {
-   "id": "d3-w-07",
-   "topic": "d3-tr",
-   "stage": "blank",
-   "marks": 2,
-   "prompt": "A variable `path` holds a colon-separated list of directories, for example `/usr/bin:/bin:/home/user1/bin`. Write **one** command that prints each directory on its own line.",
-   "starter": "",
-   "solution": "echo \"$path\" | tr ':' '\\n'",
-   "explain": "tr reads stdin, so feed it the value with echo (or `printf '%s\\n' \"$path\"`). Each `:` is translated into a newline.",
-   "rubric": [
-    {
-     "marks": 1,
-     "item": "Feeds `\"$path\"` to tr through a pipe"
-    },
-    {
-     "marks": 1,
-     "item": "`tr ':' '\\n'`"
-    }
-   ],
-   "pitfalls": [
-    "`tr ':' '\\n' \"$path\"`: tr takes no file/string argument.",
-    "Using `cut -d:`: it selects fields but does not put them on separate lines."
-   ]
-  },
-  {
-   "id": "d5-w-07",
+   "id": "d4-w-22",
    "topic": "d5-regex",
    "stage": "blank",
-   "marks": 10,
-   "prompt": "Write a script `checkname.sh` that checks whether its first command line argument is a good name for a Bash script file. Extra arguments are ignored. With no arguments, print `Usage: checkname.sh filename` to standard error and exit with status 1.\n\nCheck these rules in this order, and for **every** rule that fails print its message to standard error:\n\n1. `filename cannot contain whitespace`\n2. `filename must start with a letter`\n3. `filename must end with .sh`\n4. `filename longer than 20 characters` (fails when the length is more than 20)\n\nExit with status 2 if any rule failed; otherwise print nothing and exit with status 0.\n\nExamples: `checkname.sh backup.sh` exits 0; `checkname.sh notes.txt` prints the rule 3 message; `checkname.sh \"9 lives\"` prints the rule 1, 2 and 3 messages.",
+   "marks": 7,
+   "prompt": "Write a script `checkname.sh` that checks whether its first command line argument is a good name for a Bash script file. Assume exactly one argument is always given. Check these rules in this order, and for **every** rule that fails print its message to standard error:\n\n1. `filename cannot contain whitespace`\n2. `filename must start with a letter`\n3. `filename must end with .sh`\n4. `filename longer than 20 characters` (fails when the length is more than 20)\n\nA good name prints nothing. The exit status is not marked. Use regular expressions with `[[ =~ ]]` and `&&` / `||` (no `if`).\n\nExamples: `checkname.sh backup.sh` prints nothing; `checkname.sh notes.txt` prints the rule 3 message; `checkname.sh \"9 lives\"` prints the rule 1, 2 and 3 messages.",
    "starter": "",
-   "solution": "#!/bin/bash\n\n# checkname.sh: check that a script filename follows the rules\n\nif (( $# == 0 )); then\n    echo \"Usage: checkname.sh filename\" >&2\n    exit 1\nfi\n\nname=$1\nstatus=0\n\nif [[ $name =~ [[:space:]] ]]; then\n    echo \"filename cannot contain whitespace\" >&2\n    status=2\nfi\n\nif [[ ! $name =~ ^[[:alpha:]] ]]; then\n    echo \"filename must start with a letter\" >&2\n    status=2\nfi\n\nif [[ ! $name =~ [.]sh$ ]]; then\n    echo \"filename must end with .sh\" >&2\n    status=2\nfi\n\nif (( ${#name} > 20 )); then\n    echo \"filename longer than 20 characters\" >&2\n    status=2\nfi\n\nexit $status",
-   "explain": "Same skeleton as `testpw.sh`. Rule 3 is the trap: `.sh$` is wrong because `.` means *any character*, so `abcsh` would pass. Write the dot as `[.]` so it is literal: `[.]sh$`. Rule 2 uses `^[[:alpha:]]` (or `^[a-zA-Z]`).",
+   "solution": "#!/bin/bash\n\n# checkname.sh: check that $1 is a good name for a script file\n\nname=$1\n\n[[ $name =~ [[:space:]] ]] && echo \"filename cannot contain whitespace\" >&2\n[[ $name =~ ^[[:alpha:]] ]] || echo \"filename must start with a letter\" >&2\n[[ $name =~ [.]sh$ ]] || echo \"filename must end with .sh\" >&2\n[[ $name =~ .{21} ]] && echo \"filename longer than 20 characters\" >&2",
+   "explain": "Same skeleton as `testpw.sh`. Rule 3 is the trap: `.sh$` is wrong because `.` means *any character*, so `abcsh` would pass. Write the dot as `[.]` so it is literal: `[.]sh$`. Rule 2 needs the anchor `^` (or `^[a-zA-Z]`). Rule 4 is broken when the name is **too long**, so the test is \"21 characters in a row exist\" and the message follows `&&`.",
    "rubric": [
     {
      "marks": 1,
-     "item": "Usage message to stderr and exit 1 when there are no arguments"
+     "item": "`#!/bin/bash` and the argument in a variable (or `$1` used directly)"
     },
     {
      "marks": 1,
-     "item": "`status` variable initialised to 0 and `exit $status` at the end"
+     "item": "Whitespace rule with `[[:space:]]` and `&&`"
     },
     {
      "marks": 1,
-     "item": "Whitespace rule with `[[:space:]]`"
+     "item": "Start rule `^[[:alpha:]]` (anchored) with `||`"
     },
     {
      "marks": 2,
-     "item": "Start rule `! $name =~ ^[[:alpha:]]` (anchored, negated)"
-    },
-    {
-     "marks": 2,
-     "item": "End rule with a literal dot `[.]sh$` (anchored, negated)"
+     "item": "End rule with a literal dot `[.]sh$` (anchored) with `||`"
     },
     {
      "marks": 1,
-     "item": "Length rule `(( ${#name} > 20 ))`"
+     "item": "Length rule `.{21}` (or `^.{21,}$`) with `&&`"
     },
     {
      "marks": 1,
-     "item": "Independent `if`s so every failing rule is reported, in order"
-    },
-    {
-     "marks": 1,
-     "item": "All messages exact and sent to stderr"
+     "item": "All messages exact, in order, sent to stderr"
     }
    ],
    "pitfalls": [
     "`.sh$` with an unescaped dot (matches `abcsh`)",
     "Quoting the regex",
-    "Reporting only the first failing rule"
+    "Using `.{20}` for rule 4: a 20-character name is allowed",
+    "Mixing up `&&` and `||`"
    ]
   }
  ]
