@@ -389,7 +389,7 @@
     const n = currentDay();
     const daysLeft = diffDays(today(), EXAM_DATE);
     let intro;
-    if (cd === 0) intro = "The plan starts " + fmtDate(DAY1_DATE, { weekday: "long", month: "long", day: "numeric" }) + ". Starting Day 1 today gives you a free buffer day.";
+    if (cd === 0) intro = "The plan starts " + fmtDate(DAY1_DATE, { weekday: "long", month: "long", day: "numeric" }) + ".";
     else if (cd >= 9) intro = daysLeft === 0 ? "It's exam day. Skim your summary sheet and the cards you've missed, then stop. No new material." : "The plan is complete.";
     else intro = "Day " + n + " of 8 · " + fmtDate(today(), { weekday: "long", month: "long", day: "numeric" });
     const due = dueItems().length;
