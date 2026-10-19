@@ -1,11 +1,10 @@
-# Day 6: arrays, loops, and functions
-DAY_TITLE="Arrays, loops, and functions"
+# Day 6: loops and functions (bash/loops.ipynb, bash/functions.ipynb)
+DAY_TITLE="Loops and functions"
 
 setup_sandbox() {
     mkdir -p home/user1/ext home/user1/marking/stu1 home/user1/marking/stu2 "home/user1/marking/stu 3"
     cd home/user1 || return
     printf '# student number, last name, first name\n12345,Parr,Jack-Jack\n23456,Wazowski,Mike\n98765,Best,Lucius\n' > students.txt
-    printf '# number,last,first\n11111,Case,Justin\n22222,Deere,Pierce\n' > "class list.txt"
     cd ext || return
     echo "alpha" > a.txt
     echo "bravo" > b.txt
@@ -34,8 +33,8 @@ task 3 cmd home/user1/marking "Write a one-line for loop over the subdirectories
 ref 'for d in */; do echo "$d"; done'
 compare out
 
-task 4 cmd home/user1 "Use mapfile to read the lines of students.txt into an array named lines (remove the newlines), then print the number of elements in the array. Write both commands on one line separated by ;"
-ref 'mapfile -t lines < students.txt; echo "${#lines[@]}"'
+task 4 cmd . "Start your line with n=1; then write a while loop that prints n and then doubles it (n=\$(( n * 2 )) or (( n *= 2 ))), repeating while n is less than 100. It prints 1, 2, 4, 8, 16, 32, 64, one per line."
+ref 'n=1; while (( n < 100 )); do echo "$n"; (( n *= 2 )); done'
 compare out
 
 task 5 cmd home/user1 "Use a while read loop to read students.txt one line at a time, splitting each line at commas into three variables, and print only the last name (the second field) of each student. Skip the line that starts with #. One line, e.g. while IFS=, read -r ...; do ...; done < students.txt"
@@ -46,22 +45,20 @@ task 6 cmd . "Start your line with s=banana; then use a C-style for loop and \${
 ref 's=banana; for (( i = 0; i < ${#s}; i++ )); do echo "${s:i:1}"; done'
 compare out
 
-task 7 cmd . "Start your line with arr=([2]=x [5]=y [9]=z); then print, on one line, the list of indexes that arr uses (use an array expansion, not echo 2 5 9)."
-ref 'arr=([2]=x [5]=y [9]=z); echo "${!arr[@]}"'
+task 7 cmd . "Start your line with fruits=(\"red apple\" kiwi \"green pear\"); then use a for loop over the ELEMENTS of the array to print each element inside square brackets, one per line. The first line must be [red apple] (one element, spaces kept)."
+ref 'fruits=("red apple" kiwi "green pear"); for x in "${fruits[@]}"; do echo "[$x]"; done'
 compare out
 
-task 8 text . "Fill in the blank so the loop processes each command line argument of a script, keeping arguments that contain spaces whole:   for arg in ____; do"
+task 8 cmd . "Start your line with arr=([2]=x [5]=y [9]=z); then use a for loop over the INDEXES that arr uses (an array expansion, not the words 2 5 9) and print each one as INDEX=VALUE, one per line: 2=x, then 5=y, then 9=z."
+ref 'arr=([2]=x [5]=y [9]=z); for i in "${!arr[@]}"; do echo "$i=${arr[i]}"; done'
+compare out
+
+task 9 cmd . "On one line, define a function named sq that prints the square of its first argument (use \$(( ))), then call it: sq 7 (it prints 49)."
+ref 'sq() { echo $(( $1 * $1 )); }; sq 7'
+compare out
+
+task 10 text . "Fill in the blank so the loop processes each command line argument of a script, keeping arguments that contain spaces whole:   for arg in ____; do"
 accept '"$@"'
-
-task 9 text . "Write the expansion that gives the number of elements in the array arr."
-accept '${#arr[@]}'
-accept '${#arr[*]}'
-accept '"${#arr[@]}"'
-
-task 10 text . "Write the expansion that gives the list of indexes used by the array arr."
-accept '${!arr[@]}'
-accept '${!arr[*]}'
-accept '"${!arr[@]}"'
 
 task 11 text . "Which builtin command, used inside a function, creates a variable that does not overwrite a variable of the same name in the main script?"
 accept 'local'
@@ -119,7 +116,12 @@ run './extcount.sh txt md pdf'
 run './extcount.sh bak'
 run './extcount.sh; echo "exit=$?"'
 
-task 20 script home/user1 "Write names.sh FILE. FILE has lines of the form number,last,first. Read it line by line with while read and print each student as: first last (number)  for example Mike Wazowski (23456). Skip lines that start with #. The filename may contain spaces."
-file names.sh
-run './names.sh students.txt'
-run './names.sh "class list.txt"'
+task 20 script home/user1 "Write tr220.sh SEQ1 SEQ2 STR (Assignment 3 Q5). Put your hasdups and indexof functions from funcs.sh at the top of this script (copy them in; the tests run tr220.sh on its own). (1) If there are not exactly 3 arguments print Usage: tr220.sh seq1 seq2 str to standard error, exit 1. (2) If SEQ1 is longer than SEQ2 print tr220.sh: seq1 length > seq2 length to standard error, exit 2. (3) If SEQ1 has a repeated character print tr220.sh: seq1 has duplicated characters to standard error, exit 3 (nothing else printed). (4) Otherwise print STR with each character found in SEQ1 at index i replaced by the character of SEQ2 at index i; other characters are unchanged. Example: ./tr220.sh emu opo mutate prints potato."
+file tr220.sh
+run './tr220.sh emu opo mutate'
+run './tr220.sh CIS cis CISC220'
+run './tr220.sh "a*" xy "a*b?"'
+run './tr220.sh abc ab x; echo "exit=$?"'
+run './tr220.sh aba xyz hi; echo "exit=$?"'
+run './tr220.sh a b; echo "exit=$?"'
+run './tr220.sh a b c d; echo "exit=$?"'

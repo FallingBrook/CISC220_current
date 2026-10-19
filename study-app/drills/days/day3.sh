@@ -1,5 +1,5 @@
-# Day 3: streams, redirection, pipelines, tee, expansions, and tr.
-DAY_TITLE="Streams, pipelines, expansions, and tr"
+# Day 3: streams, redirection, pipelines, tee, expansions, and your first scripts.
+DAY_TITLE="Streams, pipelines, expansions, and your first scripts"
 
 setup_sandbox() {
     mkdir -p home/user1
@@ -9,10 +9,10 @@ setup_sandbox() {
     printf 'alice\t72\nbob\t95\ncarol\t88\ndave\t61\nerin\t100\nfrank\t9\n' > grades
     printf '42\n7\n100\n15\n3\n88\n21\n' > nums.txt
     printf 'pear\napple\nfig\napple\nkiwi\npear\napple\nbanana\n' > words.txt
-    printf 'too    many     spaces   here\nand   here    too\n' > messy.txt
-    printf 'room 101, floor 3, building 42\n' > code.txt
     echo "my original notes" > notes.txt
     echo "started" > log.txt
+    printf '#!/bin/bash\n\n# hello.sh\n\necho "Hello from a script!"\n' > hello.sh
+    chmod 644 hello.sh
 }
 
 task 1 cmd home/user1 "classlist has one student per line: last name, first name, student number, separated by TAB characters. Print only the student numbers (the third field), in file order."
@@ -55,39 +55,46 @@ task 11 cmd home/user1 "Print only the words in words.txt that appear more than 
 ref 'sort words.txt | uniq -d'
 compare out
 
-task 12 cmd home/user1 "messy.txt contains runs of several spaces. Use tr to print its contents with every run of spaces squeezed down to a single space."
-ref "tr -s ' ' < messy.txt"
-compare out
-
-task 13 cmd home/user1 "Use tr to print the contents of code.txt with all digits deleted."
-ref 'tr -d 0-9 < code.txt'
-compare out
-
-task 14 cmd home/user1 "Use tr to create a file named classlist.csv that is a copy of classlist with every TAB replaced by a comma."
-ref "tr '\t' ',' < classlist > classlist.csv"
-
-task 15 cmd home/user1 "Using ONE mkdir command with a brace expansion, create the 12 directories week01, week02, ..., week12 (two-digit numbers)."
+task 12 cmd home/user1 "Using ONE mkdir command with a brace expansion, create the 12 directories week01, week02, ..., week12 (two-digit numbers)."
 ref 'mkdir week{01..12}'
 
-task 16 cmd home/user1 "Using echo and a command substitution, print the sentence: classlist has N lines   where N is computed by wc (N must be just the number)."
+task 13 cmd home/user1 "Using echo and a command substitution, print the sentence: classlist has N lines   where N is computed by wc (N must be just the number)."
 ref 'echo "classlist has $(wc -l < classlist) lines"'
 compare out
 
-task 17 text . "Which file descriptor number refers to standard error?"
+task 14 text . "Which file descriptor number refers to standard error?"
 accept '2'
 
-task 18 script home/user1 "Write a script snums.sh. Its first command line argument (\$1) is the name of a classlist-style file (TAB-separated: last name, first name, student number). The script prints the student numbers from that file in ascending sorted order, one per line. The file name may contain spaces."
+task 15 cmd home/user1 "The sandbox has a script hello.sh with permissions rw-r--r-- (not executable). On ONE line, give the owner (only the owner) execute permission on hello.sh, and then run it with ./ (join the two commands with && or ;)."
+ref 'chmod u+x hello.sh && ./hello.sh'
+
+task 16 text . "Inside a script, which special parameter holds the number of command line arguments? Write it the way you would use it, with the dollar sign (Quiz 1 Q2E: echo ...)."
+accept '$#'
+accept '${#}'
+accept '"$#"'
+accept 'echo $#'
+accept 'echo "$#"'
+accept 'echo ${#}'
+
+task 17 script home/user1 "Write your first drill script, greet.sh. It prints: Hello, NAME! where NAME is the first command line argument (\$1). Example: ./greet.sh Sam prints Hello, Sam!   Start the file with #!/bin/bash. The checker copies it into sandbox/home/user1, makes it executable, and runs commands like ./greet.sh Sam there."
+file greet.sh
+run './greet.sh Sam'
+run './greet.sh "Mary Ann"'
+run './greet.sh'
+
+task 18 script home/user1 "Write info.sh that prints exactly three lines: script: P   (P is the pathname used to run the script, \$0), then count: N   (N is the number of arguments), then first: A   (A is the first argument; if there is none, nothing follows the colon and space). Example: ./info.sh x y z prints script: ./info.sh / count: 3 / first: x (on three lines). Quote your parameters as the course requires, e.g. echo \"first: \$1\", so an argument with two spaces inside keeps them. The checker runs it from sandbox/home/user1."
+file info.sh
+run './info.sh x y z'
+run './info.sh'
+run './info.sh "a  b" "c d"'
+run 'mkdir bin; cp info.sh bin; ./bin/info.sh one; rm -r bin'
+
+task 19 script home/user1 "Write a script snums.sh. Its first command line argument (\$1) is the name of a classlist-style file (TAB-separated: last name, first name, student number). The script prints the student numbers from that file in ascending sorted order, one per line. The file name may contain spaces, so quote \$1. The checker runs it from sandbox/home/user1, where classlist and 'class list 2' are."
 file snums.sh
 run './snums.sh classlist'
 run './snums.sh "class list 2"'
 
-task 19 script home/user1 "Write a script top3.sh that takes two arguments: \$1 is a file with lines of the form name TAB mark, and \$2 is an output file name. The script saves ALL the marks, sorted numerically from highest to lowest, into the file \$2, and prints only the three highest marks. Use one pipeline with tee."
+task 20 script home/user1 "Write a script top3.sh that takes two arguments: \$1 is a file with lines of the form name TAB mark, and \$2 is an output file name. The script saves ALL the marks, sorted numerically from highest to lowest, into the file \$2, and prints only the three highest marks. Use one pipeline with tee. The checker runs it from sandbox/home/user1, where the file grades is."
 file top3.sh
 run './top3.sh grades best; echo ---; cat best'
 run './top3.sh grades "my marks"; cat "my marks" | wc -l'
-
-task 20 script home/user1 "Write a script upper.sh that prints its first argument converted to UPPERCASE letters using tr (other characters unchanged, spacing preserved exactly). Example: ./upper.sh 'cisc  220' prints CISC  220"
-file upper.sh
-run './upper.sh hello'
-run "./upper.sh 'cisc  220   rocks'"
-run "./upper.sh '*'"

@@ -426,7 +426,7 @@
     },
     {
      "type": "md",
-     "text": "### Arguments in a pipeline\n\nArguments make a pipeline reusable: the user chooses the file. This script prints the three smallest student numbers of any class list named by `$1`:\n\n```bash\n#!/bin/bash\n\n# lowest3.sh: the three smallest student numbers in class list file $1\n\ncut -f3 \"$1\" | sort | head -n3\n```\n\nAlways write `\"$1\"` **with double quotes** where a file name goes. Unquoted, a name with a space such as `class list 2` would be word split into the three arguments `class`, `list` and `2` (yesterday's quoting lesson and today's word splitting)."
+     "text": "### Arguments in a pipeline\n\nArguments make a pipeline reusable: the user chooses the file. This script prints the three smallest student numbers of any class list named by `$1`:\n\n```bash\n#!/bin/bash\n\n# lowest3.sh: the three smallest student numbers in class list file $1\n\ncut -f3 \"$1\" | sort | head -n3\n```\n\nAlways write `\"$1\"` **with double quotes** where a file name goes. Unquoted, a name with a space such as `class list 2` would be word split into the three arguments `class`, `list` and `2` (Day 2's quoting lesson and today's word splitting)."
     },
     {
      "type": "code",
@@ -462,7 +462,7 @@
     },
     {
      "type": "md",
-     "text": "### Script tasks in the drills\n\nFrom today the drills (`./drill.sh start 3`) include **script tasks**. Their header says where to save the file, for example `(script: write ~/cisc220_drills/scripts/day3/greet.sh)`.\n\n1. Open that exact file in your editor: `gnome-text-editor ~/cisc220_drills/scripts/day3/greet.sh` (the folder was made by `./drill.sh start 3`).\n2. Write the script, starting with `#!/bin/bash`, and save it.\n3. Run `./drill.sh check 3`. You do **not** need `chmod` for this: the checker **copies** your script into a fresh sandbox folder (the one named in the task, usually `home/user1`, where files like `classlist` are), **makes it executable**, and runs test commands there such as `./greet.sh Sam`. It runs the reference solution the same way and compares standard output, standard error, the exit status and the files left behind.\n\nTo try your script by hand first, copy it into your practice sandbox and run it there:\n\n```bash\ncd ~/cisc220_drills/play/day3/home/user1\ncp ~/cisc220_drills/scripts/day3/greet.sh .\nchmod u+x greet.sh\n./greet.sh Sam\n```"
+     "text": "### Script tasks in the drills\n\nFrom today the drills (`./drill.sh start 3`) include **script tasks**. Their header says where to save the file, for example `(script: write /home/you/cisc220_drills/scripts/day3/greet.sh)`: that is `~/cisc220_drills/scripts/day3/greet.sh`, in your home folder.\n\n1. Open that exact file in your editor: `gnome-text-editor ~/cisc220_drills/scripts/day3/greet.sh` (the folder was made by `./drill.sh start 3`).\n2. Write the script, starting with `#!/bin/bash`, and save it.\n3. Run `./drill.sh check 3`. You do **not** need `chmod` for this: the checker **copies** your script into a fresh sandbox folder (the one named in the task, usually `home/user1`, where files like `classlist` are), **makes it executable**, and runs test commands there such as `./greet.sh Sam`. It runs the reference solution the same way and compares standard output, standard error, the exit status and the files left behind.\n\nTo try your script by hand first, copy it into your practice sandbox and run it there:\n\n```bash\ncd ~/cisc220_drills/play/day3/home/user1\ncp ~/cisc220_drills/scripts/day3/greet.sh .\nchmod u+x greet.sh\n./greet.sh Sam\n```"
     },
     {
      "type": "try",
@@ -681,7 +681,7 @@
    "back": "Double quotes stop word splitting and filename expansion, so the value is passed as one argument exactly as stored (spaces, `*` and all)."
   },
   {
-   "id": "d3-fc-43",
+   "id": "d3-fc-51",
    "topic": "d3-expansions",
    "front": "How do you store a value in a variable and use it (just enough for today)?",
    "back": "`name=value` with **no spaces** around `=`, then `$name` for the value. `n=3; echo $n` prints `3`."
@@ -717,19 +717,19 @@
    "back": "`#`; it runs to the end of the line. A quoted or escaped `#` is not a comment."
   },
   {
-   "id": "d3-fc-44",
+   "id": "d3-fc-52",
    "topic": "d4-scripts",
    "front": "The steps to create and run your first script `hello.sh`",
    "back": "1. `gnome-text-editor hello.sh` (or gedit / nano) 2. first line `#!/bin/bash`, then the commands 3. save (Ctrl + S) 4. `chmod u+x hello.sh` 5. `./hello.sh` from the same folder."
   },
   {
-   "id": "d3-fc-45",
+   "id": "d3-fc-53",
    "topic": "d4-scripts",
    "front": "`./go.sh` prints `Permission denied`. What is wrong?",
    "back": "go.sh has no execute permission. Fix: `chmod u+x go.sh` (or run it with `bash go.sh`)."
   },
   {
-   "id": "d3-fc-46",
+   "id": "d3-fc-54",
    "topic": "d4-scripts",
    "front": "`./go.sh` prints `No such file or directory`. What is wrong?",
    "back": "There is no `go.sh` in the current directory: wrong folder or misspelled name. Check with `pwd` and `ls`, then `cd` to its folder or type its full pathname. (If the shebang names a program that doesn't exist, you get a similar \"not found\" error.)"
@@ -789,13 +789,13 @@
    "back": "No. It expands to the empty string."
   },
   {
-   "id": "d3-fc-47",
+   "id": "d3-fc-55",
    "topic": "d4-scripts",
    "front": "Why write `cut -f3 \"$1\"` rather than `cut -f3 $1` in a script?",
    "back": "The double quotes stop word splitting, so a file name with spaces (e.g. `class list 2`) stays one argument."
   },
   {
-   "id": "d3-fc-48",
+   "id": "d3-fc-56",
    "topic": "d4-scripts",
    "front": "Drill script tasks: where do you save the script, and do you need `chmod`?",
    "back": "In `~/cisc220_drills/scripts/day3/NAME.sh`. No `chmod`: the checker copies it into the task's sandbox folder, makes it executable and runs the tests there."
@@ -857,7 +857,7 @@
    "explain": "`>&2` sends stdout into stderr. `2>&1` does the opposite (stderr into stdout). `> 2` writes to a file named `2`. The last one redirects stdout again to `/dev/null` after `>&2`, so the message is lost (the later redirection wins)."
   },
   {
-   "id": "d3-q-27",
+   "id": "d3-q-34",
    "topic": "d3-streams",
    "type": "output",
    "q": "The directory contains a file `a` and no file `zzz`. What appears on the terminal? (Only stdout goes through a pipe.)",
@@ -1019,7 +1019,7 @@
    "id": "d3-q-26"
   },
   {
-   "id": "d3-q-28",
+   "id": "d3-q-35",
    "topic": "d3-expansions",
    "type": "output",
    "q": "What does this print?",
@@ -1042,7 +1042,7 @@
    "explain": "`bash hello.sh` only needs read permission. `./hello.sh` fails with `Permission denied` until you `chmod u+x hello.sh`. Plain `hello.sh` is searched for on the path (not the current directory). `run` is not a command."
   },
   {
-   "id": "d3-q-29",
+   "id": "d3-q-36",
    "topic": "d4-scripts",
    "type": "mcq",
    "q": "You wrote `count.sh` and saved it. Running `./count.sh` prints `bash: ./count.sh: Permission denied`. What fixes it?",
@@ -1056,7 +1056,7 @@
    "explain": "Permission denied means the file has no execute permission. A file you just created is already readable by you, so `u+r` changes nothing. Without `./` the shell searches the path and reports `command not found`. The shebang is not the problem."
   },
   {
-   "id": "d3-q-30",
+   "id": "d3-q-37",
    "topic": "d4-scripts",
    "type": "mcq",
    "q": "`hello.sh` is in `~/scripts` and is executable. Your terminal is in `~`. You type `./hello.sh` and get `No such file or directory`. Why?",
@@ -1079,7 +1079,7 @@
    "explain": "The quotes make `a b` a single argument, so there are 2 arguments, `$1` is `a b`, and `$2` is `c`."
   },
   {
-   "id": "d3-q-31",
+   "id": "d3-q-38",
    "topic": "d4-scripts",
    "type": "output",
    "q": "`count.sh` contains:\n\n```bash\n#!/bin/bash\necho $#\n```\n\nWhat does this print?",
@@ -1105,7 +1105,7 @@
    "explain": "Accept `echo \"$#\"` or `echo ${#}`."
   },
   {
-   "id": "d3-q-32",
+   "id": "d3-q-39",
    "topic": "d4-scripts",
    "type": "output",
    "q": "`classlist` contains these 4 lines, fields separated by single TABs:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\n`first.sh` contains:\n\n```bash\n#!/bin/bash\ncut -f2 \"$1\" | sort | head -n \"$2\"\n```\n\nWhat does this print?",
@@ -1114,7 +1114,7 @@
    "explain": "`$1` is `classlist` and `$2` is `2`. Field 2 is the first names; sorted they are Andy, Barry, Holly, Sue; `head -n 2` keeps two."
   },
   {
-   "id": "d3-q-33",
+   "id": "d3-q-40",
    "topic": "d4-scripts",
    "type": "output",
    "q": "`show.sh` contains:\n\n```bash\n#!/bin/bash\n\n# show.sh\necho \"$0 was given $# arguments\"   # count them\necho \"$@\"\n```\n\nWhat does this print?",
@@ -1150,7 +1150,7 @@
    ]
   },
   {
-   "id": "d3-w-07",
+   "id": "d3-w-10",
    "topic": "d4-scripts",
    "stage": "worked",
    "marks": 4,
