@@ -97,8 +97,6 @@
 
   function stepsFor(n) {
     const steps = [];
-    if (n === 1) steps.push({ key: "setup", title: "Set up your terminal drills", mins: 10, href: "drills-0",
-      desc: "Get the drill tool onto your Ubuntu laptop and do the 4-task warm-up (Day 0). You'll use it every day." });
     if (n >= 2) steps.push({ key: "review", title: "Warm-up: spaced review", mins: 25, href: "review",
       desc: "Answer the cards and questions that are due from earlier days before learning anything new. Recalling before the new material arrives is what makes yesterday's work stick." });
     if (n <= 6) {
@@ -112,8 +110,10 @@
         desc: n >= 3 ? "Today's questions shuffled together with due questions from earlier days, the way the exam mixes topics." : "Exam-style questions on today's topics with instant feedback." });
       steps.push({ key: "write", title: "Write it by hand", mins: n >= 4 ? 35 : 25, href: "write-" + n,
         desc: "Study the worked example, fill in the faded one, then write the last one from a blank page, ideally on paper first. Half the midterm is handwritten code." });
-      steps.push({ key: "drills", title: "Terminal drills", mins: 25, href: "drills-" + n,
-        desc: "Run your answers in a real shell. The checker compares them with the reference, so any correct command passes." });
+      steps.push({ key: "drills", title: "Terminal drills", mins: n === 1 ? 40 : 25, href: "drills-" + n,
+        desc: n === 1
+          ? "Your first time using the drill tool. A step-by-step walkthrough sets it up using only what today's lessons taught, then you practise today's commands in a real shell."
+          : "Run your answers in a real shell. The checker compares them with the reference, so any correct command passes." });
       steps.push({ key: "dump", title: "Brain dump: everything you remember", mins: 10, href: "dump-" + n,
         desc: "No notes. Write down everything from today, then compare it with the key points. Gaps you find here go to the top of tomorrow." });
     } else if (n === 7) {
@@ -148,7 +148,6 @@
       case "drills": return !!S.drills[n];
       case "dump": return !!(S.dumps[n] && S.dumps[n].trim());
       case "mock": return !!(S.mocks[n === 7 ? "mockA" : "mockB"] && S.mocks[n === 7 ? "mockA" : "mockB"].score != null);
-      case "setup": return !!S.drills[0];
       case "review": return !!S.reviewDone[n === currentDay() ? today() : dateOfDay(n)];
       default: return false;
     }
@@ -329,7 +328,9 @@
     document.body.appendChild(t);
     setTimeout(() => t.remove(), 2200);
   }
-  function prioChip(p) { return p ? '<span class="chip ' + esc(p) + '">' + esc(p) + " priority</span>" : ""; }
+  function prioChip(p) {
+    if (p === "start") return '<span class="chip accent">start here</span>';
+    return p ?'<span class="chip ' + esc(p) + '">' + esc(p) + " priority</span>" : ""; }
 
   function renderRail() {
     const cd = calendarDay();
@@ -467,6 +468,7 @@
         case "why": return '<div class="callout why"><div class="lab">Why?</div><div class="prose">' + md(b.q) + "</div>" +
           '<div><button class="btn ghost" data-act="reveal" data-target="rv-' + bi + '">Explain it to yourself, then compare</button></div><div class="reveal answer prose" id="rv-' + bi + '" hidden>' + md(b.a) + "</div></div>";
         case "pitfall": return '<div class="callout pitfall"><div class="lab">Common mistake</div><div class="prose">' + md(b.text) + "</div></div>";
+        case "try": return '<div class="callout try"><div class="lab">Do this now in your terminal</div><div class="prose">' + md(b.text) + "</div></div>";
         default: return "";
       }
     }).join("");
@@ -680,26 +682,64 @@
   // ----- drills
   function viewDrills(n) {
     const cloneCmd = "git clone -b " + BRANCH + " https://github.com/FallingBrook/CISC220_current.git ~/CISC220_current";
-    const setup = n === 0
-      ? '<div class="card"><h2>One-time setup (on your Ubuntu laptop)</h2><div class="prose"><p>Open a terminal (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd>) and copy these commands in one at a time. Don\'t worry about what they mean yet; you\'ll understand all of it by Day 4.</p></div>' +
-        codeBlock("$ " + cloneCmd + "\n$ cd ~/CISC220_current/study-app/drills\n$ ./drill.sh start 0") +
-        '<div class="prose"><p>If <code>git</code> is missing, install it first with <code>sudo apt install git</code>. If the repository is already on that laptop, run <code>git pull</code> inside it instead of cloning.</p>' +
-        "<p>Then open the answers file it prints (for example with <code>gedit ~/cisc220_drills/answers/day0.txt</code>), write your answers under each <code>###</code> header, save, and run:</p></div>" +
-        codeBlock("$ ./drill.sh check 0") + "</div>"
-      : "";
     const r = S.drills[n];
-    return '<div class="col"><div class="head"><div class="eyebrow">' + (n ? '<a href="#day-' + n + '">Day ' + n + "</a>" : "Before Day 1") + "</div><h1>Terminal drills" + (n === 0 ? ": warm-up" : "") + "</h1>" +
-      '<p class="lede">Reading about Bash isn\'t enough to write it. These tasks run in a throwaway sandbox folder, so nothing you type can damage your real files.</p></div>' + setup +
-      (n > 0 ? '<div class="card"><h3>Run today\'s drills</h3>' +
-        codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ git pull            # get any updates\n$ ./drill.sh start " + n + "    # shows the tasks, creates your answers file and a sandbox\n$ ./drill.sh check " + n + "    # grades everything; run it as often as you like") +
-        '<div class="prose"><ul><li>One-line answers go in <code>~/cisc220_drills/answers/day' + n + ".txt</code>; scripts go in <code>~/cisc220_drills/scripts/day" + n + "/</code>.</li>" +
-        "<li>Try commands in the sandbox first: <code>./drill.sh start " + n + "</code> prints an <code>export SB=…; cd \"$SB\"</code> line you can paste.</li>" +
-        "<li>When a task fails, the checker shows the expected output next to yours. Work out <em>why</em> they differ before you fix it.</li>" +
-        "<li>Stuck for more than 5 minutes on one task? Re-read the lesson, then move on and come back.</li></ul></div></div>" : "") +
+    const step = (num, title, body) => '<div class="card"><div class="row"><span class="chip accent">Step ' + num + "</span><h3>" + title + "</h3></div>" + body + "</div>";
+    const p = (h) => '<div class="prose">' + h + "</div>";
+    let guide;
+    if (n === 1) {
+      guide =
+        '<div class="callout exam"><div class="lab">First time: about 15 minutes</div>' + p("<p>This walkthrough sets up the drill tool on your Ubuntu laptop. It only uses things from today's lessons: opening a terminal, <code>cd</code>, <code>ls</code>, <code>pwd</code>, <code>~</code>, pasting with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>, and opening a file in Text Editor. Do the steps in order and check each one's <em>You should see</em> before moving on.</p>") + "</div>" +
+        step(1, "Download the course and the drills", p("<p>Open a terminal (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd>). Copy this whole line from here and paste it into the terminal with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>, then press Enter:</p>") +
+          codeBlock("$ " + cloneCmd) +
+          p("<p><b>What it does:</b> <code>git</code> is a program that downloads a copy of a project from GitHub. This line downloads the course repository, including the drill tool, into a new folder <code>CISC220_current</code> in your home folder (<code>~</code>). You don't need to learn git for this course; you only use this one line.</p>" +
+            "<p><b>You should see:</b> a few lines like <code>Cloning into ...</code> and <code>Receiving objects: 100%</code>, then your prompt again.</p>" +
+            "<p><b>If it says</b> <code>Command 'git' not found</code>: run <code>sudo apt install git</code>. It asks for your laptop password; nothing appears on screen while you type it. That is normal, so type it and press Enter. Then paste the download line again.</p>" +
+            "<p><b>If it says</b> <code>already exists and is not an empty directory</code>: you downloaded it before. Skip to step 2.</p>")) +
+        step(2, "Go into the drills folder", codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ pwd\n/home/student/CISC220_current/study-app/drills\n$ ls\ndays  drill.sh  solutions") +
+          p("<p><code>cd</code> moves you into the folder; the path starts at <code>~</code>, your home folder, exactly like in today's filesystem lesson. Your <code>pwd</code> shows your own user name instead of <code>student</code>.</p>" +
+            "<p><b>Don't open</b> <code>days</code> or <code>solutions</code>: they contain the answers. Use <kbd>Tab</kbd> to save typing: type <code>cd ~/CIS</code> and press Tab.</p>")) +
+        step(3, "Start Day 1's drills", codeBlock("$ ./drill.sh start 1") +
+          p("<p><code>./drill.sh</code> means <em>the program called drill.sh in this folder</em>: <code>.</code> is the current directory, as you learned today. You'll learn how to write programs like this from Day 4.</p>" +
+            "<p><b>You should see:</b> a numbered list of tasks, like <code>[1] (command; run from: sandbox/home/user1)</code> followed by the question, and at the end a <i>Your files</i> section. It has created three things for you:</p>" +
+            "<ul><li><b>an answers file</b>, <code>~/cisc220_drills/answers/day1.txt</code>, where you write your answers</li>" +
+            "<li><b>a sandbox</b>, <code>~/cisc220_drills/play/day1</code>: a practice folder full of the files and folders the tasks talk about. Try commands there; it's a throwaway copy, so nothing you do in it matters.</li>" +
+            "<li>a scripts folder (not needed until Day 4)</li></ul>" +
+            "<p><b>If it says</b> <code>Permission denied</code>: run <code>chmod +x drill.sh</code> once, then try again. You'll learn what that does on Day 2.</p>")) +
+        step(4, "Open a second terminal tab for the sandbox", p("<p>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> in the terminal to open a new tab. Keep the first tab for running <code>drill.sh</code>, and use this one to explore:</p>") +
+          codeBlock("$ cd ~/cisc220_drills/play/day1\n$ ls\nhome") +
+          p("<p>Inside the sandbox there's a pretend <code>home</code> folder with <code>user1</code> and <code>user2</code> in it, like the directory trees in the lessons. Each task says where it runs from, for example <i>run from: sandbox/home/user1</i>. So before you try a task's command, go there first:</p>") +
+          codeBlock("$ cd ~/cisc220_drills/play/day1/home/user1\n$ ls") +
+          p("<p>Now try commands until one does what the task asks. If you mess up the sandbox, rebuild it from the first tab with <code>./drill.sh sandbox 1</code>.</p>")) +
+        step(5, "Write your answers in the answers file", codeBlock("$ gnome-text-editor ~/cisc220_drills/answers/day1.txt") +
+          p("<p>Use <code>gedit</code> instead if your Ubuntu doesn't have <code>gnome-text-editor</code>, or <code>nano</code> to edit inside the terminal. This is the same as in today's first lesson.</p>" +
+            "<p>The file lists every task under a <code>###</code> header, with the question repeated on lines that start with <code>#</code>. Write your answer on its own line under the question. The checker ignores every line that starts with <code>#</code>, and reads the first line of each task that doesn't:</p>") +
+          codeBlock("### 1\n# (the question for task 1)\npwd\n\n### 2\n# (the question for task 2)\nls -a courses") +
+          p("<p>Write one command per task, exactly as you would type it in the terminal, but without the <code>$</code>. Save with <kbd>Ctrl</kbd>+<kbd>S</kbd>. You can leave a task blank and come back to it later.</p>")) +
+        step(6, "Check your answers", p("<p>Go back to the first tab (still in the drills folder) and run:</p>") +
+          codeBlock("$ ./drill.sh check 1") +
+          p("<p><b>You should see</b> one line per task: <code>✔</code> means correct, <code>✘</code> means not yet, and <code>?</code> means no answer yet. Under a <code>✘</code> the checker shows the lines it expected (marked <code>-</code>) next to the lines your command produced (marked <code>+</code>).</p>" +
+            "<p>Your answer is run in a fresh copy of the sandbox and compared with a reference answer, so any correct command passes, not just one exact spelling. Fix answers in the editor, save, and run <code>check</code> again as often as you like. At the end it prints your score: type it in below.</p>")) +
+        '<div class="card"><h3>Every day after today</h3>' + p("<p>It's the same routine with that day's number. Run <code>git pull</code> first: it downloads any updates to the drills.</p>") +
+        codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ git pull\n$ ./drill.sh start 2\n$ gnome-text-editor ~/cisc220_drills/answers/day2.txt\n$ ./drill.sh check 2") + "</div>";
+    } else {
+      guide = '<div class="card"><h3>Run today\'s drills</h3>' +
+        p("<p>Same routine as Day 1. In the first terminal tab:</p>") +
+        codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ git pull\n$ ./drill.sh start " + n) +
+        p("<p>In a second tab (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>), explore the sandbox and try your commands:</p>") +
+        codeBlock("$ cd ~/cisc220_drills/play/day" + n) +
+        p("<p>Write one-line answers in the answers file (one per task, under its <code>###</code> header):</p>") +
+        codeBlock("$ gnome-text-editor ~/cisc220_drills/answers/day" + n + ".txt") +
+        (n >= 4 ? p("<p>Script tasks say <i>script: write …/scripts/day" + n + "/NAME.sh</i>. Create that file with the editor, for example <code>gnome-text-editor ~/cisc220_drills/scripts/day" + n + "/NAME.sh</code>. The checker copies it into the sandbox and makes it executable for you.</p>") : "") +
+        p("<p>Then grade everything, as often as you like:</p>") + codeBlock("$ ./drill.sh check " + n) +
+        p("<ul><li>When a task fails, compare the expected lines (<code>-</code>) with yours (<code>+</code>) and work out <em>why</em> they differ before you change anything.</li>" +
+          "<li>Stuck for more than 5 minutes on one task? Re-read the lesson, then move on and come back to it.</li></ul>") + "</div>";
+    }
+    return '<div class="col"><div class="head"><div class="eyebrow"><a href="#day-' + n + '">Day ' + n + "</a></div><h1>Terminal drills</h1>" +
+      '<p class="lede">Reading about Bash isn\'t enough to write it. These tasks run in a throwaway sandbox folder, so nothing you type can damage your real files.</p></div>' + guide +
       '<div class="card"><h3>Record your score</h3><div class="row"><label for="drillScore">Final <code>./drill.sh check ' + n + '</code> score</label>' +
-      '<input id="drillScore" class="ans" style="width:110px;min-height:0" placeholder="e.g. 14/17" value="' + esc(r || "") + '">' +
+      '<input id="drillScore" class="ans" style="width:110px;min-height:0" placeholder="e.g. 14/20" value="' + esc(r || "") + '">' +
       '<button class="btn primary" data-act="drill-save" data-day="' + n + '">Save</button></div></div>' +
-      (n ? dayNav(n) : '<div class="row"><a class="btn" href="#day-1">← Back to Day 1</a></div>') + "</div>";
+      dayNav(n) + "</div>";
   }
 
   // ----- brain dump

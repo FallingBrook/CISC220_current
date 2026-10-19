@@ -13,14 +13,16 @@ progress is saved separately in each, so stick to one. You can move progress bet
 
 ## The plan
 
-| Day | Date | Topics |
+Days 1–6 follow the order of the course notebooks (the table of contents in `start_here.ipynb`):
+
+| Day | Date | Notebooks |
 |---|---|---|
-| 1 | Mon Oct 19 | Terminal basics, filesystem and paths, commands, exit status |
-| 2 | Tue Oct 20 | Globs, quoting, cp/mv/rm/mkdir, permissions and chmod |
-| 3 | Wed Oct 21 | Streams, redirection, pipelines and tee, expansions, tr |
-| 4 | Thu Oct 22 | Scripts, `$1 $# $@`, variables, string expansions, arithmetic |
-| 5 | Fri Oct 23 | Regular expressions, `[[ ]]` tests, if/elif/case |
-| 6 | Sat Oct 24 | Arrays, loops, functions |
+| 1 | Mon Oct 19 | Your first session in the terminal, history, command line intro, filesystem, commands |
+| 2 | Tue Oct 20 | Filename expansion, quoting, files, permissions |
+| 3 | Wed Oct 21 | Streams, expansions, introduction to Bash scripting |
+| 4 | Thu Oct 22 | Variables, strings, `tr`, regular expressions |
+| 5 | Fri Oct 23 | Arithmetic, arrays, conditional operators, conditional statements |
+| 6 | Sat Oct 24 | Loops, functions |
 | 7 | Sun Oct 25 | Mock exam A (timed, on paper), test your scripts, fix weak spots |
 | 8 | Mon Oct 26 | Mock exam B, your own summary sheet, early night |
 
@@ -38,10 +40,11 @@ The *Why the days are built this way* section of the plan page explains the rese
 
 ## Terminal drills (Ubuntu)
 
+Do these after each day's lessons. The app's Day 1 drills page walks you through the setup one step at a time.
+
 ```bash
 git clone -b claude/cisc220-bash-study-app-1w7tyo https://github.com/FallingBrook/CISC220_current.git ~/CISC220_current
 cd ~/CISC220_current/study-app/drills
-./drill.sh start 0      # 5-minute warm-up that shows how drills work
 ./drill.sh start 1      # prints Day 1's tasks, creates your answers file and a sandbox
 ./drill.sh check 1      # grades your answers
 ```

@@ -49,7 +49,8 @@ strings. No HTML.
         { "type": "code", "code": "$ pwd\n/home/user1", "caption": "optional caption" },
         { "type": "check", "q": "Retrieval question asked mid-lesson.", "a": "Its answer." },
         { "type": "why", "q": "A *why* question (elaborative interrogation).", "a": "The explanation." },
-        { "type": "pitfall", "text": "A common mistake and how to avoid it." }
+        { "type": "pitfall", "text": "A common mistake and how to avoid it." },
+        { "type": "try", "text": "A hands-on step to do now in the terminal." }
       ]
     }
   ],
@@ -96,7 +97,7 @@ Field notes:
 
 ## Terminal drills (`study-app/drills/days/dayN.sh`)
 
-Each day also has drills run with `./drill.sh` (read `study-app/drills/drill.sh` and `days/day0.sh` first).
+Each day also has drills run with `./drill.sh` (read `study-app/drills/drill.sh` and an existing `days/dayN.sh` first).
 The student writes one-line answers in an answers file, and scripts in a folder. Each answer is graded by
 running it and the reference answer in identical fresh sandboxes and comparing the results, so **any correct
 command passes**.

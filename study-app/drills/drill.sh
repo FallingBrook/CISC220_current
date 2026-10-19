@@ -202,8 +202,8 @@ cmd_start() {
             echo "#"
             echo "# Write each answer on the empty line under its ### header (one line per answer)."
             echo "# Lines starting with # are ignored. Check your work with:  ./drill.sh check $DAY"
-            echo "# Absolute paths: the sandbox root plays the role of /. Write \$SB/home/user1"
-            echo "# where you would write /home/user1 on the exam."
+            echo "# Absolute paths: in these drills the sandbox folder stands in for /. If an answer"
+            echo "# needs an absolute path, start it with \$SB instead of /, e.g. \$SB/home/user1 for /home/user1."
             for id in "${T_IDS[@]}"; do
                 [[ ${T_KIND[$id]} == script ]] && continue
                 echo
@@ -221,8 +221,11 @@ cmd_start() {
     echo "  scripts:  $(scripts_dir)/"
     echo "  sandbox:  $play"
     echo
-    echo "Explore the sandbox with:   export SB=\"$play\"; cd \"\$SB\""
-    echo "Grade your work with:      ./drill.sh check $DAY"
+    echo "Explore the sandbox (in a second terminal tab):   cd ${play/#$HOME/\~}"
+    if [[ ${T_PROMPT[*]} == *'$SB'* ]]; then
+        echo "  Some tasks use \$SB (the sandbox folder). In that tab, first run:   SB=${play/#$HOME/\~}"
+    fi
+    echo "Grade your work:                                  ./drill.sh check $DAY"
 }
 
 cmd_check() {
@@ -345,7 +348,7 @@ main() {
         show) load_day "${2:-}"; cmd_show ;;
         start) load_day "${2:-}"; cmd_start ;;
         sandbox) load_day "${2:-}"; local p; p=$(make_play); echo "Fresh sandbox: $p"
-                 echo "Explore it with:   export SB=\"$p\"; cd \"\$SB\"" ;;
+                 echo "Explore it with:   cd ${p/#$HOME/\~}" ;;
         check)
             load_day "${2:-}"
             if [[ ${3:-} == --reveal ]]; then cmd_check "" "" --reveal
