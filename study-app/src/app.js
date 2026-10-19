@@ -694,7 +694,7 @@
           p("<p><b>What it does:</b> <code>git</code> is a program that downloads a copy of a project from GitHub. This line downloads the course repository, including the drill tool, into a new folder <code>CISC220_current</code> in your home folder (<code>~</code>). You don't need to learn git for this course; you only use this one line.</p>" +
             "<p><b>You should see:</b> a few lines like <code>Cloning into ...</code> and <code>Receiving objects: 100%</code>, then your prompt again.</p>" +
             "<p><b>If it says</b> <code>Command 'git' not found</code>: run <code>sudo apt install git</code>. It asks for your laptop password; nothing appears on screen while you type it. That is normal, so type it and press Enter. Then paste the download line again.</p>" +
-            "<p><b>If it says</b> <code>already exists and is not an empty directory</code>: you downloaded it before. Skip to step 2.</p>")) +
+            "<p><b>If it says</b> <code>already exists and is not an empty directory</code>: you downloaded it before. Do step 2, then run <code>git pull</code> there to download the latest version.</p>")) +
         step(2, "Go into the drills folder", codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ pwd\n/home/student/CISC220_current/study-app/drills\n$ ls\ndays  drill.sh  solutions") +
           p("<p><code>cd</code> moves you into the folder; the path starts at <code>~</code>, your home folder, exactly like in today's filesystem lesson. Your <code>pwd</code> shows your own user name instead of <code>student</code>.</p>" +
             "<p><b>Don't open</b> <code>days</code> or <code>solutions</code>: they contain the answers. Use <kbd>Tab</kbd> to save typing: type <code>cd ~/CIS</code> and press Tab.</p>")) +
