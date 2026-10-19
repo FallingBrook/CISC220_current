@@ -4,6 +4,156 @@
  "goal": "Navigate the Linux filesystem with pwd, cd and ls using absolute and relative pathnames, read the structure of a command, and explain directories, inodes and exit status.",
  "topics": [
   {
+   "id": "d1-terminal",
+   "title": "Your first session in the terminal",
+   "notebook": "bash/cli_intro.ipynb",
+   "priority": "start",
+   "examNote": "Not tested directly, but you need all of it for everything else: the lessons, the drills, and practising scripts from Day 3 on.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "Everything in this course happens in a **terminal**: a window where you type instructions instead of clicking. This first lesson is hands-on. Keep this page open next to a terminal on your Ubuntu laptop and do every green *Do this now in your terminal* box as you reach it.\n\nNothing you do in this lesson can damage your computer."
+    },
+    {
+     "type": "md",
+     "text": "### Open a terminal\n\nOn Ubuntu, press **Ctrl + Alt + T**. Or press the **Super** key (the one with the Windows logo), or click *Show Apps* (the grid of dots at the bottom of the dock), type `terminal`, and click **Terminal**.\n\nA window opens with one line of text that ends in a `$` and a blinking cursor. That line is the **prompt**. It looks something like this:"
+    },
+    {
+     "type": "code",
+     "code": "student@ubuntu:~$",
+     "caption": "The prompt. Yours shows your own user name and computer name."
+    },
+    {
+     "type": "md",
+     "text": "Reading it left to right:\n\n| Part | Meaning |\n|---|---|\n| `student` | your user name |\n| `@ubuntu` | the name of the computer |\n| `:~` | the folder you are currently in. `~` is short for your **home folder**, where your Documents, Downloads and so on live |\n| `$` | the shell is ready for you to type a command |\n\nThe program reading what you type is called the **shell**. On Ubuntu (and in this course) the shell is **Bash**."
+    },
+    {
+     "type": "try",
+     "text": "Open a terminal now. Find your user name, the computer name and the `~` in your prompt."
+    },
+    {
+     "type": "md",
+     "text": "### Your first command\n\nType a command after the `$`, then press **Enter** to run it. The shell runs it, prints the result (the **output**), and then shows a fresh prompt so you can type the next one."
+    },
+    {
+     "type": "try",
+     "text": "Type `echo hello` and press Enter. You should see `hello` printed, then a new prompt."
+    },
+    {
+     "type": "md",
+     "text": "In this app and in the course notebooks, a box like the one below is a recording of a terminal session. A line that starts with `$ ` is what someone **typed**; the other lines are what the computer **printed**. **Don't type the `$`**: it's the prompt, and it's already there."
+    },
+    {
+     "type": "code",
+     "code": "$ echo hello\nhello\n$ pwd\n/home/student\n$ ls\nDesktop  Documents  Downloads  Music  Pictures  Public  Templates  Videos",
+     "caption": "Your list of folders may be slightly different (for example, you may also see `snap`)."
+    },
+    {
+     "type": "md",
+     "text": "- `echo` prints whatever you put after it.\n- `pwd` (*print working directory*) prints which folder you are in, written out in full. `/home/student` is the full name of the folder that `~` stands for.\n- `ls` (*list*) prints the names of the files and folders in the folder you are in. These are the same folders you see in Ubuntu's **Files** app."
+    },
+    {
+     "type": "try",
+     "text": "Run `pwd`, then `ls`. Open the Files app and compare: the names `ls` printed are the folders shown in your Home folder."
+    },
+    {
+     "type": "check",
+     "q": "In the recording\n\n```\n$ ls\nDesktop  Documents\n```\n\nwhat exactly did the person type, and what did the computer print?",
+     "a": "They typed `ls` (then pressed Enter). The computer printed `Desktop  Documents`. The `$ ` is the prompt and is never typed."
+    },
+    {
+     "type": "md",
+     "text": "### When something goes wrong\n\nMistakes are normal and harmless. The three you will meet first:\n\n**1. A typo.** If the first word isn't a command Bash knows, it says so and gives you the prompt back. Just type it again correctly."
+    },
+    {
+     "type": "code",
+     "code": "$ ecoh hello\nCommand 'ecoh' not found, did you mean:\n  command 'echo' from deb coreutils (9.4-3ubuntu6)\nTry: sudo apt install <deb name>\n$ echo hello\nhello",
+     "caption": "Ubuntu suggests the command you probably meant. The exact text varies; ignore the advice about installing packages."
+    },
+    {
+     "type": "md",
+     "text": "**2. The terminal seems frozen.** Some commands wait for you to type more. For example, `cat` with nothing after it waits for you to type text. If there's no prompt and nothing is happening, press **Ctrl + C**. That stops the running command and brings the prompt back.\n\n**3. A `>` prompt appears.** If you type a quotation mark `\"` and forget to close it, Bash thinks your command continues on the next line and shows `> `. Press **Ctrl + C** and type the command again."
+    },
+    {
+     "type": "try",
+     "text": "Type `cat` and press Enter. Nothing comes back. Now press **Ctrl + C**: the prompt returns. Then type `echo \"oops` (with no closing quote), press Enter, see the `>`, and press **Ctrl + C** again."
+    },
+    {
+     "type": "check",
+     "q": "You typed a command and now there is no prompt and nothing is happening. What do you press?",
+     "a": "**Ctrl + C**. It stops (interrupts) the running command and gives you the prompt back."
+    },
+    {
+     "type": "md",
+     "text": "### Copy and paste in the terminal\n\nIn the terminal, **Ctrl + C does not copy**: it stops the running command, as you just saw. Use these instead:\n\n| To | Press |\n|---|---|\n| copy selected text | **Ctrl + Shift + C** |\n| paste | **Ctrl + Shift + V**, or right-click and choose *Paste* |\n\nTo copy a command from this app, select it with the mouse and press Ctrl + C *in the browser*. Then paste it *in the terminal* with **Ctrl + Shift + V**."
+    },
+    {
+     "type": "pitfall",
+     "text": "Pressing Ctrl + V in the terminal doesn't paste. Use **Ctrl + Shift + V**."
+    },
+    {
+     "type": "md",
+     "text": "### Save typing\n\n- **Up arrow**: brings back the previous command, so you can fix a typo and press Enter again. Press it more times to go further back.\n- **Tab**: finishes a file or command name for you. Type `ech` and press Tab, and Bash completes it to `echo`. If nothing happens, more than one name matches: press Tab again to see them all, type a few more letters, and press Tab again.\n- **`clear`** (or **Ctrl + L**): wipes the screen. Your files are not affected."
+    },
+    {
+     "type": "try",
+     "text": "Press the Up arrow a few times to see your earlier commands. Then type `pw` and press Tab twice: Bash lists every command that starts with `pw` (there are several, so it can't choose one for you). Type `d` to make `pwd` and press Enter. Last, type `ls Doc`, press Tab (Bash completes it to `ls Documents/`), and press Enter."
+    },
+    {
+     "type": "md",
+     "text": "### Make a practice folder\n\nThe command `mkdir NAME` (*make directory*) creates a new folder called NAME inside the folder you are in. (*Directory* is the Unix word for a folder.) `cd NAME` (*change directory*) moves you into that folder. Like most commands, both print nothing when they work. You'll learn much more about `cd` later today, and more about `mkdir` on Day 2. Here they make a folder called `practice` and go into it:"
+    },
+    {
+     "type": "code",
+     "code": "$ mkdir practice\n$ cd practice\n$ pwd\n/home/student/practice",
+     "caption": "The prompt changes to `student@ubuntu:~/practice$` because you are now inside practice."
+    },
+    {
+     "type": "try",
+     "text": "Run those three commands. Check that your prompt now ends in `~/practice$`."
+    },
+    {
+     "type": "md",
+     "text": "### Write a file with a text editor\n\nYou'll often need to write a file: an answers file for the drills, and later your own scripts. A **text editor** is like a very plain Word: it saves exactly the characters you type and nothing else. Ubuntu comes with one called **Text Editor**.\n\nYou can open it on a file straight from the terminal. Type the editor's name, a space, and the file name. If the file doesn't exist yet, the editor starts with an empty page, and the file is created in the folder you are in when you save."
+    },
+    {
+     "type": "code",
+     "code": "$ gnome-text-editor notes.txt",
+     "caption": "Ubuntu 22.10 and later (including 24.04). If this prints \"command not found\", use the next one."
+    },
+    {
+     "type": "code",
+     "code": "$ gedit notes.txt",
+     "caption": "Ubuntu 22.04 and earlier."
+    },
+    {
+     "type": "md",
+     "text": "A window opens. Type a few lines, press **Ctrl + S** to save (if a *Save* dialog appears, check that the name is `notes.txt` and the folder is `practice`, then click *Save*), then close the window. While the editor is open, the terminal may show no new prompt, and it may print some warning messages: ignore them. When you close the editor, the prompt comes back.\n\nBack in the terminal, `cat` prints what's inside a file, so you can check what you saved:"
+    },
+    {
+     "type": "code",
+     "code": "$ cat notes.txt\nmy first file\nCtrl+C stops a command; Ctrl+Shift+V pastes\n$ ls\nnotes.txt"
+    },
+    {
+     "type": "try",
+     "text": "In your practice folder, open `notes.txt` with `gnome-text-editor notes.txt` (or `gedit notes.txt`). Type two lines, save with Ctrl + S, close the editor, then run `cat notes.txt` and `ls`."
+    },
+    {
+     "type": "md",
+     "text": "**No editor window?** You can also edit inside the terminal with `nano notes.txt`. Type your text, press **Ctrl + O** then Enter to save, and **Ctrl + X** to quit. The keys you need are listed at the bottom of nano's screen."
+    },
+    {
+     "type": "check",
+     "q": "You saved `notes.txt` in your `practice` folder. Which command shows what's in it?",
+     "a": "`cat notes.txt`, run while you are in the `practice` folder."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- **Ctrl + Alt + T** opens a terminal. The prompt `user@computer:~$` means the shell is ready, and `~` is your home folder.\n- Type a command and press **Enter**. In recordings, the `$ ` is the prompt: don't type it.\n- **Ctrl + C** stops a stuck command. Copy and paste in the terminal with **Ctrl + Shift + C / V**.\n- Use **Up arrow** to repeat a command and **Tab** to complete a name.\n- `gnome-text-editor FILE` or `gedit FILE` (or `nano FILE`) opens a file to edit; `cat FILE` prints it."
+    }
+   ]
+  },
+  {
    "id": "d1-start",
    "title": "Before you start: terminal, shell, and a little history",
    "notebook": "bash/history.ipynb, bash/rules_of_the_unix_philosophy.ipynb",
@@ -12,7 +162,7 @@
    "blocks": [
     {
      "type": "md",
-     "text": "### Welcome\n\nThis course asks you to control a Linux computer by **typing commands** instead of clicking. Today you learn the words people use for this, how files are organised, and your first commands. Everything here is also practised in a **real Ubuntu terminal**: on Ubuntu press **Ctrl+Alt+T** (or search for *Terminal*) and type the examples yourself. Reading is not enough; your fingers must learn the commands too, because the midterm is handwritten with no aids.\n\n### Five words you need\n\n- A **terminal** is the window you type into. Long ago it was a real machine (a keyboard plus a printer or screen). Today it is a program called a *terminal emulator*.\n- A **shell** is the program running inside the terminal. It reads the text you type, works out what it means, and runs it. Our shell is **Bash**.\n- The **prompt** is the text the shell prints when it is ready for you, often ending in `$`. In these notes a line that starts with `$ ` is something *you* type; lines without it are what the computer prints back. Do not type the `$`.\n- A **command** is the first word you type: the name of the thing to run, such as `echo` or `ls`.\n- An **argument** is a word after the command that tells it *what to act on*. Words are separated by spaces. An **option** is a special argument that starts with `-` and changes *how* the command behaves.\n\nYou press **Enter** to run what you typed."
+     "text": "### Welcome\n\nThis course asks you to control a Linux computer by **typing commands** instead of clicking. Today you learn the words people use for this, how files are organised, and your first commands. Keep practising in the **real Ubuntu terminal** you opened in the first lesson (**Ctrl + Alt + T**) and type the examples yourself. Reading is not enough; your fingers must learn the commands too, because the midterm is handwritten with no aids.\n\n### Five words you need\n\n- A **terminal** is the window you type into. Long ago it was a real machine (a keyboard plus a printer or screen). Today it is a program called a *terminal emulator*.\n- A **shell** is the program running inside the terminal. It reads the text you type, works out what it means, and runs it. Our shell is **Bash**.\n- The **prompt** is the text the shell prints when it is ready for you, often ending in `$`. In these notes a line that starts with `$ ` is something *you* type; lines without it are what the computer prints back. Do not type the `$`.\n- A **command** is the first word you type: the name of the thing to run, such as `echo` or `ls`.\n- An **argument** is a word after the command that tells it *what to act on*. Words are separated by spaces. An **option** is a special argument that starts with `-` and changes *how* the command behaves.\n\nYou press **Enter** to run what you typed."
     },
     {
      "type": "code",
@@ -40,7 +190,7 @@
     },
     {
      "type": "md",
-     "text": "### The Unix philosophy (skim)\n\nEric Raymond lists 17 rules. Four of them explain how the commands you will meet behave:\n\n- **Modularity / Composition**: write small, simple programs that can be connected to other programs. This is why we build answers by joining small commands (for example with a pipe `|`).\n- **Silence**: when a program has nothing surprising to say, it says nothing. `cd` and `mkdir` print nothing when they succeed.\n- **Repair**: when you must fail, fail noisily and as soon as possible. A failing command prints an error message and reports failure through its *exit status* (Lesson 4)."
+     "text": "### The Unix philosophy (skim)\n\nEric Raymond lists 17 rules. Four of them explain how the commands you will meet behave:\n\n- **Modularity / Composition**: write small, simple programs that can be connected to other programs. This is why we build answers by joining small commands (the next lesson shows the pipe `|`, which does exactly that).\n- **Silence**: when a program has nothing surprising to say, it says nothing. `cd` and `mkdir` print nothing when they succeed.\n- **Repair**: when you must fail, fail noisily and as soon as possible. A failing command prints an error message and reports failure through its *exit status* (the last lesson today)."
     },
     {
      "type": "why",
@@ -62,7 +212,11 @@
    "blocks": [
     {
      "type": "md",
-     "text": "Bash gives you a **command line interface** (CLI): you type a command and press Enter. A Linux system has thousands of commands, and each has options and inputs. This lesson tries a few. For the examples, suppose the current directory contains two small text files from the course notebooks:\n\n- `animals.txt` with the lines `cat`, `zebra`, `dog`, `armadillo`\n- `fruits.txt` with the lines `strawberry`, `mango`, `pineapple`, `apple`\n\n### `echo`: print its arguments\n\n`echo` prints its arguments, separated by single spaces, followed by a newline. Quotes group words into one argument and are not printed."
+     "text": "Bash gives you a **command line interface** (CLI): you type a command and press Enter. A Linux system has thousands of commands, and each has options and inputs. This lesson tries a few. For the examples, suppose the current directory (the folder you are in) contains two small text files from the course notebooks:\n\n- `animals.txt` with the lines `cat`, `zebra`, `dog`, `armadillo`\n- `fruits.txt` with the lines `strawberry`, `mango`, `pineapple`, `apple`\n\n### `echo`: print its arguments\n\n`echo` prints its arguments, separated by single spaces, followed by a newline. Quotes group words into one argument and are not printed."
+    },
+    {
+     "type": "try",
+     "text": "Make the two files so you can run every example yourself. In the terminal, `cd practice` (the folder from the first lesson). Run `gnome-text-editor animals.txt` (or `gedit` or `nano`), type the four animals one per line, save and close. Do the same for `fruits.txt`. Then type each example below and compare what you get."
     },
     {
      "type": "code",
@@ -75,7 +229,7 @@
     },
     {
      "type": "md",
-     "text": "### `ls`: list files\n\n`ls` lists the files in the current working directory (the directory you are \"in\"; more in the next lesson)."
+     "text": "### `ls`: list files\n\n`ls` lists the files in the current working directory (the directory you are \"in\"; the next lesson explains this properly)."
     },
     {
      "type": "code",
@@ -109,7 +263,7 @@
     },
     {
      "type": "md",
-     "text": "### `grep`, `date`, `cal` and friends\n\n`grep PATTERN FILE` prints the lines of FILE that match a pattern (a *regular expression*, covered in a later lesson). `^a` means \"starts with a\"."
+     "text": "### `grep`, `date`, `cal` and friends\n\n`grep PATTERN FILE` prints the lines of FILE that match a pattern (a *regular expression*, covered on Day 4). `^a` means \"starts with a\"."
     },
     {
      "type": "code",
@@ -117,7 +271,7 @@
     },
     {
      "type": "md",
-     "text": "- `date` prints the current date and time; with the option `-Idate` it prints only the date, like `2026-10-18`.\n- `cal` prints a calendar of this month; `cal -y` prints the whole year.\n- Silly ones from the notebook (install them on Ubuntu with `sudo apt install fortune cowsay toilet` if you want to try): `fortune` prints a random saying, `fortune | cowsay` makes a cow say it, `fortune | toilet` prints it in big letters.\n\nThe point: most commands accept **options** that change what they do, and the output of one command can be fed to another."
+     "text": "- `date` prints the current date and time; with the option `-Idate` it prints only the date, like `2026-10-18`.\n- `cal` prints a calendar of this month; `cal -y` prints the whole year.\n- Silly ones from the notebook: `fortune` prints a random saying, `fortune | cowsay` makes a cow say it, `fortune | toilet` prints it in big letters.\n\nUbuntu doesn't always come with `cal`, `fortune`, `cowsay` and `toilet`. If you get *command not found* and want to try them, run `sudo apt install ncal fortune-mod cowsay toilet` (`sudo` runs a command as the administrator and asks for your password; `apt install` installs software). This is optional.\n\nThe point: most commands accept **options** that change what they do, and the output of one command can be fed to another."
     },
     {
      "type": "pitfall",
@@ -163,6 +317,10 @@
      "code": "$ cd /\n$ pwd\n/\n$ ls home\nuser1  user2\n$ cd home/user1\n$ pwd\n/home/user1"
     },
     {
+     "type": "try",
+     "text": "On your own computer: run `cd /`, then `pwd` and `ls`. You should see `bin`, `etc`, `home`, `tmp`, `usr` and more. Then run `ls home`: it lists the home directories (yours is there). Run `cd` on its own to go back home, and `pwd` to check."
+    },
+    {
      "type": "check",
      "q": "What symbol is the name of the root directory?",
      "a": "`/` (slash). Quiz 1 Q1A."
@@ -204,13 +362,17 @@
      "code": "$ cd /usr\n$ cd\n$ pwd\n/home/user1\n$ cd -\n/usr\n$ pwd\n/usr"
     },
     {
+     "type": "try",
+     "text": "Run `cd /usr`, then `cd`, then `cd -`. The last one prints `/usr`. Run `pwd` to confirm you are back in `/usr`, then `cd ..` and `pwd` (you are now in `/`)."
+    },
+    {
      "type": "check",
      "q": "You type `cd /tmp` and then `cd /etc`. What does `cd -` do now?",
      "a": "It goes back to `/tmp` (the previous working directory) and prints `/tmp`."
     },
     {
      "type": "md",
-     "text": "### Built-in commands and getting help\n\n`cd` and `pwd` are **built-in shell commands**: they are part of Bash itself. `ls` is a separate **program** that Bash runs (the file `/usr/bin/ls`). This matters for documentation:\n\n- `help cd`, `help pwd` describe built-ins (also `man builtins`).\n- `man ls` shows the manual page of a program."
+     "text": "### Built-in commands and getting help\n\n`cd` and `pwd` are **built-in shell commands**: they are part of Bash itself. `ls` is a separate **program** that Bash runs (the file `/usr/bin/ls`). This matters for documentation:\n\n- `help cd`, `help pwd` describe built-ins. The notebook also mentions `man builtins`; on Ubuntu that page is called `man bash-builtins`.\n- `man ls` shows the manual page of a program. Press **q** to quit it and get your prompt back (more in the next lesson)."
     },
     {
      "type": "pitfall",
@@ -235,11 +397,11 @@
    "blocks": [
     {
      "type": "md",
-     "text": "### Four kinds of command\n\nThe word you type first can be one of four things:\n\n1. a **shell built-in** (part of Bash): `cd`, `pwd`, `echo`, `help`, `history`, `type`\n2. an **executable program** stored in a file: `ls`, `cal` (a compiled C program or a script)\n3. an **alias**: a shortcut name for a longer command\n4. a **shell function**: a function written in the shell language (a later lesson)\n\n`type NAME` tells you which kind a command is. `which NAME` prints the pathname of an executable program (and prints nothing for a built-in like `cd`, because there is no file)."
+     "text": "### Four kinds of command\n\nThe word you type first can be one of four things:\n\n1. a **shell built-in** (part of Bash): `cd`, `pwd`, `echo`, `help`, `history`, `type`\n2. an **executable program** stored in a file: `ls`, `cat`, `cal` (a compiled C program or a script)\n3. an **alias**: a shortcut name for a longer command\n4. a **shell function**: a function written in the shell language (Day 6)\n\n`type NAME` tells you which kind a command is. `which NAME` prints the pathname of an executable program (and prints nothing for a built-in like `cd`, because there is no file)."
     },
     {
      "type": "code",
-     "code": "$ type cd\ncd is a shell builtin\n$ type cal\ncal is /usr/bin/cal\n$ which ls\n/usr/bin/ls\n$ which cd\n$",
+     "code": "$ type cd\ncd is a shell builtin\n$ type cat\ncat is /usr/bin/cat\n$ which ls\n/usr/bin/ls\n$ which cd\n$",
      "caption": "In an interactive Ubuntu terminal `type ls` prints ls is aliased to `ls --color=auto' because Ubuntu defines an alias for ls; inside a script it prints ls is /usr/bin/ls."
     },
     {
@@ -258,7 +420,7 @@
     },
     {
      "type": "md",
-     "text": "### `ls` options to know\n\n| Option | Long option | Meaning |\n|---|---|---|\n| `-a` | `--all` | list **all** files, including hidden ones (names starting with `.`), and `.` and `..` |\n| `-A` | `--almost-all` | like `-a` but without `.` and `..` |\n| `-d` | `--directory` | list the directory **itself**, not its contents |\n| `-F` | `--classify` | add a character showing the type (`/` directory, `*` executable) |\n| `-h` | `--human-readable` | with `-l` or `-s`, sizes like `4.0K` |\n| `-l` | | **long** format (permissions, owner, size, date, name) |\n| `-r` | `--reverse` | reverse the sort order |\n| `-s` | `--size` | print size in blocks |\n| `-t` | | sort by modification time, newest first |\n| `-1` | | **one** file per line (the digit one) |\n| `-S` | | sort by size, **largest first** (from `man ls`; used in Assignment 1) |\n\nA **hidden file** is just a file whose name starts with `.`; plain `ls` does not show it.\n\nWith the tree from the last lesson, cwd `/home/user1/courses`:"
+     "text": "### `ls` options to know\n\n| Option | Long option | Meaning |\n|---|---|---|\n| `-a` | `--all` | list **all** files, including hidden ones (names starting with `.`), and `.` and `..` |\n| `-A` | `--almost-all` | like `-a` but without `.` and `..` |\n| `-d` | `--directory` | list the directory **itself**, not its contents |\n| `-F` | `--classify` | add a character showing the type (`/` directory, `*` executable) |\n| `-h` | `--human-readable` | with `-l` or `-s`, sizes like `4.0K` |\n| `-l` | | **long** format (permissions, owner, size, date, name) |\n| `-r` | `--reverse` | reverse the sort order |\n| `-s` | `--size` | print size in blocks |\n| `-t` | | sort by modification time, newest first |\n| `-1` | | **one** file per line (the digit one) |\n| `-S` | | sort by size, **largest first** (from `man ls`; used in Assignment 1) |\n\nA **hidden file** is just a file whose name starts with `.`; plain `ls` does not show it.\n\nWith the tree from the filesystem lesson, cwd `/home/user1/courses`:"
     },
     {
      "type": "code",
@@ -274,6 +436,10 @@
      "type": "code",
      "code": "$ ls -S CISC220\nnotes.txt  lab1.sh\n$ ls -1Sr CISC220\nlab1.sh\nnotes.txt",
      "caption": "notes.txt (58 bytes) is bigger than lab1.sh (25 bytes). -S puts the largest first; -r reverses that to smallest first."
+    },
+    {
+     "type": "try",
+     "text": "In your home folder (run `cd` first), compare `ls`, `ls -a` and `ls -A`: the extra names starting with `.` are hidden files. Then try `ls -l`, `ls -1` and `ls -d Documents`."
     },
     {
      "type": "check",
@@ -295,11 +461,15 @@
     },
     {
      "type": "md",
-     "text": "### Exit status\n\nEvery command, when it finishes, sets an **exit status**: a number that says whether it worked.\n\n- **0 means success.**\n- A non-zero value (1 to 255) means some kind of failure.\n\nThe exit status of the most recent command is stored in the special parameter `?`; you read it with `$?`."
+     "text": "### Exit status\n\nEvery command, when it finishes, sets an **exit status**: a number that says whether it worked.\n\n- **0 means success.**\n- A non-zero value (1 to 255) means some kind of failure.\n\nThe shell stores the exit status of the most recent command under the name `?`. To see it, run `echo $?` straight after the command: before `echo` runs, the shell replaces `$?` with that number."
     },
     {
      "type": "code",
      "code": "$ ls courses\nCISC204  CISC220\n$ echo $?\n0\n$ ls missing\nls: cannot access 'missing': No such file or directory\n$ echo $?\n2\n$ cd missing\nbash: cd: missing: No such file or directory\n$ echo $?\n1"
+    },
+    {
+     "type": "try",
+     "text": "Run `ls`, then `echo $?` (you should see `0`). Then run `ls nothing_here`, then `echo $?` (you should see `2`)."
     },
     {
      "type": "check",
@@ -341,6 +511,48 @@
   }
  ],
  "flashcards": [
+  {
+   "id": "d1-fc-t1",
+   "topic": "d1-terminal",
+   "front": "How do you open a terminal on Ubuntu?",
+   "back": "**Ctrl + Alt + T** (or Show Apps → Terminal)."
+  },
+  {
+   "id": "d1-fc-t2",
+   "topic": "d1-terminal",
+   "front": "In the prompt `student@ubuntu:~$`, what do `~` and `$` mean?",
+   "back": "`~` shows which folder you are in: here, your home folder. `$` means the shell is ready for a command."
+  },
+  {
+   "id": "d1-fc-t3",
+   "topic": "d1-terminal",
+   "front": "A command is stuck: no prompt, nothing happening. What do you press?",
+   "back": "**Ctrl + C** stops the running command and brings the prompt back."
+  },
+  {
+   "id": "d1-fc-t4",
+   "topic": "d1-terminal",
+   "front": "How do you paste into the terminal?",
+   "back": "**Ctrl + Shift + V** (or right-click → Paste). Plain Ctrl + V doesn't paste there."
+  },
+  {
+   "id": "d1-fc-t5",
+   "topic": "d1-terminal",
+   "front": "In a recording like `$ ls`, do you type the `$`?",
+   "back": "No. `$ ` is the prompt. You type only what comes after it (`ls`)."
+  },
+  {
+   "id": "d1-fc-t6",
+   "topic": "d1-terminal",
+   "front": "Which key brings back your previous command?",
+   "back": "The **Up arrow**."
+  },
+  {
+   "id": "d1-fc-t7",
+   "topic": "d1-terminal",
+   "front": "How do you open the file `notes.txt` in a text editor from the terminal?",
+   "back": "`gnome-text-editor notes.txt` (newer Ubuntu) or `gedit notes.txt` (older), or `nano notes.txt` inside the terminal."
+  },
   {
    "id": "d1-fc-01",
    "topic": "d1-start",
@@ -555,7 +767,7 @@
    "id": "d1-fc-36",
    "topic": "d1-commands",
    "front": "How do you get documentation for the built-in `cd`? For the program `ls`?",
-   "back": "`help cd` (or `man builtins`); `man ls` (or `ls --help`)."
+   "back": "`help cd` (or `man bash-builtins` on Ubuntu); `man ls` (or `ls --help`)."
   },
   {
    "id": "d1-fc-37",
@@ -619,7 +831,7 @@
    "id": "d1-q-02",
    "topic": "d1-filesystem",
    "type": "short",
-   "q": "Using the same tree, what is the absolute pathname of the file `Q1.sh`?\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```",
+   "q": "Use this tree. What is the absolute pathname of the file `Q1.sh`?\n\n```\n???\n└── home\n    └── cisc220\n        ├── assignments\n        │   ├── A1\n        │   │   └── A1.txt\n        │   └── A2\n        ├── notes\n        │   └── bash\n        │       └── filesystem.ipynb\n        └── tests\n            ├── midterm\n            │   └── src\n            │       └── Q1.sh\n            └── quiz\n                └── c_src\n```",
    "answer": "`/home/cisc220/tests/midterm/src/Q1.sh`",
    "explain": "An absolute pathname starts at `/` and names every directory on the way."
   },
@@ -811,7 +1023,7 @@
    "id": "d1-q-19",
    "topic": "d1-commands",
    "type": "output",
-   "q": "The current directory has no file or directory named `ghost`. What does this print to standard output? (Ignore the error message.)",
+   "q": "The current directory has no file or directory named `ghost`. What does this print? (Leave out the error message that `ls` prints.)",
    "code": "ls ghost\necho $?\necho $?",
    "answer": "2\n0",
    "explain": "`ls` fails with status 2 (GNU ls uses 2 for \"cannot access\"; any non-zero means failure). The second `echo $?` reports the status of the first `echo`, which succeeded: 0."
@@ -820,7 +1032,7 @@
    "id": "d1-q-20",
    "topic": "d1-commands",
    "type": "output",
-   "q": "The current directory has no file or directory named `ghost`, and does have `courses`. What does this print to standard output? (Ignore error messages.)",
+   "q": "The current directory has no file or directory named `ghost`, and does have `courses`. What does this print? (Leave out the error messages that `cd` prints.)",
    "code": "cd ghost || echo no ghost\ncd courses && echo in courses\ncd ghost; echo done",
    "answer": "no ghost\nin courses\ndone",
    "explain": "`||` runs echo because cd failed. `&&` runs echo because cd succeeded. `;` runs echo no matter what."

@@ -202,8 +202,10 @@ cmd_start() {
             echo "#"
             echo "# Write each answer on the empty line under its ### header (one line per answer)."
             echo "# Lines starting with # are ignored. Check your work with:  ./drill.sh check $DAY"
-            echo "# Absolute paths: in these drills the sandbox folder stands in for /. If an answer"
-            echo "# needs an absolute path, start it with \$SB instead of /, e.g. \$SB/home/user1 for /home/user1."
+            if [[ ${T_PROMPT[*]} == *'$SB'* ]]; then
+                echo "# Absolute paths: in these drills the sandbox folder stands in for /. If an answer"
+                echo "# needs an absolute path, start it with \$SB instead of /, e.g. \$SB/home/user1 for /home/user1."
+            fi
             for id in "${T_IDS[@]}"; do
                 [[ ${T_KIND[$id]} == script ]] && continue
                 echo

@@ -50,72 +50,72 @@ setup_sandbox() {
     touch junk/a junk/sub/b tmp.sh
 }
 
-task 1 cmd home/user1/pics "Using ls, list every file in pics whose name ends in .jpg (lowercase extension only). Remember one of them has a space in its name."
+task 1 cmd home/user1/pics "The current directory is pics. Using ls and a wildcard pattern, list every file whose name ends in .jpg (lowercase .jpg only). One of the names contains a space; a pattern handles that without any quoting."
 ref 'ls *.jpg'
 compare out
 
-task 2 cmd home/user1/pics "Using ls, list every file in pics whose name ends in .jpg in ANY mix of upper and lower case (.jpg, .JPG, .Jpg, ...). Use a single pattern."
+task 2 cmd home/user1/pics "The current directory is pics. Using ls and ONE wildcard pattern, list every file whose name ends in .jpg in any mix of upper and lower case (.jpg, .JPG, .Jpg, and so on)."
 ref 'ls *.[jJ][pP][gG]'
 compare out
 
-task 3 cmd home/user1/pics "Using echo and a glob, print the names of the hidden entries in pics on one line. Do NOT print . or .. (hint: a hidden name starts with a dot followed by a character that is not a dot)."
+task 3 cmd home/user1/pics "The current directory is pics. Using echo and a wildcard pattern, print the names of the hidden entries (names starting with a dot) on one line. Do NOT print . or .. (hint: write a dot, then one character that is not a dot, then anything)."
 ref 'echo .[!.]*'
 compare out
 
-task 4 cmd "home/user1/pics" "Rename the file named my photo.jpg to my_photo.jpg."
+task 4 cmd home/user1/pics "The current directory is pics. Rename the file whose name is my photo.jpg (with a space between my and photo) to my_photo.jpg."
 ref 'mv "my photo.jpg" my_photo.jpg'
 
-task 5 cmd home/user1/marking/A1 "From marking/A1, list all files named A1answers.txt found directly inside the student directories (not inside subdirectories of the student directories) using a single ls command."
+task 5 cmd home/user1/marking/A1 "The current directory is marking/A1, which holds one directory per student. Using a single ls command, list every file named A1answers.txt that is directly inside a student directory (not deeper, so not the one inside __MACOSX)."
 ref 'ls */A1answers.txt'
 compare out
 
-task 6 cmd home/user1/marking/A1 "From marking/A1, list all files, INCLUDING hidden files, in every subdirectory of A1 (one ls command, like Quiz 1 Q1F)."
+task 6 cmd home/user1/marking/A1 "The current directory is marking/A1. With one ls command, list all the files, INCLUDING hidden files, in every subdirectory of A1 (like Quiz 1 Q1F)."
 ref 'ls -a */'
 compare out
 
-task 7 cmd home/user1/marking/A1 "Late submissions are marked by hidden files: .late (1 day), .late+ (2 days), .late++ and .late+x (3 or more days). From marking/A1, use ls -1 to list the late-marker files of the students who were late by 2 days or more (that is .late+, .late++ and .late+x but NOT .late)."
+task 7 cmd home/user1/marking/A1 "The current directory is marking/A1. Late submissions are marked by hidden files inside the student directories: .late (1 day), .late+ (2 days), .late++ and .late+x (3 or more days). Use ls -1 and one wildcard pattern to list, one per line, the files .late+, .late++ and .late+x of every student, but NOT .late."
 ref 'ls -1 */.late+*'
 compare out
 
-task 8 cmd home/user1/marking/A1 "From marking/A1, list (one per line, with ls -1d) every file or directory inside the student directories whose name starts with a or A followed by 1. Use -d so that directories are not opened."
+task 8 cmd home/user1/marking/A1 "The current directory is marking/A1. Using ls -1d and a wildcard pattern, list (one per line) everything inside the student directories whose name starts with a or A followed by 1. The -d option makes ls print a matching directory's name instead of its contents."
 ref 'ls -1d */[aA]1*'
 compare out
 
-task 9 cmd home/user1/docs "Print the contents of the file named meeting notes.txt."
+task 9 cmd home/user1/docs "The current directory is docs. Print the contents of the file whose name is meeting notes.txt (with a space)."
 ref 'cat "meeting notes.txt"'
 compare out
 
-task 10 cmd home/user1/docs "Using ls, list only the draft files whose number is a single digit (draft1.txt and draft2.txt but not draft10.txt)."
+task 10 cmd home/user1/docs "The current directory is docs. Using ls and a wildcard pattern, list only the draft files whose number has one digit (draft1.txt and draft2.txt, but not draft10.txt)."
 ref 'ls draft?.txt'
 compare out
 
-task 11 cmd home/user1/docs "The PDF files have permissions r-------- (400). With ONE chmod command, change every file ending in .pdf or .PDF to rw-r--r-- using SYMBOLIC permissions (like Assignment 1 Q15)."
+task 11 cmd home/user1/docs "The current directory is docs. The PDF files have permissions r-------- (octal 400). With ONE chmod command using a SYMBOLIC mode (letters such as u+w, not digits), change every file ending in .pdf or .PDF to rw-r--r-- (like Assignment 1 Q15)."
 ref 'chmod u+w,go+r *.pdf *.PDF'
 
-task 12 cmd home/user1/docs "In ONE line, create a directory named pdfs and move every file ending in .pdf or .PDF into it (you may join two commands with && or ;)."
+task 12 cmd home/user1/docs "The current directory is docs. On ONE line, create a directory named pdfs and then move every file ending in .pdf or .PDF into it (join the two commands with && or ;)."
 ref 'mkdir pdfs && mv *.pdf *.PDF pdfs'
 
-task 13 cmd home/user1 "From home/user1, copy the directory lectures and everything in it to a new directory named lectures_copy."
+task 13 cmd home/user1 "The current directory is home/user1. Copy the directory lectures and everything in it to a new directory named lectures_copy."
 ref 'cp -r lectures lectures_copy'
 
-task 14 cmd home/user1 "From home/user1, create the directory projects/2026/fall/cisc220 (none of these directories exist yet) with a single command."
+task 14 cmd home/user1 "The current directory is home/user1. With a single command, create the directory projects/2026/fall/cisc220 (none of projects, 2026, fall or cisc220 exist yet)."
 ref 'mkdir -p projects/2026/fall/cisc220'
 
-task 15 cmd home/user1 "From home/user1, in ONE line: remove the empty directory old, the file tmp.sh, and the directory junk together with everything inside it."
+task 15 cmd home/user1 "The current directory is home/user1. On ONE line (join commands with && or ;), remove the empty directory old, the file tmp.sh, and the directory junk together with everything inside it."
 ref 'rmdir old && rm tmp.sh && rm -r junk'
 
-task 16 cmd home/user1/scripts "Using an OCTAL mode, set the permissions of hello.sh to rwxr-x--- ."
+task 16 cmd home/user1/scripts "The current directory is scripts. Using an OCTAL mode (digits), set the permissions of hello.sh to rwxr-x--- ."
 ref 'chmod 750 hello.sh'
 
-task 17 cmd home/user1/scripts "With ONE chmod command using SYMBOLIC permissions, give the owner execute permission on every .sh file and remove write permission for group and other (leave every other permission as it is)."
+task 17 cmd home/user1/scripts "The current directory is scripts. With ONE chmod command using a SYMBOLIC mode, give the owner execute permission on every file ending in .sh, and remove write permission for group and other. Every other permission must stay as it is."
 ref 'chmod u+x,go-w *.sh'
 
-task 18 cmd home/user1/scripts "Print the three-digit octal permissions of run.sh (the command used in Assignment 2 and Quiz 1 Q4)."
+task 18 cmd home/user1/scripts "The current directory is scripts. Print the permissions of run.sh as an octal number (the stat command used in Assignment 2 and Quiz 1 Q4)."
 ref 'stat -c %a run.sh'
 compare out
 
-task 19 text . "Write the octal mode for the permissions rwxr-x--x ."
+task 19 text . "Short answer (no command): write the octal mode for the permissions rwxr-x--x ."
 accept '751'
 
-task 20 text . "Write the 9-character permission string (like rwxr-xr-x) for octal mode 640."
+task 20 text . "Short answer (no command): write the 9-character permission string (like rwxr-xr-x) for octal mode 640."
 accept 'rw-r-----'

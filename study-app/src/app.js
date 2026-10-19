@@ -699,11 +699,11 @@
           p("<p><code>cd</code> moves you into the folder; the path starts at <code>~</code>, your home folder, exactly like in today's filesystem lesson. Your <code>pwd</code> shows your own user name instead of <code>student</code>.</p>" +
             "<p><b>Don't open</b> <code>days</code> or <code>solutions</code>: they contain the answers. Use <kbd>Tab</kbd> to save typing: type <code>cd ~/CIS</code> and press Tab.</p>")) +
         step(3, "Start Day 1's drills", codeBlock("$ ./drill.sh start 1") +
-          p("<p><code>./drill.sh</code> means <em>the program called drill.sh in this folder</em>: <code>.</code> is the current directory, as you learned today. You'll learn how to write programs like this from Day 4.</p>" +
+          p("<p><code>./drill.sh</code> means <em>the program called drill.sh in this folder</em>: <code>.</code> is the current directory, as you learned today. You'll learn how to write programs like this on Day 3.</p>" +
             "<p><b>You should see:</b> a numbered list of tasks, like <code>[1] (command; run from: sandbox/home/user1)</code> followed by the question, and at the end a <i>Your files</i> section. It has created three things for you:</p>" +
             "<ul><li><b>an answers file</b>, <code>~/cisc220_drills/answers/day1.txt</code>, where you write your answers</li>" +
             "<li><b>a sandbox</b>, <code>~/cisc220_drills/play/day1</code>: a practice folder full of the files and folders the tasks talk about. Try commands there; it's a throwaway copy, so nothing you do in it matters.</li>" +
-            "<li>a scripts folder (not needed until Day 4)</li></ul>" +
+            "<li>a scripts folder (not needed until Day 3)</li></ul>" +
             "<p><b>If it says</b> <code>Permission denied</code>: run <code>chmod +x drill.sh</code> once, then try again. You'll learn what that does on Day 2.</p>")) +
         step(4, "Open a second terminal tab for the sandbox", p("<p>Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd> in the terminal to open a new tab. Keep the first tab for running <code>drill.sh</code>, and use this one to explore:</p>") +
           codeBlock("$ cd ~/cisc220_drills/play/day1\n$ ls\nhome") +
@@ -729,7 +729,7 @@
         codeBlock("$ cd ~/cisc220_drills/play/day" + n) +
         p("<p>Write one-line answers in the answers file (one per task, under its <code>###</code> header):</p>") +
         codeBlock("$ gnome-text-editor ~/cisc220_drills/answers/day" + n + ".txt") +
-        (n >= 4 ? p("<p>Script tasks say <i>script: write …/scripts/day" + n + "/NAME.sh</i>. Create that file with the editor, for example <code>gnome-text-editor ~/cisc220_drills/scripts/day" + n + "/NAME.sh</code>. The checker copies it into the sandbox and makes it executable for you.</p>") : "") +
+        (n >= 3 ? p("<p>Script tasks say <i>script: write …/scripts/day" + n + "/NAME.sh</i>. Create that file with the editor, for example <code>gnome-text-editor ~/cisc220_drills/scripts/day" + n + "/NAME.sh</code>. The checker copies it into the sandbox and makes it executable for you.</p>") : "") +
         p("<p>Then grade everything, as often as you like:</p>") + codeBlock("$ ./drill.sh check " + n) +
         p("<ul><li>When a task fails, compare the expected lines (<code>-</code>) with yours (<code>+</code>) and work out <em>why</em> they differ before you change anything.</li>" +
           "<li>Stuck for more than 5 minutes on one task? Re-read the lesson, then move on and come back to it.</li></ul>") + "</div>";

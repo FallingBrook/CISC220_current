@@ -25,6 +25,10 @@
           "a": "The **shell** (Bash). It expands `*.txt` into the list of matching names before `ls` starts, so `ls` only receives the list."
         },
         {
+          "type": "try",
+          "text": "The course folder you downloaded for the Day 1 drills contains the notebook's practice files. Go there and look:\n\n```bash\ncd ~/CISC220_current/bash/scripts/filename_expansion\nls -A\n```\n\nThen try `echo *`, `echo *.txt` and `echo a*`. Before each Enter, say out loud which names you expect. Keep this tab open: the next examples work in this folder too."
+        },
+        {
           "type": "md",
           "text": "### The three wildcards\n\n| Wildcard | Matches |\n|---|---|\n| `*` | any string of characters, **including the empty string** |\n| `?` | exactly **one** character (any character) |\n| `[`*characters*`]` | exactly one character that is **in** the set |\n| `[!`*characters*`]` | exactly one character that is **not in** the set |\n| `[[:`*class*`:]]` | exactly one character in a POSIX class such as `[:digit:]` |\n\nExamples from the notebook:\n\n| Pattern | Matches |\n|---|---|\n| `a*` | names starting with `a` (including the name `a` itself) |\n| `*.txt` | names ending with `.txt` |\n| `a*.txt` | names starting with `a` and ending with `.txt` |\n| `???` | any name exactly three characters long |\n| `x?z` | three characters: `x`, any one character, `z` |\n| `x[yY12]z` | exactly `xyz`, `xYz`, `x1z` or `x2z` |\n| `x[0-9]z` | `x`, one digit, `z` |\n| `[0-9][0-9].pdf` | two digits followed by `.pdf` (so `10.pdf` but **not** `100.pdf`) |\n\nRemember that a pattern must match the **whole** name. `x?z` does not match `xyz9`, because nothing in the pattern matches the final `9`."
         },
@@ -101,7 +105,7 @@
         },
         {
           "type": "md",
-          "text": "This matters later when you loop over `*.txt` in a script (Assignment 3, `chext.sh`): if there are no `.txt` files, the loop runs once with the literal string `*.txt`. The fixes are to check that the file exists (`[[ -e $f ]] || continue`) or to run `shopt -s nullglob`, which makes a pattern with no matches expand to nothing.\n\n### Sorting\n\nThe list a pattern expands to is sorted **alphabetically according to your locale**. With an English locale (`en_US.UTF-8`, `en_CA.UTF-8`) upper and lowercase names are mixed together (`a A ab AB`); with `C.UTF-8` all uppercase names come first (`A AB a ab`). On a test, questions are about *which* files match, not their order."
+          "text": "Remember this rule: it matters again on Day 6, when your scripts repeat a command for every `*.txt` file (Assignment 3, `chext.sh`). If there are no `.txt` files, the command gets the literal text `*.txt`, and Day 6 shows how to guard against that.\n\n### Sorting\n\nThe list a pattern expands to is sorted **alphabetically according to your locale**. With an English locale (`en_US.UTF-8`, `en_CA.UTF-8`) upper and lowercase names are mixed together (`a A ab AB`); with `C.UTF-8` all uppercase names come first (`A AB a ab`). On a test, questions are about *which* files match, not their order."
         },
         {
           "type": "pitfall",
@@ -122,11 +126,11 @@
       "title": "Quoting",
       "notebook": "bash/quoting.ipynb",
       "priority": "high",
-      "examNote": "Quoting is marked in every script question: the Quiz 1 solutions write `stat -c %a \"$src\"` and `chmod $perm \"$dest\"` with the note *quotes required*, and the trash script needs `mv \"$pathname\" \"$trashdir\"`. Assignment 1 had student directories with spaces (`Justin Case`, `Molly Spancer-Downe`) and Assignment 3 tests scripts on a directory named `stu 3`.",
+      "examNote": "Quoting is marked in every script question: the Quiz 1 solutions put double quotes around every filename that comes from a variable, with the note *quotes required* (you'll see why in this topic). Assignment 1 had student directories with spaces (`Justin Case`, `Molly Spancer-Downe`) and Assignment 3 tests scripts on a directory named `stu 3`.",
       "blocks": [
         {
           "type": "md",
-          "text": "### Why quoting exists\n\nSome characters have a special meaning to the shell:\n\n- **space** (and tab) separates words: `cat my file` means two arguments, `my` and `file`.\n- `*`, `?`, `[` are wildcards (previous topic).\n- `$` starts an expansion (`$HOME`, `$1`, `$(command)`).\n- `~` means your home directory, `>` redirects output, `;` separates commands, and so on.\n\n**Quoting** removes the special meaning so that the character is treated as plain text. There are three tools: the **backslash** `\\`, **single quotes** `'...'` and **double quotes** `\"...\"`.\n\nThe notebook's directory `bash/scripts/quoting` contains three awkwardly named files: `file with spaces in name`, `file_with_*_in_name` and `file_with_?_in_name`. Watch what happens without quoting:"
+          "text": "### Why quoting exists\n\nSome characters have a special meaning to the shell:\n\n- **space** (and tab) separates words: `cat my file` means two arguments, `my` and `file`.\n- `*`, `?`, `[` are wildcards (previous topic).\n- `$` asks the shell to fill in a value: you already know `$?` from Day 1, and you'll meet more `$` forms in a moment.\n- `~` means your home directory, `;` separates commands, `|` is a pipe, and so on.\n\n**Quoting** removes the special meaning so that the character is treated as plain text. There are three tools: the **backslash** `\\`, **single quotes** `'...'` and **double quotes** `\"...\"`.\n\nThe notebook's directory `bash/scripts/quoting` (in `~/CISC220_current`) contains three awkwardly named files: `file with spaces in name`, `file_with_*_in_name` and `file_with_?_in_name`. Watch what happens without quoting:"
         },
         {
           "type": "code",
@@ -140,11 +144,33 @@
         },
         {
           "type": "md",
+          "text": "### A first look at `$`\n\nQuoting is mostly about the `$` sign, so here is what `$` does. Whenever Bash sees `$` followed by a name or by brackets, it **replaces** that text with a value before the command runs (just as it replaces a glob with filenames). This replacing is called an **expansion**. Three forms appear in this topic:\n\n- `$name` is replaced by the value of a **variable**. A variable is a name that stores some text. Bash creates some for you: `HOME` holds the path of your home directory. You create your own by typing `name=value`, with **no spaces** around the `=`. (`$?` from Day 1 works the same way: `?` is a variable Bash fills in after every command.)\n- `$((...))` does arithmetic: `$((2+3))` is replaced by `5`.\n- `$(command)` runs the command and is replaced by what it prints: `$(pwd)` becomes the path of the current directory.\n\nYou'll study variables properly on Day 4 and the other expansions on Day 3. For this topic you only need to recognise these three forms."
+        },
+        {
+          "type": "code",
+          "code": "$ echo $HOME\n/home/student\n$ name=World\n$ echo Hello $name\nHello World\n$ echo $((2+3))\n5\n$ cd ~\n$ echo Now in $(pwd)\nNow in /home/student",
+          "caption": "Your home directory's path will show your own user name."
+        },
+        {
+          "type": "try",
+          "text": "Type `echo $HOME`, then `course=CISC220` and `echo I am taking $course`. Then try `echo $((7*6))` and `echo $(pwd)`. Finally try `course = CISC220` (with spaces) and read the error: Bash thinks `course` is a command."
+        },
+        {
+          "type": "check",
+          "q": "After `n=4`, what do `echo $n` and `echo $((10-4))` print?",
+          "a": "`4` and `6`. `$n` is replaced by the value stored in `n`; `$((10-4))` is replaced by the result of the arithmetic."
+        },
+        {
+          "type": "md",
           "text": "### The backslash (escape character)\n\nAn unquoted backslash `\\` makes the **next single character** literal. (A backslash followed by a newline is the exception: it just continues the command on the next line.)"
         },
         {
           "type": "code",
           "code": "$ cat file\\ with\\ spaces\\ in\\ name\nAvoid using spaces in filenames\n$ cat file_with_\\*_in_name\nAvoid using * in filenames\n$ echo \\$HOME costs \\$5\n$HOME costs $5"
+        },
+        {
+          "type": "try",
+          "text": "Go to the notebook's folder with `cd ~/CISC220_current/bash/scripts/quoting` and run `ls`. Then print each of the three files with `cat`, first using backslashes, and (after the next section) using single quotes. Use Tab completion too: type `cat file\\ w` and press Tab to see how Bash escapes the spaces for you."
         },
         {
           "type": "md",
@@ -162,7 +188,7 @@
         },
         {
           "type": "md",
-          "text": "### Double quotes: literal, except for `$`, `` ` `` and `\\`\n\nDouble quotes preserve the literal value of all characters **except** `$`, `` ` `` (backquote) and `\\` (and `!` when typing interactively). So inside double quotes:\n\n- **Still happens:** parameter/variable expansion (`$name`, `$1`), command substitution (`$(cmd)`) and arithmetic expansion (`$((2+3))`).\n- **Does not happen:** word splitting (spaces stay inside one word), filename expansion (globs), tilde expansion (`~`) and brace expansion (`{a,b}`).\n- A backslash only escapes `$`, `` ` ``, `\"`, `\\` and newline. Before any other character it stays a plain backslash: `\"a\\b\"` is the three characters `a\\b`.\n\n| | unquoted | `\"double\"` | `'single'` |\n|---|---|---|---|\n| `$var`, `$(cmd)`, `$((1+2))` | expanded | **expanded** | literal |\n| word splitting on spaces | yes | no | no |\n| globs `* ? [` | expanded | no | no |\n| `~` and `{a,b}` | expanded | no | no |\n\nThe example below uses a **variable**: `name=World` stores the text `World` under the name `name` (no spaces around `=`), and `$name` later expands to that text. Variables are covered properly on a later day."
+          "text": "### Double quotes: literal, except for `$`, `` ` `` and `\\`\n\nDouble quotes preserve the literal value of all characters **except** `$`, `` ` `` (backquote, an old way of writing `$(command)`) and `\\`. (Also `!` when you type at the prompt, because `!` recalls earlier commands; just avoid `!` inside double quotes.) So inside double quotes:\n\n- **Still happens:** all the `$` forms: variable expansion (`$name`, also called parameter expansion), command substitution (`$(cmd)`) and arithmetic expansion (`$((2+3))`).\n- **Does not happen:** word splitting (cutting an unquoted value into separate words at its spaces, so spaces stay inside one word), filename expansion (globs), tilde expansion (`~`) and brace expansion (`{a,b}`).\n- A backslash only escapes `$`, `` ` ``, `\"`, `\\` and newline. Before any other character it stays a plain backslash: `\"a\\b\"` is the three characters `a\\b`.\n\n| | unquoted | `\"double\"` | `'single'` |\n|---|---|---|---|\n| `$var`, `$(cmd)`, `$((1+2))` | expanded | **expanded** | literal |\n| word splitting on spaces | yes | no | no |\n| globs `* ? [` | expanded | no | no |\n| `~` and `{a,b}` | expanded | no | no |\n\n**Brace expansion** is the one new idea in that list: `file{1,2}` makes two words, `file1 file2`, from one. You'll learn it on Day 3; for now just remember that double quotes switch it off. The examples below use the variable `name` from the previous section."
         },
         {
           "type": "code",
@@ -175,11 +201,11 @@
         },
         {
           "type": "md",
-          "text": "### Why scripts must double-quote variables\n\nWhen a variable is used **unquoted**, its value is split into words at spaces and any wildcards in it are expanded. A filename like `meeting notes.txt` then turns into two arguments. Putting the variable in double quotes (`\"$f\"`) keeps the value as exactly one argument while still expanding it. This is why the course requires `\"$var\"` everywhere and why the Quiz 1 answer marks the quotes as required."
+          "text": "### Why scripts must double-quote variables\n\nA **script** is a file of commands that Bash runs (you'll write your first on Day 3). Scripts keep filenames in variables, and when a variable is used **unquoted**, its value is split into words at spaces and any wildcards in it are expanded. A filename like `meeting notes.txt` then turns into two arguments. Putting the variable in double quotes (`\"$f\"`) keeps the value as exactly one argument while still expanding it.\n\nIn the example, the current directory contains a file named `meeting notes.txt` holding the word `agenda`. `f='meeting notes.txt'` stores that name in `f`; the value needs quotes because it contains a space. This is why the course requires `\"$var\"` everywhere and why the Quiz 1 answer marks the quotes as required."
         },
         {
           "type": "code",
-          "code": "$ echo agenda > 'meeting notes.txt'\n$ f='meeting notes.txt'\n$ cat $f\ncat: meeting: No such file or directory\ncat: notes.txt: No such file or directory\n$ cat \"$f\"\nagenda\n$ v=\"a    b\"\n$ echo $v\na b\n$ echo \"$v\"\na    b"
+          "code": "$ f='meeting notes.txt'\n$ cat $f\ncat: meeting: No such file or directory\ncat: notes.txt: No such file or directory\n$ cat \"$f\"\nagenda\n$ v=\"a    b\"\n$ echo $v\na b\n$ echo \"$v\"\na    b"
         },
         {
           "type": "why",
@@ -188,7 +214,7 @@
         },
         {
           "type": "md",
-          "text": "### Combining quotes\n\nQuoted and unquoted pieces that touch (no space between them) form **one word**. This lets you quote only the part that needs it: `\"$dir\"/*.txt` keeps a directory name with spaces together while still letting `*.txt` expand, and `'It'\\''s'` builds a single quote inside single-quoted text."
+          "text": "### Combining quotes\n\nQuoted and unquoted pieces that touch (no space between them) form **one word**. This lets you quote only the part that needs it: `\"My Docs\"/*.txt` keeps a directory name with a space together while still letting `*.txt` expand (`\"$dir\"/*.txt` does the same when the name is stored in a variable `dir`), and `'It'\\''s'` builds a single quote inside single-quoted text."
         },
         {
           "type": "pitfall",
@@ -213,7 +239,7 @@
       "blocks": [
         {
           "type": "md",
-          "text": "### Filenames\n\n- Any character may appear in a filename **except** `/` (the path separator) and the null character.\n- Filenames are **case-sensitive**: `abc` and `Abc` are different files.\n- A name that begins with `.` is a **hidden** file.\n- Avoid spaces and the characters `!\"#$&'()*;<=>?[\\]^`{|}~` in names; they need quoting every time you use them. Use `_` instead of a space.\n- Never start a name with `-`: commands would read it as an option (`touch -n` is an error, not a file called `-n`)."
+          "text": "### Filenames\n\n- Any character may appear in a filename **except** `/` (the path separator) and the null character.\n- Filenames are **case-sensitive**: `abc` and `Abc` are different files.\n- A name that begins with `.` is a **hidden** file.\n- Avoid spaces and the characters `!\"#$&'()*;<=>?[\\]^`{|}~` in names; they need quoting every time you use them. Use `_` instead of a space.\n- Never start a name with `-`: commands would read it as an option, not as a filename."
         },
         {
           "type": "check",
@@ -222,11 +248,15 @@
         },
         {
           "type": "md",
-          "text": "### Creating files and directories\n\n- `touch f1 f2` creates empty files `f1` and `f2` if they do not exist. If a file already exists, `touch` only updates its modification time (the contents are unchanged).\n- `mkdir d1 d2` creates one or more directories. It fails if a parent directory is missing, or if the directory already exists.\n- `mkdir -p a/b/c` creates the whole path, making any missing **p**arent directories, and does not complain if they already exist.\n- `command > file` redirects a command's output into `file`, **overwriting** it; `command >> file` **appends** to the end (creating the file if needed). Redirection is covered in depth on a later day."
+          "text": "### Creating files and directories\n\n- `touch f1 f2` creates empty files `f1` and `f2` if they do not exist. If a file already exists, `touch` only updates its modification time (the contents are unchanged).\n- `mkdir d1 d2` creates one or more directories. It fails if a parent directory is missing, or if the directory already exists.\n- `mkdir -p a/b/c` creates the whole path, making any missing **p**arent directories, and does not complain if they already exist.\n- **Redirection.** Normally a command prints its output in the terminal. Adding `> file` after the command sends that output into `file` instead: `echo first > moo.txt` creates `moo.txt` containing `first`, and prints nothing on the screen. `>` **overwrites** the file if it already exists; `>>` **appends** to the end of it (creating it if needed). Redirection is covered in depth on Day 3."
         },
         {
           "type": "code",
           "code": "$ touch file2 file3\n$ mkdir notes images scripts\n$ mkdir xxx/yyy/zzz\nmkdir: cannot create directory ‘xxx/yyy/zzz’: No such file or directory\n$ mkdir -p xxx/yyy/zzz\n$ echo first > moo.txt\n$ echo second >> moo.txt\n$ cat moo.txt\nfirst\nsecond\n$ ls\nfile2  file3  images  moo.txt  notes  scripts  xxx"
+        },
+        {
+          "type": "try",
+          "text": "Go to the practice folder you made on Day 1 (`cd ~/practice`; if it is missing, run `mkdir ~/practice` first). Run the commands above yourself, then `ls` and `cat moo.txt`. Run `echo third > moo.txt` and `cat moo.txt` again: the first two lines are gone, because `>` overwrites."
         },
         {
           "type": "check",
@@ -268,13 +298,17 @@
           "code": "$ cp A.txt A_words.txt\n$ cp A*txt dir1\n$ ls dir1\nA.txt  A_words.txt\n$ cp dir1 words\ncp: -r not specified; omitting directory 'dir1'\n$ cp -r dir1 words\n$ ls words\nA.txt  A_words.txt\n$ cp -r dir1 words\n$ ls words\nA.txt  A_words.txt  dir1"
         },
         {
+          "type": "try",
+          "text": "Still in `~/practice`: rename `moo.txt` to `cow.txt` with `mv`, copy it into `notes` with `cp`, check with `ls notes`, then remove the directory `xxx` and everything in it with `rm -r xxx`. Run `ls` after each step."
+        },
+        {
           "type": "check",
           "q": "What does `cp -r dir1 words` do the **second** time you run it (when `words` already exists)?",
           "a": "It copies `dir1` **into** `words`, creating `words/dir1`, instead of making `words` a copy of `dir1`."
         },
         {
           "type": "md",
-          "text": "### Inodes and hard links\n\nA file's data and its information (size, owner, permissions, timestamps) are stored in a structure called an **inode**, identified by an **inode number**. The inode does **not** store the file's name.\n\nNames live in **directories**. A directory is itself a file that contains a list of entries, each **mapping a filename to an inode** (Quiz 1 Q2A). Each such entry is called a **hard link**. `ls -i` shows inode numbers.\n\n`ln target link_name` creates a new hard link: a second name for the **same** inode. Both names share the same data, so a change made through one name is visible through the other. The second column of `ls -l` is the **number of hard links** to the inode.\n\n`rm name` removes a *name* (a directory entry) and lowers the link count by one. The inode and its data are only deleted when the count reaches 0. (This is also why deleting a file needs write permission on the **directory**, not on the file.)"
+          "text": "### Inodes and hard links\n\nA file's data and its information (size, owner, permissions, timestamps) are stored in a structure called an **inode**, identified by an **inode number**. The inode does **not** store the file's name.\n\nNames live in **directories**. A directory is itself a file that contains a list of entries, each **mapping a filename to an inode** (Quiz 1 Q2A). Each such entry is called a **hard link**. The `-i` option of `ls` shows each name's inode number (`ls -i1` one per line, `ls -il` with a long listing).\n\n`ln target link_name` creates a new hard link: a second name for the **same** inode. Both names share the same data, so a change made through one name is visible through the other. The second column of `ls -l` is the **number of hard links** to the inode.\n\n`rm name` removes a *name* (a directory entry) and lowers the link count by one. The inode and its data are only deleted when the count reaches 0. (This is also why deleting a file needs write permission on the **directory**, not on the file.)"
         },
         {
           "type": "code",
@@ -360,6 +394,10 @@
           "code": "$ chmod 400 file1; ls -l file1\n-r-------- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod 444 file1; ls -l file1\n-r--r--r-- 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod 755 file1; ls -l file1\n-rwxr-xr-x 1 user1 user1 8 Sep 15 10:00 file1\n$ chmod 750 file1; ls -l file1\n-rwxr-x--- 1 user1 user1 8 Sep 15 10:00 file1"
         },
         {
+          "type": "try",
+          "text": "In `~/practice`, run `ls -l` and read the permissions of `file2` and of the directory `notes`. Then run `chmod 600 file2`, `ls -l file2`, and `chmod 644 file2`, `ls -l file2`, and check that each result matches what the octal digits say."
+        },
+        {
           "type": "md",
           "text": "### `chmod` with symbolic modes\n\nA symbolic mode is **who**, then an **operator**, then **which permissions**:\n\n| Who | | Operator | | Permissions |\n|---|---|---|---|---|\n| `u` user | | `+` add | | `r` |\n| `g` group | | `-` remove | | `w` |\n| `o` other | | `=` set exactly | | `x` |\n| `a` all three | | | | |\n\n- `+` and `-` change **only** the permissions you mention; everything else stays as it was.\n- `=` sets the class to **exactly** what you list; `go=` (nothing after `=`) removes all permissions from group and other.\n- Several changes are separated by **commas with no spaces**: `chmod u=rwx,go= dir`, `chmod g=rx,o-rwx file1`.\n- You may combine classes: `go-w`, `ug+x`."
         },
@@ -380,7 +418,7 @@
         },
         {
           "type": "md",
-          "text": "### Printing permissions in octal: `stat -c %a`\n\nThe notebooks do not show it, but Assignment 2 and Quiz 1 Q4 use `stat -c %a filename`, which prints the permissions as an octal number. Leading zeros are dropped (mode `044` prints as `44`), and `chmod` accepts that form back. `stat -c %A` prints the symbolic form."
+          "text": "### Printing permissions in octal: `stat -c %a`\n\nThe notebooks do not show it, but Assignment 2 and Quiz 1 Q4 use `stat -c %a filename`, which prints the permissions as an octal number. `stat` prints information about a file (from its inode); `-c` means *print only what this format asks for*, and the format `%a` asks for the **a**ccess rights in octal. Learn it as one unit: `stat -c %a filename`. Leading zeros are dropped (mode `044` prints as `44`), and `chmod` accepts that form back. `stat -c %A` prints the symbolic form."
         },
         {
           "type": "code",
@@ -388,7 +426,12 @@
         },
         {
           "type": "md",
-          "text": "Quiz 1 Q4 asked for a script that copies the permissions of one file (`$1`) onto another (`$2`). `$(...)` (command substitution, covered later) captures the output of `stat` in a variable, and the quotes are required:\n\n```bash\n#!/bin/bash\nsrc=$1\ndest=$2\nperm=$(stat -c %a \"$src\")\nchmod \"$perm\" \"$dest\"\n```"
+          "text": "Quiz 1 Q4 asked for a script that copies the permissions of one file onto another. The script itself needs variables and `$( )`, so you'll write it on Day 4, but the idea uses only today's two commands: read the mode of the first file with `stat`, then give that number to `chmod` for the second file."
+        },
+        {
+          "type": "code",
+          "code": "$ stat -c %a src.txt\n640\n$ chmod 640 dest.txt\n$ stat -c %a dest.txt\n640",
+          "caption": "Copying permissions by hand: read the octal mode of src.txt, then set the same mode on dest.txt."
         },
         {
           "type": "pitfall",
@@ -930,7 +973,7 @@
       "q": "What does this print?",
       "code": "echo hi > a\nln -s a s\nmv a z\ncat s",
       "answer": "cat: s: No such file or directory",
-      "explain": "A symbolic link stores the target's name. After `a` is renamed, the link `s` points at a name that does not exist (a broken link), so `cat` fails. (This message goes to standard error.)"
+      "explain": "A symbolic link stores the target's name. After `a` is renamed, the link `s` points at a name that does not exist (a broken link), so `cat` fails. (The answer is `cat`'s error message: an error is still printed in the terminal.)"
     },
     {
       "id": "d2-q-21",
