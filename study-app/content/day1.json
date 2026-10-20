@@ -114,21 +114,16 @@
     },
     {
      "type": "md",
-     "text": "### Write a file with a text editor\n\nYou'll often need to write a file: an answers file for the drills, and later your own scripts. A **text editor** is like a very plain Word: it saves exactly the characters you type and nothing else. Ubuntu comes with one called **Text Editor**.\n\nYou can open it on a file straight from the terminal. Type the editor's name, a space, and the file name. If the file doesn't exist yet, the editor starts with an empty page, and the file is created in the folder you are in when you save."
+     "text": "### Write a file with nano\n\nYou'll often need to write a file: an answers file for the drills, and later your own scripts. You'll do it with **nano**, a simple **text editor** that runs inside the terminal. A text editor is like a very plain Word: it saves exactly the characters you type and nothing else.\n\nTo open a file, type `nano`, a space, and the file name. If the file doesn't exist yet, nano creates it in the folder you are in when you save."
     },
     {
      "type": "code",
-     "code": "$ gnome-text-editor notes.txt",
-     "caption": "Ubuntu 22.10 and later (including 24.04). If this prints \"command not found\", use the next one."
-    },
-    {
-     "type": "code",
-     "code": "$ gedit notes.txt",
-     "caption": "Ubuntu 22.04 and earlier."
+     "code": "$ nano notes.txt",
+     "caption": "The terminal window turns into the editor."
     },
     {
      "type": "md",
-     "text": "A window opens. Type a few lines, press **Ctrl + S** to save (if a *Save* dialog appears, check that the name is `notes.txt` and the folder is `practice`, then click *Save*), then close the window. While the editor is open, the terminal may show no new prompt, and it may print some warning messages: ignore them. When you close the editor, the prompt comes back.\n\nBack in the terminal, `cat` prints what's inside a file, so you can check what you saved:"
+     "text": "nano fills the terminal window. The file name is at the top, a blinking cursor shows where you'll type, and the bottom two lines list shortcuts. In that list, **`^` means the Ctrl key**, so `^X Exit` means *press Ctrl + X to exit*.\n\nThe mouse doesn't move the cursor in nano: use the **arrow keys**. The keys you need:\n\n| To | Press |\n|---|---|\n| type text | just type; Enter starts a new line |\n| **save** (*Write Out*) | **Ctrl + O**, then **Enter** to keep the file name shown |\n| **exit** | **Ctrl + X** |\n| exit with unsaved changes | Ctrl + X, then **Y** (yes, save), then **Enter** |\n| paste text you copied | **Ctrl + Shift + V**, same as in the terminal |\n| delete (cut) the whole current line | **Ctrl + K** |\n\nAfter you exit, you're back at your normal prompt in the same folder, and `cat` prints what you saved:"
     },
     {
      "type": "code",
@@ -136,11 +131,15 @@
     },
     {
      "type": "try",
-     "text": "In your practice folder, open `notes.txt` with `gnome-text-editor notes.txt` (or `gedit notes.txt`). Type two lines, save with Ctrl + S, close the editor, then run `cat notes.txt` and `ls`."
+     "text": "In your practice folder, run `nano notes.txt`. Type two lines, save with **Ctrl + O** then **Enter**, and exit with **Ctrl + X**. Then run `cat notes.txt` and `ls` to check that the file was saved."
+    },
+    {
+     "type": "pitfall",
+     "text": "If you press Ctrl + X with unsaved changes, nano asks *Save modified buffer?* at the bottom. Press **Y** then **Enter** to save. Press **N** only if you want to throw the changes away."
     },
     {
      "type": "md",
-     "text": "**No editor window?** You can also edit inside the terminal with `nano notes.txt`. Type your text, press **Ctrl + O** then Enter to save, and **Ctrl + X** to quit. The keys you need are listed at the bottom of nano's screen."
+     "text": "**Prefer a normal window?** Ubuntu also has a graphical editor, **Text Editor** (the command `gnome-text-editor notes.txt`, or `gedit notes.txt` on older Ubuntu). It saves the same plain text, so you can use it if you like. This app uses nano everywhere because it works the same in any terminal."
     },
     {
      "type": "check",
@@ -149,7 +148,7 @@
     },
     {
      "type": "md",
-     "text": "### Key points\n\n- **Ctrl + Alt + T** opens a terminal. The prompt `user@computer:~$` means the shell is ready, and `~` is your home folder.\n- Type a command and press **Enter**. In recordings, the `$ ` is the prompt: don't type it.\n- **Ctrl + C** stops a stuck command. Copy and paste in the terminal with **Ctrl + Shift + C / V**.\n- Use **Up arrow** to repeat a command and **Tab** to complete a name.\n- `gnome-text-editor FILE` or `gedit FILE` (or `nano FILE`) opens a file to edit; `cat FILE` prints it."
+     "text": "### Key points\n\n- **Ctrl + Alt + T** opens a terminal. The prompt `user@computer:~$` means the shell is ready, and `~` is your home folder.\n- Type a command and press **Enter**. In recordings, the `$ ` is the prompt: don't type it.\n- **Ctrl + C** stops a stuck command. Copy and paste in the terminal with **Ctrl + Shift + C / V**.\n- Use **Up arrow** to repeat a command and **Tab** to complete a name.\n- `nano FILE` opens a file to edit: **Ctrl + O**, Enter saves, **Ctrl + X** exits. `cat FILE` prints it."
     }
    ]
   },
@@ -216,7 +215,7 @@
     },
     {
      "type": "try",
-     "text": "Make the two files so you can run every example yourself. In the terminal, `cd practice` (the folder from the first lesson). Run `gnome-text-editor animals.txt` (or `gedit` or `nano`), type the four animals one per line, save and close. Do the same for `fruits.txt`. Then type each example below and compare what you get."
+     "text": "Make the two files so you can run every example yourself. In the terminal, `cd practice` (the folder from the first lesson). Run `nano animals.txt`, type the four animals one per line, save and close. Do the same for `fruits.txt`. Then type each example below and compare what you get."
     },
     {
      "type": "code",
@@ -551,7 +550,7 @@
    "id": "d1-fc-t7",
    "topic": "d1-terminal",
    "front": "How do you open the file `notes.txt` in a text editor from the terminal?",
-   "back": "`gnome-text-editor notes.txt` (newer Ubuntu) or `gedit notes.txt` (older), or `nano notes.txt` inside the terminal."
+   "back": "`nano notes.txt`. Save with **Ctrl + O** then Enter; exit with **Ctrl + X**."
   },
   {
    "id": "d1-fc-01",

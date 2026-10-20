@@ -688,7 +688,7 @@
     let guide;
     if (n === 1) {
       guide =
-        '<div class="callout exam"><div class="lab">First time: about 15 minutes</div>' + p("<p>This walkthrough sets up the drill tool on your Ubuntu laptop. It only uses things from today's lessons: opening a terminal, <code>cd</code>, <code>ls</code>, <code>pwd</code>, <code>~</code>, pasting with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>, and opening a file in Text Editor. Do the steps in order and check each one's <em>You should see</em> before moving on.</p>") + "</div>" +
+        '<div class="callout exam"><div class="lab">First time: about 15 minutes</div>' + p("<p>This walkthrough sets up the drill tool on your Ubuntu laptop. It only uses things from today's lessons: opening a terminal, <code>cd</code>, <code>ls</code>, <code>pwd</code>, <code>~</code>, pasting with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>, and editing a file with <code>nano</code>. Do the steps in order and check each one's <em>You should see</em> before moving on.</p>") + "</div>" +
         step(1, "Download the course and the drills", p("<p>Open a terminal (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd>). Copy this whole line from here and paste it into the terminal with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd>, then press Enter:</p>") +
           codeBlock("$ " + cloneCmd) +
           p("<p><b>What it does:</b> <code>git</code> is a program that downloads a copy of a project from GitHub. This line downloads the course repository, including the drill tool, into a new folder <code>CISC220_current</code> in your home folder (<code>~</code>). You don't need to learn git for this course; you only use this one line.</p>" +
@@ -710,17 +710,17 @@
           p("<p>Inside the sandbox there's a pretend <code>home</code> folder with <code>user1</code> and <code>user2</code> in it, like the directory trees in the lessons. Each task says where it runs from, for example <i>run from: sandbox/home/user1</i>. So before you try a task's command, go there first:</p>") +
           codeBlock("$ cd ~/cisc220_drills/play/day1/home/user1\n$ ls") +
           p("<p>Now try commands until one does what the task asks. If you mess up the sandbox, rebuild it from the first tab with <code>./drill.sh sandbox 1</code>.</p>")) +
-        step(5, "Write your answers in the answers file", codeBlock("$ gnome-text-editor ~/cisc220_drills/answers/day1.txt") +
-          p("<p>Use <code>gedit</code> instead if your Ubuntu doesn't have <code>gnome-text-editor</code>, or <code>nano</code> to edit inside the terminal. This is the same as in today's first lesson.</p>" +
+        step(5, "Write your answers in the answers file", codeBlock("$ nano ~/cisc220_drills/answers/day1.txt") +
+          p("<p>This opens the answers file in nano, the editor from today's first lesson. Move around with the arrow keys.</p>" +
             "<p>The file lists every task under a <code>###</code> header, with the question repeated on lines that start with <code>#</code>. Write your answer on its own line under the question. The checker ignores every line that starts with <code>#</code>, and reads the first line of each task that doesn't:</p>") +
           codeBlock("### 1\n# (the question for task 1)\npwd\n\n### 2\n# (the question for task 2)\nls -a courses") +
-          p("<p>Write one command per task, exactly as you would type it in the terminal, but without the <code>$</code>. Save with <kbd>Ctrl</kbd>+<kbd>S</kbd>. You can leave a task blank and come back to it later.</p>")) +
+          p("<p>Write one command per task, exactly as you would type it in the terminal, but without the <code>$</code>. Save with <kbd>Ctrl</kbd>+<kbd>O</kbd> then <kbd>Enter</kbd>, and exit with <kbd>Ctrl</kbd>+<kbd>X</kbd>. You can leave a task blank and come back to it later.</p>")) +
         step(6, "Check your answers", p("<p>Go back to the first tab (still in the drills folder) and run:</p>") +
           codeBlock("$ ./drill.sh check 1") +
           p("<p><b>You should see</b> one line per task: <code>✔</code> means correct, <code>✘</code> means not yet, and <code>?</code> means no answer yet. Under a <code>✘</code> the checker shows the lines it expected (marked <code>-</code>) next to the lines your command produced (marked <code>+</code>).</p>" +
             "<p>Your answer is run in a fresh copy of the sandbox and compared with a reference answer, so any correct command passes, not just one exact spelling. Fix answers in the editor, save, and run <code>check</code> again as often as you like. At the end it prints your score: type it in below.</p>")) +
         '<div class="card"><h3>Every day after today</h3>' + p("<p>It's the same routine with that day's number. Run <code>git pull</code> first: it downloads any updates to the drills.</p>") +
-        codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ git pull\n$ ./drill.sh start 2\n$ gnome-text-editor ~/cisc220_drills/answers/day2.txt\n$ ./drill.sh check 2") + "</div>";
+        codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ git pull\n$ ./drill.sh start 2\n$ nano ~/cisc220_drills/answers/day2.txt\n$ ./drill.sh check 2") + "</div>";
     } else {
       guide = '<div class="card"><h3>Run today\'s drills</h3>' +
         p("<p>Same routine as Day 1. In the first terminal tab:</p>") +
@@ -728,8 +728,8 @@
         p("<p>In a second tab (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>T</kbd>), explore the sandbox and try your commands:</p>") +
         codeBlock("$ cd ~/cisc220_drills/play/day" + n) +
         p("<p>Write one-line answers in the answers file (one per task, under its <code>###</code> header):</p>") +
-        codeBlock("$ gnome-text-editor ~/cisc220_drills/answers/day" + n + ".txt") +
-        (n >= 3 ? p("<p>Script tasks say <i>script: write …/scripts/day" + n + "/NAME.sh</i>. Create that file with the editor, for example <code>gnome-text-editor ~/cisc220_drills/scripts/day" + n + "/NAME.sh</code>. The checker copies it into the sandbox and makes it executable for you.</p>") : "") +
+        codeBlock("$ nano ~/cisc220_drills/answers/day" + n + ".txt") +
+        (n >= 3 ? p("<p>Script tasks say <i>script: write …/scripts/day" + n + "/NAME.sh</i>. Create that file with nano, for example <code>nano ~/cisc220_drills/scripts/day" + n + "/NAME.sh</code>. The checker copies it into the sandbox and makes it executable for you.</p>") : "") +
         p("<p>Then grade everything, as often as you like:</p>") + codeBlock("$ ./drill.sh check " + n) +
         p("<ul><li>When a task fails, compare the expected lines (<code>-</code>) with yours (<code>+</code>) and work out <em>why</em> they differ before you change anything.</li>" +
           "<li>Stuck for more than 5 minutes on one task? Re-read the lesson, then move on and come back to it.</li></ul>") + "</div>";

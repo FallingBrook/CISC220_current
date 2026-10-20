@@ -55,7 +55,7 @@
     },
     {
      "type": "try",
-     "text": "In `~/practice`, create `bad_backup.sh` and `backup.sh` with your editor (copy the two scripts above) and run `chmod u+x bad_backup.sh backup.sh`. Then run `touch \"my file\"`, `./bad_backup.sh \"my file\"`, `ls -A`, `./backup.sh \"my file\"`, `ls -A`. You should see `.bak` appear first, then `my file_.bak`."
+     "text": "In `~/practice`, create `bad_backup.sh` and `backup.sh` with nano (`nano bad_backup.sh`; copy the two scripts above) and run `chmod u+x bad_backup.sh backup.sh`. Then run `touch \"my file\"`, `./bad_backup.sh \"my file\"`, `ls -A`, `./backup.sh \"my file\"`, `ls -A`. You should see `.bak` appear first, then `my file_.bak`."
     },
     {
      "type": "why",
@@ -336,7 +336,7 @@
     },
     {
      "type": "try",
-     "text": "In `~/practice`, create `test_regex.sh` with your editor (copy the script above) and run `chmod u+x test_regex.sh`. Then run `./test_regex.sh hello a` and `./test_regex.sh walrus a`. Keep the script: use it to test every regex in the rest of this lesson. Put the regex in single quotes (`./test_regex.sh color '^colou?r$'`) so the shell passes it on unchanged."
+     "text": "In `~/practice`, create `test_regex.sh` with nano (`nano test_regex.sh`; copy the script above) and run `chmod u+x test_regex.sh`. Then run `./test_regex.sh hello a` and `./test_regex.sh walrus a`. Keep the script: use it to test every regex in the rest of this lesson. Put the regex in single quotes (`./test_regex.sh color '^colou?r$'`) so the shell passes it on unchanged."
     },
     {
      "type": "md",

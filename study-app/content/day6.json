@@ -334,7 +334,7 @@
     },
     {
      "type": "try",
-     "text": "In `~/practice/day6`, open `students.txt` in your text editor (Day 1: `gnome-text-editor students.txt`), type the four lines shown above, and save. Run both loops. Then delete the `if ... fi` lines from the first loop and run it again: the comment line now prints too."
+     "text": "In `~/practice/day6`, open `students.txt` with `nano students.txt`, type the four lines shown above, and save (Ctrl + O, Enter, Ctrl + X). Run both loops. Then delete the `if ... fi` lines from the first loop and run it again: the comment line now prints too."
     },
     {
      "type": "md",
@@ -598,7 +598,7 @@
     },
     {
      "type": "try",
-     "text": "In `~/practice/day6`, use your editor to save the `shout` function above (from the `# funcs.sh` comment to the `}`) as `funcs.sh`. Run `bash funcs.sh` and then `shout hi`: you get `command not found`. Now run `source ./funcs.sh` and `shout hi` again: it works."
+     "text": "In `~/practice/day6`, use nano to save the `shout` function above (from the `# funcs.sh` comment to the `}`) as `funcs.sh`. Run `bash funcs.sh` and then `shout hi`: you get `command not found`. Now run `source ./funcs.sh` and `shout hi` again: it works."
     },
     {
      "type": "md",

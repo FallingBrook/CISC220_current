@@ -308,12 +308,12 @@
     },
     {
      "type": "md",
-     "text": "### Your first script, step by step\n\n**Step 1: open a new file in a text editor.** Use the editor from Day 1. Make a folder for your scripts, go into it, and open a new file named `hello.sh`:"
+     "text": "### Your first script, step by step\n\n**Step 1: open a new file in nano.** nano is the editor from Day 1. Make a folder for your scripts, go into it, and open a new file named `hello.sh`:"
     },
     {
      "type": "code",
-     "code": "$ mkdir -p ~/scripts\n$ cd ~/scripts\n$ gnome-text-editor hello.sh",
-     "caption": "Use gedit hello.sh on older Ubuntu, or nano hello.sh inside the terminal."
+     "code": "$ mkdir -p ~/scripts\n$ cd ~/scripts\n$ nano hello.sh",
+     "caption": "nano opens inside the terminal, exactly as on Day 1."
     },
     {
      "type": "md",
@@ -326,7 +326,7 @@
     },
     {
      "type": "md",
-     "text": "The first line, `#!/bin/bash`, is called the **shebang** (or *hash-bang*, from the two characters `#` and `!`). It must be the **very first line**, with `#!` as the first two characters (no blank line or space before it). It tells the operating system which program should run the rest of the file: here `/bin/bash`, the Bash shell. On the exam, **start every script with `#!/bin/bash`**.\n\n**Step 3: save.** Press **Ctrl + S** and close the editor (in nano: Ctrl + O, Enter, Ctrl + X). Back in the terminal, check what you saved:"
+     "text": "The first line, `#!/bin/bash`, is called the **shebang** (or *hash-bang*, from the two characters `#` and `!`). It must be the **very first line**, with `#!` as the first two characters (no blank line or space before it). It tells the operating system which program should run the rest of the file: here `/bin/bash`, the Bash shell. On the exam, **start every script with `#!/bin/bash`**.\n\n**Step 3: save.** In nano press **Ctrl + O**, then **Enter**, then **Ctrl + X** to exit. Back in the terminal, check what you saved:"
     },
     {
      "type": "code",
@@ -462,7 +462,7 @@
     },
     {
      "type": "md",
-     "text": "### Script tasks in the drills\n\nFrom today the drills (`./drill.sh start 3`) include **script tasks**. Their header says where to save the file, for example `(script: write /home/you/cisc220_drills/scripts/day3/greet.sh)`: that is `~/cisc220_drills/scripts/day3/greet.sh`, in your home folder.\n\n1. Open that exact file in your editor: `gnome-text-editor ~/cisc220_drills/scripts/day3/greet.sh` (the folder was made by `./drill.sh start 3`).\n2. Write the script, starting with `#!/bin/bash`, and save it.\n3. Run `./drill.sh check 3`. You do **not** need `chmod` for this: the checker **copies** your script into a fresh sandbox folder (the one named in the task, usually `home/user1`, where files like `classlist` are), **makes it executable**, and runs test commands there such as `./greet.sh Sam`. It runs the reference solution the same way and compares standard output, standard error, the exit status and the files left behind.\n\nTo try your script by hand first, copy it into your practice sandbox and run it there:\n\n```bash\ncd ~/cisc220_drills/play/day3/home/user1\ncp ~/cisc220_drills/scripts/day3/greet.sh .\nchmod u+x greet.sh\n./greet.sh Sam\n```"
+     "text": "### Script tasks in the drills\n\nFrom today the drills (`./drill.sh start 3`) include **script tasks**. Their header says where to save the file, for example `(script: write /home/you/cisc220_drills/scripts/day3/greet.sh)`: that is `~/cisc220_drills/scripts/day3/greet.sh`, in your home folder.\n\n1. Open that exact file in nano: `nano ~/cisc220_drills/scripts/day3/greet.sh` (the folder was made by `./drill.sh start 3`).\n2. Write the script, starting with `#!/bin/bash`, and save it.\n3. Run `./drill.sh check 3`. You do **not** need `chmod` for this: the checker **copies** your script into a fresh sandbox folder (the one named in the task, usually `home/user1`, where files like `classlist` are), **makes it executable**, and runs test commands there such as `./greet.sh Sam`. It runs the reference solution the same way and compares standard output, standard error, the exit status and the files left behind.\n\nTo try your script by hand first, copy it into your practice sandbox and run it there:\n\n```bash\ncd ~/cisc220_drills/play/day3/home/user1\ncp ~/cisc220_drills/scripts/day3/greet.sh .\nchmod u+x greet.sh\n./greet.sh Sam\n```"
     },
     {
      "type": "try",
@@ -720,7 +720,7 @@
    "id": "d3-fc-52",
    "topic": "d4-scripts",
    "front": "The steps to create and run your first script `hello.sh`",
-   "back": "1. `gnome-text-editor hello.sh` (or gedit / nano) 2. first line `#!/bin/bash`, then the commands 3. save (Ctrl + S) 4. `chmod u+x hello.sh` 5. `./hello.sh` from the same folder."
+   "back": "1. `nano hello.sh` 2. first line `#!/bin/bash`, then the commands 3. save (Ctrl + O, Enter) and exit (Ctrl + X) 4. `chmod u+x hello.sh` 5. `./hello.sh` from the same folder."
   },
   {
    "id": "d3-fc-53",
