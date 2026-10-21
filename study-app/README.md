@@ -1,4 +1,4 @@
-# Bash Sprint: an 8-day plan for the CISC220 Bash midterm
+# Bash Sprint: a 7-day plan for the CISC220 Bash midterm
 
 A study app built from the course notebooks in `bash/`, the 2023 quizzes in `bash/Bash-Past-Tests/`, and the
 assignments. It takes you from no Bash knowledge to ready for the 50-minute, closed-book midterm on
@@ -17,14 +17,13 @@ Days 1–6 follow the order of the course notebooks (the table of contents in `s
 
 | Day | Date | Notebooks |
 |---|---|---|
-| 1 | Mon Oct 19 | Your first session in the terminal, history, command line intro, filesystem, commands |
-| 2 | Tue Oct 20 | Filename expansion, quoting, files, permissions |
-| 3 | Wed Oct 21 | Streams, expansions, introduction to Bash scripting |
-| 4 | Thu Oct 22 | Variables, strings, `tr`, regular expressions |
-| 5 | Fri Oct 23 | Arithmetic, arrays, conditional operators, conditional statements |
-| 6 | Sat Oct 24 | Loops, functions |
-| 7 | Sun Oct 25 | Mock exam A (timed, on paper), test your scripts, fix weak spots |
-| 8 | Mon Oct 26 | Mock exam B, your own summary sheet, early night |
+| 1 | Tue Oct 20 | Your first session in the terminal, history, command line intro, filesystem, commands |
+| 2 | Wed Oct 21 | Filename expansion, quoting, files, permissions |
+| 3 | Thu Oct 22 | Streams, expansions, introduction to Bash scripting |
+| 4 | Fri Oct 23 | Variables, strings, `tr`, regular expressions |
+| 5 | Sat Oct 24 | Arithmetic, arrays, conditional operators, conditional statements |
+| 6 | Sun Oct 25 | Loops, functions |
+| 7 | Mon Oct 26 | Mock exams A and B (timed, on paper), test your scripts, your own summary sheet, early night |
 
 Each day of new material follows the same routine of about 2.5 hours:
 

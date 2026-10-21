@@ -1,11 +1,12 @@
-/* CISC220 Bash Sprint: an 8-day study planner built on retrieval practice and spaced repetition.
+/* CISC220 Bash Sprint: a 7-day study planner built on retrieval practice and spaced repetition.
    All course content is in window.STUDY_DATA (inlined at build time from study-app/content/*.json). */
 (function () {
   "use strict";
 
   const DATA = window.STUDY_DATA || { days: [], mocks: { exams: [] }, sheet: { sections: [] } };
   const EXAM_DATE = "2026-10-27";
-  const DAY1_DATE = "2026-10-19";
+  const DAY1_DATE = "2026-10-20";
+  const LAST_DAY = 7; // Days 1-6 are new material; Day 7 is both mock exams
   const REPO = "https://github.com/FallingBrook/CISC220_current/blob/main/";
   const BRANCH = "claude/cisc220-bash-study-app-1w7tyo";
   const STORE_KEY = "cisc220-bash-sprint-v1";
@@ -48,16 +49,16 @@
     const [y, m, d] = iso.split("-").map(Number);
     return new Date(y, m - 1, d).toLocaleDateString(undefined, opts || { weekday: "short", month: "short", day: "numeric" });
   }
-  // Which plan day is today (1..8); 0 = before the plan starts, 9 = exam day or later.
+  // Which plan day is today (1..LAST_DAY); 0 = before the plan starts, LAST_DAY + 1 = exam day or later.
   function calendarDay() {
     const n = diffDays(DAY1_DATE, today()) + 1;
     if (n < 1) return 0;
-    return Math.min(n, 9);
+    return Math.min(n, LAST_DAY + 1);
   }
   function currentDay() {
     if (S.dayOverride) return S.dayOverride;
     const c = calendarDay();
-    return c === 0 ? 1 : Math.min(c, 8);
+    return c === 0 ? 1 : Math.min(c, LAST_DAY);
   }
 
   // ---------------------------------------------------------------- content index
@@ -89,15 +90,14 @@
   // ---------------------------------------------------------------- the plan
   const DAY_META = {
     1: { mins: 150 }, 2: { mins: 150 }, 3: { mins: 150 }, 4: { mins: 165 }, 5: { mins: 160 }, 6: { mins: 165 },
-    7: { mins: 170, title: "Mock exam A and fixing weak spots", goal: "Sit a full 50-minute mock under exam conditions, mark it honestly, then repair the topics it exposed." },
-    8: { mins: 150, title: "Mock exam B, summary sheet, early night", goal: "Sit the second mock, write your own one-page summary from memory, and go to bed on time." },
+    7: { mins: 185, title: "Two mock exams, summary sheet, early night", goal: "Sit both 50-minute mocks under exam conditions, test your handwritten scripts, write your one-page summary from memory, and go to bed on time." },
   };
   function dayTitle(n) { return (dayData[n] && dayData[n].title) || (DAY_META[n] && DAY_META[n].title) || "Day " + n; }
   function dayGoal(n) { return (dayData[n] && dayData[n].goal) || (DAY_META[n] && DAY_META[n].goal) || ""; }
 
   function stepsFor(n) {
     const steps = [];
-    if (n >= 2) steps.push({ key: "review", title: "Warm-up: spaced review", mins: 25, href: "review",
+    if (n >= 2 && n < LAST_DAY) steps.push({ key: "review", title: "Warm-up: spaced review", mins: 25, href: "review",
       desc: "Answer the cards and questions that are due from earlier days before learning anything new. Recalling before the new material arrives is what makes yesterday's work stick." });
     if (n <= 6) {
       const d = dayData[n];
@@ -117,20 +117,16 @@
       steps.push({ key: "dump", title: "Brain dump: everything you remember", mins: 10, href: "dump-" + n,
         desc: "No notes. Write down everything from today, then compare it with the key points. Gaps you find here go to the top of tomorrow." });
     } else if (n === 7) {
-      steps.push({ key: "mock", title: "Mock exam A (50 min, timed, on paper)", mins: 60, href: "mock-mockA",
-        desc: "Phone away, no notes. Write your answers on paper, then mark them against the rubric." });
-      steps.push({ key: "drills", title: "Type in and test your mock scripts", mins: 25, href: "drills-7",
-        desc: "Type your handwritten scripts exactly as written and run the checker. Every bug it finds is a bug you would have handed in." });
-      steps.push({ key: "weak", title: "Fix your weak spots", mins: 45, href: "weak",
-        desc: "Re-read the lessons for your lowest-scoring topics, then redo their write exercises from a blank page." });
-      steps.push({ key: "dump", title: "Brain dump", mins: 10, href: "dump-7", desc: "Write what you would tell a friend who has the same exam tomorrow." });
-    } else if (n === 8) {
-      steps.push({ key: "mock", title: "Mock exam B (50 min, timed, on paper)", mins: 60, href: "mock-mockB",
-        desc: "Same conditions as yesterday. Compare your topic scores with mock A." });
-      steps.push({ key: "drills", title: "Type in and test your mock scripts", mins: 20, href: "drills-8", desc: "Same as yesterday, for mock B." });
-      steps.push({ key: "sheet", title: "Write your one-page summary from memory", mins: 30, href: "sheet",
-        desc: "Write a full page of syntax from memory first, then compare it with the reference sheet and fill the gaps in a different colour." });
-      steps.push({ key: "missed", title: "Last pass: every card you ever missed", mins: 15, href: "review-missed",
+      steps.push({ key: "mockA", title: "Mock exam A (50 min, timed, on paper)", mins: 60, href: "mock-mockA",
+        desc: "Phone away, no notes. Write your answers on paper, then mark them against the rubric. Mock A is in the style of the first 2023 quiz." });
+      steps.push({ key: "drillsA", title: "Type in and test your mock A scripts", mins: 20, href: "drills-7",
+        desc: "Type your handwritten scripts exactly as you wrote them and run the checker. Every bug it finds is a bug you would have handed in." });
+      steps.push({ key: "mockB", title: "Mock exam B (50 min, timed, on paper)", mins: 60, href: "mock-mockB",
+        desc: "Take a proper break first. Same conditions as mock A; mock B is in the style of the second 2023 quiz (regex, arrays, loops, functions)." });
+      steps.push({ key: "drillsB", title: "Type in and test your mock B scripts", mins: 15, href: "drills-8", desc: "Same as for mock A." });
+      steps.push({ key: "sheet", title: "Write your one-page summary from memory", mins: 20, href: "sheet",
+        desc: "Write a page of syntax from memory, focusing on the topics both mocks showed you were weak in. Then compare it with the reference sheet and fill the gaps in a different colour." });
+      steps.push({ key: "missed", title: "Last pass: every card you ever missed", mins: 10, href: "review-missed",
         desc: "Only the cards you have got wrong at least once. Stop when you're done; don't start new material tonight." });
       steps.push({ key: "sleep", title: "Stop by 10 pm and sleep", mins: 0, href: null,
         desc: "Sleep consolidates what you've practised. An all-nighter costs more marks than it gains." });
@@ -147,7 +143,9 @@
       case "write": return !!d && d.write.length > 0 && d.write.every((w) => S.write[w.id]);
       case "drills": return !!S.drills[n];
       case "dump": return !!(S.dumps[n] && S.dumps[n].trim());
-      case "mock": return !!(S.mocks[n === 7 ? "mockA" : "mockB"] && S.mocks[n === 7 ? "mockA" : "mockB"].score != null);
+      case "mockA": case "mockB": return !!(S.mocks[key] && S.mocks[key].score != null);
+      case "drillsA": return !!S.drills[7];
+      case "drillsB": return !!S.drills[8];
       case "review": return !!S.reviewDone[n === currentDay() ? today() : dateOfDay(n)];
       default: return false;
     }
@@ -345,7 +343,7 @@
     else if (daysLeft === 0) cdText = "<big>Today</big>is the midterm. You've got this.";
     else cdText = "<big>Done</big>the midterm is behind you.";
     let days = "";
-    for (let n = 1; n <= 8; n++) {
+    for (let n = 1; n <= LAST_DAY; n++) {
       const p = Math.round(dayProgress(n) * 100);
       days += '<a href="#day-' + n + '" class="' + on("day-" + n).trim() + (n === cur ? " today-day" : "") + '"><span>Day ' + n +
         '<span class="sub">' + esc(fmtDate(dateOfDay(n))) + " · " + esc(shortTitle(n)) + '</span></span><span class="meter" title="' + p + '% done"><i style="width:' + p + '%"></i></span></a>';
@@ -357,7 +355,7 @@
       '<nav class="nav">' +
       '<a href="#today" class="' + on("today").trim() + '"><span>Today</span></a>' +
       '<a href="#review" class="' + on("review").trim() + '"><span>Spaced review</span><span class="badge' + (due ? "" : " zero") + '">' + due + "</span></a>" +
-      '<a href="#plan" class="' + on("plan").trim() + '"><span>The 8-day plan</span></a>' +
+      '<a href="#plan" class="' + on("plan").trim() + '"><span>The 7-day plan</span></a>' +
       "<h6>Days</h6>" + days +
       "<h6>Exam practice</h6>" +
       '<a href="#mock-mockA" class="' + on("mock-mockA").trim() + '"><span>Mock exam A</span>' + mockBadge("mockA") + "</a>" +
@@ -391,8 +389,8 @@
     const daysLeft = diffDays(today(), EXAM_DATE);
     let intro;
     if (cd === 0) intro = "The plan starts " + fmtDate(DAY1_DATE, { weekday: "long", month: "long", day: "numeric" }) + ".";
-    else if (cd >= 9) intro = daysLeft === 0 ? "It's exam day. Skim your summary sheet and the cards you've missed, then stop. No new material." : "The plan is complete.";
-    else intro = "Day " + n + " of 8 · " + fmtDate(today(), { weekday: "long", month: "long", day: "numeric" });
+    else if (cd > LAST_DAY) intro = daysLeft === 0 ? "It's exam day. Skim your summary sheet and the cards you've missed, then stop. No new material." : "The plan is complete.";
+    else intro = "Day " + n + " of " + LAST_DAY + " · " + fmtDate(today(), { weekday: "long", month: "long", day: "numeric" });
     const due = dueItems().length;
     const p = Math.round(dayProgress(n) * 100);
     const totalCards = Object.keys(items).length;
@@ -434,7 +432,7 @@
   }
 
   function viewDay(n) {
-    if (!(n >= 1 && n <= 8)) return notFound();
+    if (!(n >= 1 && n <= LAST_DAY)) return notFound();
     const cur = currentDay();
     const dd = dayData[n];
     let extra = "";
@@ -450,7 +448,7 @@
   }
   function dayNav(n) {
     return '<div class="row">' + (n > 1 ? '<a class="btn ghost" href="#day-' + (n - 1) + '">← Day ' + (n - 1) + "</a>" : "") + '<span class="spacer"></span>' +
-      (n < 8 ? '<a class="btn ghost" href="#day-' + (n + 1) + '">Day ' + (n + 1) + " →</a>" : "") + "</div>";
+      (n < LAST_DAY ? '<a class="btn ghost" href="#day-' + (n + 1) + '">Day ' + (n + 1) + " →</a>" : "") + "</div>";
   }
 
   function viewTopic(id) {
@@ -734,12 +732,14 @@
         p("<ul><li>When a task fails, compare the expected lines (<code>-</code>) with yours (<code>+</code>) and work out <em>why</em> they differ before you change anything.</li>" +
           "<li>Stuck for more than 5 minutes on one task? Re-read the lesson, then move on and come back to it.</li></ul>") + "</div>";
     }
-    return '<div class="col"><div class="head"><div class="eyebrow"><a href="#day-' + n + '">Day ' + n + "</a></div><h1>Terminal drills</h1>" +
+    const dayN = Math.min(n, LAST_DAY);
+    const title = n === 7 ? "Mock A: test your scripts" : n === 8 ? "Mock B: test your scripts" : "Terminal drills";
+    return '<div class="col"><div class="head"><div class="eyebrow"><a href="#day-' + dayN + '">Day ' + dayN + "</a></div><h1>" + title + "</h1>" +
       '<p class="lede">Reading about Bash isn\'t enough to write it. These tasks run in a throwaway sandbox folder, so nothing you type can damage your real files.</p></div>' + guide +
       '<div class="card"><h3>Record your score</h3><div class="row"><label for="drillScore">Final <code>./drill.sh check ' + n + '</code> score</label>' +
       '<input id="drillScore" class="ans" style="width:110px;min-height:0" placeholder="e.g. 14/20" value="' + esc(r || "") + '">' +
       '<button class="btn primary" data-act="drill-save" data-day="' + n + '">Save</button></div></div>' +
-      dayNav(n) + "</div>";
+      (n >= LAST_DAY ? '<div class="row"><a class="btn ghost" href="#day-' + LAST_DAY + '">← Back to Day ' + LAST_DAY + "</a></div>" : dayNav(n)) + "</div>";
   }
 
   // ----- brain dump
@@ -754,7 +754,7 @@
       }).join("");
     }
     const revealed = !!(session && session.type === "dump" && session.day === n);
-    return '<div class="col"><div class="head"><div class="eyebrow">' + (n <= 8 ? '<a href="#day-' + n + '">Day ' + n + "</a>" : "") + "</div><h1>Brain dump</h1>" +
+    return '<div class="col"><div class="head"><div class="eyebrow">' + (n <= LAST_DAY ? '<a href="#day-' + n + '">Day ' + n + "</a>" : "") + "</div><h1>Brain dump</h1>" +
       '<p class="lede">Close everything else. For 10 minutes, write down every command, rule and gotcha you remember from today, with tiny examples. Pulling it out of memory is the practice, so don\'t peek.</p></div>' +
       '<textarea class="ans tall prose-ans" id="dumpText" data-dump="' + n + '" placeholder="e.g. chmod 750 = rwxr-x--- … quotes stop word splitting … ">' + esc(saved) + "</textarea>" +
       '<div class="row"><button class="btn primary" data-act="dump-save" data-day="' + n + '">Save and compare with the key points</button></div>' +
@@ -852,15 +852,15 @@
   function viewPlan() {
     const cur = currentDay();
     const rows = [];
-    for (let n = 1; n <= 8; n++) {
+    for (let n = 1; n <= LAST_DAY; n++) {
       const d = dayData[n];
       const what = d ? d.topics.map((t) => esc(t.title)).join(", ") : esc(DAY_META[n].goal);
       rows.push('<tr class="' + (n === cur ? "now" : "") + '"><td class="d">Day ' + n + "<br>" + esc(fmtDate(dateOfDay(n))) + '</td><td><a href="#day-' + n + '"><b>' + esc(dayTitle(n)) + "</b></a><br>" + what +
         '</td><td class="d">~' + Math.round(stepsFor(n).reduce((a, s) => a + s.mins, 0) / 5) * 5 + " min</td><td>" + Math.round(dayProgress(n) * 100) + "%</td></tr>");
     }
-    rows.push('<tr><td class="d">Day 9<br>' + esc(fmtDate(EXAM_DATE)) + "</td><td><b>Midterm (50 min)</b><br>Light skim of your summary sheet and missed cards only. Eat, arrive early.</td><td></td><td></td></tr>");
-    return '<div class="col"><div class="head"><div class="eyebrow">Oct 19 – Oct 26</div><h1>The 8-day plan</h1>' +
-      '<p class="lede">Six days of new material in course order, each starting with a review of earlier days, then two days of full mock exams and repair. Priorities come from the 2023 quizzes and your assignments: about half the marks are for scripts written by hand, so every day ends with writing code.</p></div>' +
+    rows.push('<tr><td class="d">Exam<br>' + esc(fmtDate(EXAM_DATE)) + "</td><td><b>Midterm (50 min)</b><br>Light skim of your summary sheet and missed cards only. Eat, arrive early.</td><td></td><td></td></tr>");
+    return '<div class="col"><div class="head"><div class="eyebrow">Oct 20 – Oct 26</div><h1>The 7-day plan</h1>' +
+      '<p class="lede">Six days of new material in course order, each starting with a review of earlier days, then a final day with both full mock exams and your summary sheet. Priorities come from the 2023 quizzes and your assignments: about half the marks are for scripts written by hand, so every day ends with writing code.</p></div>' +
       '<div class="card"><div class="tablewrap"><table class="plan"><thead><tr><th>When</th><th>What</th><th>Time</th><th>Done</th></tr></thead><tbody>' + rows.join("") + "</tbody></table></div></div>" +
       '<div class="card"><h2>Why the days are built this way</h2><div class="prose">' + md(METHOD_MD) + "</div></div></div>";
   }
@@ -883,9 +883,9 @@
   function viewSheet() {
     const secs = (DATA.sheet && DATA.sheet.sections) || [];
     const revealed = !!(session && session.type === "sheet");
-    return '<div class="col"><div class="head"><div class="eyebrow">Day 8</div><h1>Summary sheet</h1>' +
+    return '<div class="col"><div class="head"><div class="eyebrow">Day 7</div><h1>Summary sheet</h1>' +
       '<p class="lede">Make your own first. On one sheet of paper, write every piece of syntax you can remember, grouped by topic, from memory. Only then open the reference and add what you missed in a different colour. The page you write is what you skim on exam morning.</p></div>' +
-      (revealed || S.steps["8:sheet"] ? secs.map((s) => '<div class="card"><h2>' + esc(s.title) + '</h2><div class="prose">' + md(s.md) + "</div></div>").join("")
+      (revealed || S.steps["7:sheet"] ? secs.map((s) => '<div class="card"><h2>' + esc(s.title) + '</h2><div class="prose">' + md(s.md) + "</div></div>").join("")
         : '<div class="card empty"><p>Written your page from memory?</p><div class="row" style="justify-content:center"><button class="btn primary" data-act="sheet-show">Yes, show the reference sheet</button></div></div>') +
       "</div>";
   }
@@ -903,8 +903,8 @@
 
   function viewData() {
     const n = Object.keys(S.srs).length;
-    const opts = ['<option value="">Follow the calendar (Day ' + (calendarDay() === 0 ? 1 : Math.min(8, calendarDay())) + " today)</option>"];
-    for (let i = 1; i <= 8; i++) opts.push('<option value="' + i + '"' + (S.dayOverride === i ? " selected" : "") + ">Treat today as Day " + i + "</option>");
+    const opts = ['<option value="">Follow the calendar (Day ' + (calendarDay() === 0 ? 1 : Math.min(LAST_DAY, calendarDay())) + " today)</option>"];
+    for (let i = 1; i <= LAST_DAY; i++) opts.push('<option value="' + i + '"' + (S.dayOverride === i ? " selected" : "") + ">Treat today as Day " + i + "</option>");
     return '<div class="col"><div class="head"><h1>Progress &amp; backup</h1><p class="lede">Your progress is saved in this browser on this laptop. Copy a backup here if you switch browsers or clear site data.</p></div>' +
       '<div class="stats">' + stat(n, "items in your review deck") + stat(Object.keys(S.topicsDone).length, "lessons learned") + stat(Object.keys(S.write).length, "scripts marked") + "</div>" +
       '<div class="card"><h3>Behind or ahead?</h3><p class="small muted" style="margin:0">If you lose a day, shift the plan so <i>Today</i> shows the day you are actually on.</p><div class="row"><select id="dayOverride" class="btn">' + opts.join("") + "</select></div></div>" +
