@@ -72,7 +72,8 @@ strings. No HTML.
       "solution": "#!/bin/bash\n...",
       "explain": "Walkthrough of the solution (required for worked stage, optional otherwise).",
       "rubric": [ { "marks": 1, "item": "What earns this mark" } ],
-      "pitfalls": ["Mistake to avoid"] }
+      "pitfalls": ["Mistake to avoid"],
+      "core": true }
   ]
 }
 ```
@@ -93,6 +94,7 @@ Field notes:
 * `write.stage`: exercises go in order `worked` (full solution shown with `explain`; the student studies it,
   then copies it out from memory), `faded` (`starter` has the structure with key parts replaced by `____`),
   `blank` (from scratch, exam style, with `marks` and a rubric that totals `marks`).
+* `core` (optional): marks the writing exercises a crash day treats as essential; the others are shown as extras.
 * IDs must be unique and stable: `dN-fc-NN`, `dN-q-NN`, `dN-w-NN`, topic ids `dN-<slug>`.
 
 ## Terminal drills (`study-app/drills/days/dayN.sh`)

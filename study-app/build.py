@@ -23,10 +23,8 @@ def load(name, default):
 
 def main():
     days = []
-    for n in range(1, 7):
-        d = load(f"day{n}.json", None)
-        if d:
-            days.append(d)
+    for p in sorted(CONTENT.glob("day*.json"), key=lambda p: int(p.stem[3:])):
+        days.append(json.loads(p.read_text()))
     data = {
         "days": days,
         "mocks": load("mocks.json", {"exams": []}),

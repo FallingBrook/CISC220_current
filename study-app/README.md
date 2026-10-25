@@ -1,4 +1,4 @@
-# Bash Sprint: a 7-day plan for the CISC220 Bash midterm
+# Bash Sprint: a study plan for the CISC220 Bash midterm
 
 A study app built from the course notebooks in `bash/`, the 2023 quizzes in `bash/Bash-Past-Tests/`, and the
 assignments. It takes you from no Bash knowledge to ready for the 50-minute, closed-book midterm on
@@ -13,27 +13,21 @@ progress is saved separately in each, so stick to one. You can move progress bet
 
 ## The plan
 
-Days 1–6 follow the order of the course notebooks (the table of contents in `start_here.ipynb`):
+Days 1–2 went at a normal pace. Days 3–4 are crash days that cover the rest of the course notebooks, still in
+the order of `start_here.ipynb`, with the time put where the marks are.
 
-| Day | Date | Notebooks |
+| Day | Date | What |
 |---|---|---|
 | 1 | Tue Oct 20 | Your first session in the terminal, history, command line intro, filesystem, commands |
 | 2 | Wed Oct 21 | Filename expansion, quoting, files, permissions |
-| 3 | Thu Oct 22 | Streams, expansions, introduction to Bash scripting |
-| 4 | Fri Oct 23 | Variables, strings, `tr`, regular expressions |
-| 5 | Sat Oct 24 | Arithmetic, arrays, conditional operators, conditional statements |
-| 6 | Sun Oct 25 | Loops, functions |
-| 7 | Mon Oct 26 | Mock exams A and B (timed, on paper), test your scripts, your own summary sheet, early night |
+| 3 | Sun Oct 25 | Crash day 1: streams, expansions, intro to scripting, variables, strings, `tr`, regex |
+| 4 | Mon Oct 26 | Crash day 2: arithmetic, arrays, conditional operators, `if`, loops, functions; mini mock (the two 10-mark questions); one-page summary |
+| 5 | Tue Oct 27 | Exam morning: 20-minute skim of your summary and missed cards |
 
-Each day of new material follows the same routine of about 2.5 hours:
-
-1. **Spaced review** of earlier days (from Day 2 on)
-2. **Lessons** with *Check* questions to answer before you reveal each answer
-3. **Flashcards**, rated Again / Hard / Good / Easy
-4. **Practice quiz**, mixed with earlier days' questions from Day 3 on
-5. **Write it by hand**: a worked example, then one with blanks, then a blank page
-6. **Terminal drills**, auto-graded in a real shell
-7. **Brain dump**: write everything you remember, then compare with the key points
+A crash day runs: a short spaced review, the lessons in order, a 25-question mixed quiz, the 7 *core* handwritten
+scripts (the past-quiz questions plus one blank-page exercise per topic; the rest are marked as extras), and
+flashcards. Terminal drills are optional on crash days. The full mock exams A and B stay available under
+*Exam practice*.
 
 The *Why the days are built this way* section of the plan page explains the research behind each step.
 

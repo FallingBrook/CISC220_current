@@ -1,12 +1,15 @@
-/* CISC220 Bash Sprint: a 7-day study planner built on retrieval practice and spaced repetition.
+/* CISC220 Bash Sprint: a study planner for the CISC220 Bash midterm, built on retrieval practice and spaced repetition.
    All course content is in window.STUDY_DATA (inlined at build time from study-app/content/*.json). */
 (function () {
   "use strict";
 
   const DATA = window.STUDY_DATA || { days: [], mocks: { exams: [] }, sheet: { sections: [] } };
   const EXAM_DATE = "2026-10-27";
-  const DAY1_DATE = "2026-10-20";
-  const LAST_DAY = 7; // Days 1-6 are new material; Day 7 is both mock exams
+  // Days 1-2 were done at a normal pace; Days 3-4 are crash days that cover the rest; Day 5 is the exam morning.
+  const DAY_DATES = ["2026-10-20", "2026-10-21", "2026-10-25", "2026-10-26", "2026-10-27"];
+  const LAST_DAY = DAY_DATES.length;
+  const CRASH = { 3: { drills: [3, 4] }, 4: { drills: [5, 6] } };
+  const QUIZ_CAP = 25;
   const REPO = "https://github.com/FallingBrook/CISC220_current/blob/main/";
   const BRANCH = "claude/cisc220-bash-study-app-1w7tyo";
   const STORE_KEY = "cisc220-bash-sprint-v1";
@@ -51,9 +54,12 @@
   }
   // Which plan day is today (1..LAST_DAY); 0 = before the plan starts, LAST_DAY + 1 = exam day or later.
   function calendarDay() {
-    const n = diffDays(DAY1_DATE, today()) + 1;
-    if (n < 1) return 0;
-    return Math.min(n, LAST_DAY + 1);
+    const t = today();
+    if (t < DAY_DATES[0]) return 0;
+    if (t > DAY_DATES[LAST_DAY - 1]) return LAST_DAY + 1;
+    let n = 0;
+    DAY_DATES.forEach((d, i) => { if (d <= t) n = i + 1; });
+    return n;
   }
   function currentDay() {
     if (S.dayOverride) return S.dayOverride;
@@ -75,6 +81,14 @@
   });
   const mocks = {};
   ((DATA.mocks && DATA.mocks.exams) || []).forEach((m) => { mocks[m.id] = m; });
+  // The mini mock is the two 10-mark questions, one from each mock exam.
+  if (mocks.mockA && mocks.mockB) {
+    const q10 = (m) => m.questions.find((q) => q.parts.reduce((a, p) => a + (p.marks || 0), 0) === 10);
+    const a = q10(mocks.mockA), b = q10(mocks.mockB);
+    if (a && b) mocks.mini = { id: "mini", title: "Mini mock: the two 10-mark questions", minutes: 25,
+      instructions: "These are the long script questions from mock A (Question 5) and mock B (Question 4). On the midterm, questions like these are a third of the marks. Spend about 12 minutes on each.",
+      questions: [Object.assign({}, a, { title: "Mock A, Question 5" }), Object.assign({}, b, { title: "Mock B, Question 4" })] };
+  }
 
   const TAG_NOTEBOOK = {
     paths: "filesystem", commands: "commands", globs: "filename_expansion", quoting: "quoting", files: "files",
@@ -89,26 +103,24 @@
 
   // ---------------------------------------------------------------- the plan
   const DAY_META = {
-    1: { mins: 150 }, 2: { mins: 150 }, 3: { mins: 150 }, 4: { mins: 165 }, 5: { mins: 160 }, 6: { mins: 165 },
-    7: { mins: 185, title: "Two mock exams, summary sheet, early night", goal: "Sit both 50-minute mocks under exam conditions, test your handwritten scripts, write your one-page summary from memory, and go to bed on time." },
+    5: { title: "Exam morning", goal: "A light 20-minute warm-up so the syntax is fresh. No new material." },
   };
   function dayTitle(n) { return (dayData[n] && dayData[n].title) || (DAY_META[n] && DAY_META[n].title) || "Day " + n; }
   function dayGoal(n) { return (dayData[n] && dayData[n].goal) || (DAY_META[n] && DAY_META[n].goal) || ""; }
 
   function stepsFor(n) {
     const steps = [];
-    if (n >= 2 && n < LAST_DAY) steps.push({ key: "review", title: "Warm-up: spaced review", mins: 25, href: "review",
-      desc: "Answer the cards and questions that are due from earlier days before learning anything new. Recalling before the new material arrives is what makes yesterday's work stick." });
-    if (n <= 6) {
-      const d = dayData[n];
-      const nt = d ? d.topics.length : 0;
-      steps.push({ key: "learn", title: "Learn: " + nt + " topic" + (nt === 1 ? "" : "s"), mins: n >= 4 ? 70 : 60, href: null, topics: true,
+    const d = dayData[n];
+    const nt = d ? d.topics.length : 0;
+    if (n <= 2) {
+      if (n === 2) steps.push({ key: "review", title: "Warm-up: spaced review", mins: 25, href: "review",
+        desc: "Answer the cards and questions that are due from earlier days before learning anything new. Recalling before the new material arrives is what makes yesterday's work stick." });
+      steps.push({ key: "learn", title: "Learn: " + nt + " topic" + (nt === 1 ? "" : "s"), mins: 60, href: null, topics: true,
         desc: "Read each lesson actively. At every orange Check box, say or write your answer before you reveal it." });
       steps.push({ key: "cards", title: "Flashcards: lock in today's facts", mins: 15, href: "cards-" + n,
         desc: "Go through today's new cards once. Rate yourself honestly; cards you miss come back sooner." });
-      steps.push({ key: "quiz", title: "Practice quiz" + (n >= 3 ? ", mixed with earlier days" : ""), mins: 20, href: "quiz-" + n,
-        desc: n >= 3 ? "Today's questions shuffled together with due questions from earlier days, the way the exam mixes topics." : "Exam-style questions on today's topics with instant feedback." });
-      steps.push({ key: "write", title: "Write it by hand", mins: n >= 4 ? 35 : 25, href: "write-" + n,
+      steps.push({ key: "quiz", title: "Practice quiz", mins: 20, href: "quiz-" + n, desc: "Exam-style questions on today's topics with instant feedback." });
+      steps.push({ key: "write", title: "Write it by hand", mins: 25, href: "write-" + n,
         desc: "Study the worked example, fill in the faded one, then write the last one from a blank page, ideally on paper first. Half the midterm is handwritten code." });
       steps.push({ key: "drills", title: "Terminal drills", mins: n === 1 ? 40 : 25, href: "drills-" + n,
         desc: n === 1
@@ -116,20 +128,34 @@
           : "Run your answers in a real shell. The checker compares them with the reference, so any correct command passes." });
       steps.push({ key: "dump", title: "Brain dump: everything you remember", mins: 10, href: "dump-" + n,
         desc: "No notes. Write down everything from today, then compare it with the key points. Gaps you find here go to the top of tomorrow." });
-    } else if (n === 7) {
-      steps.push({ key: "mockA", title: "Mock exam A (50 min, timed, on paper)", mins: 60, href: "mock-mockA",
-        desc: "Phone away, no notes. Write your answers on paper, then mark them against the rubric. Mock A is in the style of the first 2023 quiz." });
-      steps.push({ key: "drillsA", title: "Type in and test your mock A scripts", mins: 20, href: "drills-7",
-        desc: "Type your handwritten scripts exactly as you wrote them and run the checker. Every bug it finds is a bug you would have handed in." });
-      steps.push({ key: "mockB", title: "Mock exam B (50 min, timed, on paper)", mins: 60, href: "mock-mockB",
-        desc: "Take a proper break first. Same conditions as mock A; mock B is in the style of the second 2023 quiz (regex, arrays, loops, functions)." });
-      steps.push({ key: "drillsB", title: "Type in and test your mock B scripts", mins: 15, href: "drills-8", desc: "Same as for mock A." });
-      steps.push({ key: "sheet", title: "Write your one-page summary from memory", mins: 20, href: "sheet",
-        desc: "Write a page of syntax from memory, focusing on the topics both mocks showed you were weak in. Then compare it with the reference sheet and fill the gaps in a different colour." });
-      steps.push({ key: "missed", title: "Last pass: every card you ever missed", mins: 10, href: "review-missed",
-        desc: "Only the cards you have got wrong at least once. Stop when you're done; don't start new material tonight." });
-      steps.push({ key: "sleep", title: "Stop by 10 pm and sleep", mins: 0, href: null,
+    } else if (CRASH[n]) {
+      steps.push({ key: "review", title: "Warm-up: spaced review", mins: 15, href: "review",
+        desc: n === 3 ? "A quick pass over the due cards from Days 1 and 2, so the basics are solid before you build on them." : "A quick pass over what's due, including yesterday's cards." });
+      steps.push({ key: "learn", title: "Learn: " + nt + " topics, in course order", mins: n === 3 ? 115 : 125, href: null, topics: true,
+        desc: "Every lesson is exam material, so read them all, in order. Keep moving: answer each orange Check box in your head, and skip the green Do this now steps unless something doesn't make sense. Take a 5-minute break after every two lessons." });
+      steps.push({ key: "quiz", title: "Practice quiz (" + QUIZ_CAP + " questions)", mins: 20, href: "quiz-" + n,
+        desc: "A mixed set across today's topics plus a few earlier ones. Retake it for a fresh set if you have time; questions you miss come back tomorrow." });
+      steps.push({ key: "write", title: "Write it by hand: the 7 core scripts", mins: 50, href: "write-" + n,
+        desc: (n === 3 ? "Includes the real Quiz 1 questions 4 and 5. " : "Includes the real Quiz 2 selection sort question. ") + "Study each worked example, then write each blank one on paper before you look. About half the midterm is handwritten code, so this step matters most. The extras below the core set are optional." });
+      steps.push({ key: "cards", title: "Flashcards: today's facts", mins: 20, href: "cards-" + n,
+        desc: "One pass through today's cards. Do them last: retrieving at the end of the day, and again tomorrow, is what makes them stick." });
+      if (n === 4) {
+        steps.push({ key: "mini", title: "Mini mock: the two 10-mark questions (25 min, on paper)", mins: 35, href: "mock-mini",
+          desc: "Mock A Q5 and mock B Q4, timed, then mark them with the rubric. Questions like these are a third of the midterm's marks." });
+        steps.push({ key: "sheet", title: "Write your one-page summary from memory", mins: 15, href: "sheet",
+          desc: "One page of syntax from memory, then compare with the reference sheet and fill the gaps in a different colour. This is what you skim tomorrow morning." });
+      }
+      steps.push({ key: "drills", title: "Terminal drills (optional, if time)", mins: 0, href: "drills-" + n, optional: true,
+        desc: "Type in and test the scripts you wrote today. Skip this if you're short on time: writing on paper is closer to the exam." });
+      if (n === 4) steps.push({ key: "sleep", title: "Stop by 10:30 pm and sleep", mins: 0, href: null,
         desc: "Sleep consolidates what you've practised. An all-nighter costs more marks than it gains." });
+    } else if (n === 5) {
+      steps.push({ key: "sheet", title: "Skim your one-page summary", mins: 10, href: "sheet",
+        desc: "Read the page you wrote last night. Look at the reference sheet only for the lines you'd forgotten." });
+      steps.push({ key: "missed", title: "Cards you've missed before", mins: 10, href: "review-missed",
+        desc: "A quick pass over only the cards you've got wrong at least once. Then stop: no new material on exam day." });
+      steps.push({ key: "exam", title: "Midterm (50 min)", mins: 0, href: null,
+        desc: "Eat, arrive early. On the exam: quote your variables (\"$1\", \"$f\"), start scripts with #!/bin/bash, and attempt every part of the long questions; partial marks add up." });
     }
     return steps;
   }
@@ -142,6 +168,7 @@
       case "quiz": return !!S.quizRuns["d" + n];
       case "write": return !!d && d.write.length > 0 && d.write.every((w) => S.write[w.id]);
       case "drills": return !!S.drills[n];
+      case "mini": return !!(S.mocks.mini && S.mocks.mini.score != null);
       case "dump": return !!(S.dumps[n] && S.dumps[n].trim());
       case "mockA": case "mockB": return !!(S.mocks[key] && S.mocks[key].score != null);
       case "drillsA": return !!S.drills[7];
@@ -157,11 +184,11 @@
     return autoDone(n, key);
   }
   function dayProgress(n) {
-    const st = stepsFor(n);
+    const st = stepsFor(n).filter((s) => !s.optional && s.key !== "exam");
     const done = st.filter((s) => stepDone(n, s.key)).length;
     return st.length ? done / st.length : 0;
   }
-  const dateOfDay = (n) => addDays(DAY1_DATE, n - 1);
+  const dateOfDay = (n) => DAY_DATES[Math.min(n, LAST_DAY) - 1];
 
   // ---------------------------------------------------------------- spaced repetition
   function rate(id, grade) { // grade 0 again, 1 hard, 2 good, 3 easy
@@ -355,7 +382,7 @@
       '<nav class="nav">' +
       '<a href="#today" class="' + on("today").trim() + '"><span>Today</span></a>' +
       '<a href="#review" class="' + on("review").trim() + '"><span>Spaced review</span><span class="badge' + (due ? "" : " zero") + '">' + due + "</span></a>" +
-      '<a href="#plan" class="' + on("plan").trim() + '"><span>The 7-day plan</span></a>' +
+      '<a href="#plan" class="' + on("plan").trim() + '"><span>The plan</span></a>' +
       "<h6>Days</h6>" + days +
       "<h6>Exam practice</h6>" +
       '<a href="#mock-mockA" class="' + on("mock-mockA").trim() + '"><span>Mock exam A</span>' + mockBadge("mockA") + "</a>" +
@@ -388,7 +415,7 @@
     const n = currentDay();
     const daysLeft = diffDays(today(), EXAM_DATE);
     let intro;
-    if (cd === 0) intro = "The plan starts " + fmtDate(DAY1_DATE, { weekday: "long", month: "long", day: "numeric" }) + ".";
+    if (cd === 0) intro = "The plan starts " + fmtDate(DAY_DATES[0], { weekday: "long", month: "long", day: "numeric" }) + ".";
     else if (cd > LAST_DAY) intro = daysLeft === 0 ? "It's exam day. Skim your summary sheet and the cards you've missed, then stop. No new material." : "The plan is complete.";
     else intro = "Day " + n + " of " + LAST_DAY + " · " + fmtDate(today(), { weekday: "long", month: "long", day: "numeric" });
     const due = dueItems().length;
@@ -541,7 +568,17 @@
       mixed = shuffle(dueP).slice(0, 8);
       if (mixed.length < 6) mixed = mixed.concat(shuffle(unseen).slice(0, 6 - mixed.length));
     }
-    const ids = n >= 3 ? interleave(own.concat(mixed)) : shuffle(own);
+    let mine = own;
+    if (CRASH[n] && own.length > QUIZ_CAP - 5) {
+      // Unseen questions first, spread evenly over the day's topics.
+      const byTopic = {};
+      shuffle(own.slice()).sort((a, b) => (S.srs[a] ? 1 : 0) - (S.srs[b] ? 1 : 0)).forEach((id) => { (byTopic[items[id].topic] = byTopic[items[id].topic] || []).push(id); });
+      const lists = Object.values(byTopic);
+      mine = [];
+      for (let k = 0; mine.length < QUIZ_CAP - 5 && lists.some((l) => l.length); k = (k + 1) % lists.length) if (lists[k].length) mine.push(lists[k].shift());
+      mixed = mixed.slice(0, 5);
+    }
+    const ids = n >= 3 ? interleave(mine.concat(mixed)) : shuffle(own);
     return { type: "quiz", key: "quiz-" + n, day: n, queue: ids, i: 0, right: 0, results: [], answered: false, back: "#day-" + n, label: "Day " + n + " practice quiz" };
   }
   function viewQuiz(n) {
@@ -550,7 +587,7 @@
     if (!session || session.key !== "quiz-" + n) {
       const last = S.quizRuns["d" + n];
       return '<div class="col"><div class="head"><div class="eyebrow"><a href="#day-' + n + '">Day ' + n + "</a></div><h1>Practice quiz</h1>" +
-        '<p class="lede">' + d.quiz.length + " questions on today's topics" + (n >= 3 ? ", mixed with up to 8 due questions from earlier days" : "") +
+        '<p class="lede">' + (CRASH[n] ? QUIZ_CAP + " questions: a mixed set from today's " + d.quiz.length + " (unseen ones first) plus up to 5 earlier ones. Retake for a fresh set" : d.quiz.length + " questions on today's topics" + (n >= 3 ? ", mixed with up to 8 due questions from earlier days" : "")) +
         ". Answer before you look. Questions you miss come back in your spaced review.</p></div>" +
         (last ? '<p class="muted">Last run: ' + last.right + "/" + last.total + " on " + esc(fmtDate(last.date)) + (last.best ? " · best " + last.best + "%" : "") + "</p>" : "") +
         '<div class="row"><button class="btn primary" data-act="quiz-start" data-day="' + n + '">Start the quiz</button></div></div>';
@@ -647,6 +684,7 @@
     const d = dayData[n];
     if (!d) return notFound();
     const stageLab = { worked: "Worked example", faded: "Fill in the blanks", blank: "From a blank page" };
+    const hasCore = d.write.some((w) => w.core);
     const list = d.write.map((w, k) => {
       const r = S.write[w.id];
       const max = (w.rubric || []).reduce((a, x) => a + (x.marks || 0), 0) || w.marks || 0;
@@ -670,7 +708,9 @@
           (w.pitfalls && w.pitfalls.length ? '<div class="callout pitfall"><div class="lab">Watch out for</div><div class="prose"><ul>' + w.pitfalls.map((p) => "<li>" + inline(p) + "</li>").join("") + "</ul></div></div>" : "") +
           '<div class="row"><button class="btn primary" data-act="write-save" data-id="' + esc(w.id) + '">Save my score</button><span class="small muted">Under 70% puts it on tomorrow\'s rewrite list.</span></div>';
       }
-      return '<div class="card" id="card-' + esc(w.id) + '"><div class="row"><span class="eyebrow">' + (k + 1) + ". " + esc(stageLab[w.stage] || w.stage) + "</span>" +
+      const extraHead = hasCore && !w.core && (k === 0 || d.write[k - 1].core)
+        ? '<div class="head"><h2>Extra practice</h2><p class="lede">Only if you have time after the core set. These cover the same topics again.</p></div>' : "";
+      return extraHead + '<div class="card" id="card-' + esc(w.id) + '"><div class="row"><span class="eyebrow">' + (k + 1) + ". " + esc(stageLab[w.stage] || w.stage) + "</span>" + (w.core ? '<span class="chip accent">core</span>' : "") +
         '<span class="chip">' + esc(topicTitle(w.topic)) + "</span>" + (max ? '<span class="marks">' + max + " marks</span>" : "") + '<span class="spacer"></span>' + status + "</div>" + inner + "</div>";
     }).join("");
     return '<div class="col"><div class="head"><div class="eyebrow"><a href="#day-' + n + '">Day ' + n + "</a></div><h1>Write it by hand</h1>" +
@@ -719,6 +759,15 @@
             "<p>Your answer is run in a fresh copy of the sandbox and compared with a reference answer, so any correct command passes, not just one exact spelling. Fix answers in the editor, save, and run <code>check</code> again as often as you like. At the end it prints your score: type it in below.</p>")) +
         '<div class="card"><h3>Every day after today</h3>' + p("<p>It's the same routine with that day's number. Run <code>git pull</code> first: it downloads any updates to the drills.</p>") +
         codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ git pull\n$ ./drill.sh start 2\n$ nano ~/cisc220_drills/answers/day2.txt\n$ ./drill.sh check 2") + "</div>";
+    } else if (CRASH[n]) {
+      const sets = CRASH[n].drills;
+      guide = '<div class="card"><h3>Today\'s drills (optional)</h3>' +
+        p("<p>Today covers two of the old drill sets, numbers " + sets.join(" and ") + ". If you're short on time, do only the <b>script</b> tasks: they test exactly what the long exam questions ask. In the first terminal tab:</p>") +
+        codeBlock("$ cd ~/CISC220_current/study-app/drills\n$ git pull\n" + sets.map((k) => "$ ./drill.sh start " + k).join("\n")) +
+        p("<p>Write one-line answers in the answers files, and scripts in the scripts folders that <code>start</code> prints, for example:</p>") +
+        codeBlock(sets.map((k) => "$ nano ~/cisc220_drills/answers/day" + k + ".txt").join("\n")) +
+        p("<p>Grade one set at a time, or a single task by its number:</p>") + codeBlock(sets.map((k) => "$ ./drill.sh check " + k).join("\n") + "\n$ ./drill.sh check " + sets[0] + " 18     # just task 18") +
+        (n === 4 ? p("<p>To test the mini mock answers, type your two scripts into <code>~/cisc220_drills/scripts/day7/stash.sh</code> and <code>~/cisc220_drills/scripts/day8/uniqrev.sh</code> (run <code>./drill.sh start 7</code> and <code>./drill.sh start 8</code> once to make the folders), then run <code>./drill.sh check 7 A5</code> and <code>./drill.sh check 8 B4</code>.</p>") : "") + "</div>";
     } else {
       guide = '<div class="card"><h3>Run today\'s drills</h3>' +
         p("<p>Same routine as Day 1. In the first terminal tab:</p>") +
@@ -732,7 +781,7 @@
         p("<ul><li>When a task fails, compare the expected lines (<code>-</code>) with yours (<code>+</code>) and work out <em>why</em> they differ before you change anything.</li>" +
           "<li>Stuck for more than 5 minutes on one task? Re-read the lesson, then move on and come back to it.</li></ul>") + "</div>";
     }
-    const dayN = Math.min(n, LAST_DAY);
+    const dayN = n > LAST_DAY ? 4 : n;
     const title = n === 7 ? "Mock A: test your scripts" : n === 8 ? "Mock B: test your scripts" : "Terminal drills";
     return '<div class="col"><div class="head"><div class="eyebrow"><a href="#day-' + dayN + '">Day ' + dayN + "</a></div><h1>" + title + "</h1>" +
       '<p class="lede">Reading about Bash isn\'t enough to write it. These tasks run in a throwaway sandbox folder, so nothing you type can damage your real files.</p></div>' + guide +
@@ -831,7 +880,7 @@
     const lowWrites = Object.entries(S.write).filter(([id, r]) => writes[id] && r.score / Math.max(1, r.max) < 0.7);
     const lapsed = Object.keys(S.srs).filter((id) => items[id] && S.srs[id].lapses >= 2).sort((a, b) => S.srs[b].lapses - S.srs[a].lapses).slice(0, 15);
     const mockLoss = {};
-    ["mockA", "mockB"].forEach((m) => { if (S.mocks[m] && S.mocks[m].score != null) Object.entries(mockTagLoss(m)).forEach(([t, v]) => { mockLoss[t] = (mockLoss[t] || 0) + v; }); });
+    ["mockA", "mockB", "mini"].forEach((m) => { if (S.mocks[m] && S.mocks[m].score != null) Object.entries(mockTagLoss(m)).forEach(([t, v]) => { mockLoss[t] = (mockLoss[t] || 0) + v; }); });
     const ml = Object.entries(mockLoss).sort((a, b) => b[1] - a[1]);
     const empty = !rows.length && !lowWrites.length && !lapsed.length && !ml.length;
     return '<div class="col"><div class="head"><div class="eyebrow">Exam practice</div><h1>Weak spots</h1><p class="lede">Built from your quiz answers, flashcard ratings, writing scores and mock exams. Spend extra time where accuracy is lowest; topics you already know well need less.</p></div>' +
@@ -858,9 +907,8 @@
       rows.push('<tr class="' + (n === cur ? "now" : "") + '"><td class="d">Day ' + n + "<br>" + esc(fmtDate(dateOfDay(n))) + '</td><td><a href="#day-' + n + '"><b>' + esc(dayTitle(n)) + "</b></a><br>" + what +
         '</td><td class="d">~' + Math.round(stepsFor(n).reduce((a, s) => a + s.mins, 0) / 5) * 5 + " min</td><td>" + Math.round(dayProgress(n) * 100) + "%</td></tr>");
     }
-    rows.push('<tr><td class="d">Exam<br>' + esc(fmtDate(EXAM_DATE)) + "</td><td><b>Midterm (50 min)</b><br>Light skim of your summary sheet and missed cards only. Eat, arrive early.</td><td></td><td></td></tr>");
-    return '<div class="col"><div class="head"><div class="eyebrow">Oct 20 – Oct 26</div><h1>The 7-day plan</h1>' +
-      '<p class="lede">Six days of new material in course order, each starting with a review of earlier days, then a final day with both full mock exams and your summary sheet. Priorities come from the 2023 quizzes and your assignments: about half the marks are for scripts written by hand, so every day ends with writing code.</p></div>' +
+    return '<div class="col"><div class="head"><div class="eyebrow">Oct 20 – Oct 27</div><h1>The plan</h1>' +
+      '<p class="lede">Days 1 and 2 cover the first course notebooks at a normal pace. Days 3 and 4 are crash days that cover everything else, still in course order, and put the time where the marks are. Day 5 is a short warm-up on exam morning. Priorities come from the 2023 quizzes and your assignments: about half the marks are for scripts written by hand, so every day ends with writing code.</p></div>' +
       '<div class="card"><div class="tablewrap"><table class="plan"><thead><tr><th>When</th><th>What</th><th>Time</th><th>Done</th></tr></thead><tbody>' + rows.join("") + "</tbody></table></div></div>" +
       '<div class="card"><h2>Why the days are built this way</h2><div class="prose">' + md(METHOD_MD) + "</div></div></div>";
   }
@@ -883,9 +931,9 @@
   function viewSheet() {
     const secs = (DATA.sheet && DATA.sheet.sections) || [];
     const revealed = !!(session && session.type === "sheet");
-    return '<div class="col"><div class="head"><div class="eyebrow">Day 7</div><h1>Summary sheet</h1>' +
+    return '<div class="col"><div class="head"><div class="eyebrow">Day 4</div><h1>Summary sheet</h1>' +
       '<p class="lede">Make your own first. On one sheet of paper, write every piece of syntax you can remember, grouped by topic, from memory. Only then open the reference and add what you missed in a different colour. The page you write is what you skim on exam morning.</p></div>' +
-      (revealed || S.steps["7:sheet"] ? secs.map((s) => '<div class="card"><h2>' + esc(s.title) + '</h2><div class="prose">' + md(s.md) + "</div></div>").join("")
+      (revealed || (S.steps["4:sheet"] || S.steps["5:sheet"]) ? secs.map((s) => '<div class="card"><h2>' + esc(s.title) + '</h2><div class="prose">' + md(s.md) + "</div></div>").join("")
         : '<div class="card empty"><p>Written your page from memory?</p><div class="row" style="justify-content:center"><button class="btn primary" data-act="sheet-show">Yes, show the reference sheet</button></div></div>') +
       "</div>";
   }
