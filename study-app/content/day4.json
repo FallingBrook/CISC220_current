@@ -1402,18 +1402,6 @@
    "back": "`if (( $# != 2 )); then echo \"Usage: s.sh a b\" >&2; exit 1; fi`"
   },
   {
-   "id": "d4-fc-52",
-   "topic": "d4-arithmetic",
-   "front": "`$RANDOM`",
-   "back": "A random integer 0 to 32767 each time it is used. `$(( RANDOM % n ))` is 0 to n-1."
-  },
-  {
-   "id": "d4-fc-53",
-   "topic": "d4-arithmetic",
-   "front": "What does `x=5; x=$x+1; echo $x` print?",
-   "back": "`5+1`. Assignment does no arithmetic; use `x=$(( x + 1 ))` or `(( x++ ))`."
-  },
-  {
    "id": "d6-fc-01",
    "topic": "d6-arrays",
    "front": "Create an array `arr` holding 1, 2 and 3.",
@@ -1432,52 +1420,16 @@
    "back": "`${arr[i]}` (braces required; `$i` also works inside the brackets)"
   },
   {
-   "id": "d6-fc-04",
-   "topic": "d6-arrays",
-   "front": "Set the element of `arr` at index 3 to `x`.",
-   "back": "`arr[3]=x`"
-  },
-  {
    "id": "d6-fc-05",
    "topic": "d6-arrays",
    "front": "Number of elements in array `arr`?",
    "back": "`${#arr[@]}` (or `${#arr[*]}`)"
   },
   {
-   "id": "d6-fc-06",
-   "topic": "d6-arrays",
-   "front": "What does `${#arr}` (no `[@]`) give?",
-   "back": "The length of the **string** stored in `arr[0]`, not the number of elements."
-  },
-  {
-   "id": "d6-fc-07",
-   "topic": "d6-arrays",
-   "front": "What does `$arr` (no index) expand to?",
-   "back": "The element at index 0, `${arr[0]}`."
-  },
-  {
-   "id": "d6-fc-08",
-   "topic": "d6-arrays",
-   "front": "`arr=(red green)`: what does `echo $arr[1]` print?",
-   "back": "`red[1]`: `$arr` is element 0 and `[1]` is plain text. Use `${arr[1]}`."
-  },
-  {
-   "id": "d6-fc-09",
-   "topic": "d6-arrays",
-   "front": "List the indexes used by `arr`.",
-   "back": "`${!arr[@]}`"
-  },
-  {
    "id": "d6-fc-10",
    "topic": "d6-arrays",
    "front": "`\"${arr[@]}\"` vs `\"${arr[*]}\"`?",
    "back": "`\"${arr[@]}\"`: one word per element (spaces kept). `\"${arr[*]}\"`: one single word, all elements joined by spaces."
-  },
-  {
-   "id": "d6-fc-11",
-   "topic": "d6-arrays",
-   "front": "What do unquoted `${arr[@]}` and `${arr[*]}` do to an element like `a dog`?",
-   "back": "Word splitting breaks it into two words, `a` and `dog`."
   },
   {
    "id": "d6-fc-12",
@@ -1492,52 +1444,16 @@
    "back": "`arr+=(\"$x\")` (the parentheses are required)"
   },
   {
-   "id": "d6-fc-14",
-   "topic": "d6-arrays",
-   "front": "What does `arr+=c` (no parentheses) do?",
-   "back": "Appends the text `c` to the string in `arr[0]`; it does not add an element."
-  },
-  {
-   "id": "d6-fc-15",
-   "topic": "d6-arrays",
-   "front": "Append all of `b`'s elements to `a`.",
-   "back": "`a+=(\"${b[@]}\")`"
-  },
-  {
-   "id": "d6-fc-17",
-   "topic": "d6-arrays",
-   "front": "Where does `arr+=(v)` put `v` in a sparse array?",
-   "back": "At (largest index in use) + 1, not in a gap."
-  },
-  {
    "id": "d6-fc-18",
    "topic": "d6-arrays",
    "front": "Read each line of `file` into array `lines`.",
    "back": "`mapfile -t lines < file` (`-t` strips the newlines; `readarray` is the same command)"
   },
   {
-   "id": "d6-fc-19",
-   "topic": "d6-arrays",
-   "front": "Read the words of one line typed by the user into array `arr`.",
-   "back": "`read -a arr` (or `read -p \"prompt\" -a arr`)"
-  },
-  {
    "id": "d6-fc-20",
    "topic": "d6-arrays",
    "front": "Swap `arr[i]` and `arr[j]`.",
    "back": "`tmp=${arr[i]}; arr[i]=${arr[j]}; arr[j]=$tmp`"
-  },
-  {
-   "id": "d5-fc-61",
-   "topic": "d6-arrays",
-   "front": "Last element of a (not sparse) array `arr`, without knowing its length?",
-   "back": "`${arr[${#arr[@]} - 1]}`: the indexes run 0 to n-1, and the index inside `[ ]` is arithmetic."
-  },
-  {
-   "id": "d5-fc-27",
-   "topic": "d5-operators",
-   "front": "Conditional operators from highest to lowest precedence",
-   "back": "`( expr )`, `! expr`, `expr1 && expr2`, `expr1 || expr2`."
   },
   {
    "id": "d5-fc-28",
@@ -1552,22 +1468,10 @@
    "back": "`[[ -f $f && -r $f ]]`"
   },
   {
-   "id": "d5-fc-30",
-   "topic": "d5-operators",
-   "front": "Leap-year test for `yr`",
-   "back": "`(( yr % 400 == 0 || (yr % 4 == 0 && yr % 100 != 0) ))`"
-  },
-  {
    "id": "d5-fc-01",
    "topic": "d5-if",
    "front": "Write the full form of an `if` statement with `elif` and `else` (then on the same line).",
    "back": "```bash\nif test-commands; then\n    commands\nelif test-commands; then\n    commands\nelse\n    commands\nfi\n```"
-  },
-  {
-   "id": "d5-fc-02",
-   "topic": "d5-if",
-   "front": "When is the `;` before `then` required?",
-   "back": "When `then` is on the same line as the condition. `;` separates commands just like a newline does."
   },
   {
    "id": "d5-fc-03",
@@ -1576,82 +1480,22 @@
    "back": "It runs the condition **command** and checks its exit status: `0` means true, non-zero means false."
   },
   {
-   "id": "d5-fc-04",
-   "topic": "d5-if",
-   "front": "Exit status of `true` and of `false`?",
-   "back": "`true` exits with `0`; `false` exits with `1`."
-  },
-  {
-   "id": "d5-fc-05",
-   "topic": "d5-if",
-   "front": "What is `/dev/null` and why write `cd \"$1\" 2> /dev/null`?",
-   "back": "The null device: it discards everything written to it. `2> /dev/null` throws away `cd`'s error message when we only want its exit status."
-  },
-  {
-   "id": "d5-fc-06",
-   "topic": "d5-if",
-   "front": "Exit status of `[[ expr ]]`?",
-   "back": "`0` if *expr* is true, `1` if it is false."
-  },
-  {
    "id": "d5-fc-08",
    "topic": "d5-if",
    "front": "Why must you write spaces in `[[ $x == 5 ]]`?",
    "back": "`[[` and `]]` must be separate words. `[[$x` becomes one word, e.g. `[[5: command not found`."
   },
   {
-   "id": "d5-fc-09",
+   "id": "d5-fc-ft",
    "topic": "d5-if",
-   "front": "Which expansions do NOT happen inside `[[ ]]`?",
-   "back": "Word splitting and filename expansion. So `[[ -e $file ]]` works even if the name has spaces."
-  },
-  {
-   "id": "d5-fc-10",
-   "topic": "d5-if",
-   "front": "`-e file`",
-   "back": "True if the file exists (any kind of file)."
-  },
-  {
-   "id": "d5-fc-11",
-   "topic": "d5-if",
-   "front": "`-f file`",
-   "back": "True if the file exists and is a regular file."
-  },
-  {
-   "id": "d5-fc-12",
-   "topic": "d5-if",
-   "front": "`-d file`",
-   "back": "True if the file exists and is a directory."
-  },
-  {
-   "id": "d5-fc-13",
-   "topic": "d5-if",
-   "front": "`-r`, `-w`, `-x file`",
-   "back": "True if the file exists and is readable / writable / executable (by you)."
-  },
-  {
-   "id": "d5-fc-14",
-   "topic": "d5-if",
-   "front": "`-s file`",
-   "back": "True if the file exists and has a size greater than zero."
+   "front": "File tests inside `[[ ]]`: `-e`, `-f`, `-d`, `-r`, `-w`, `-x`, `-s`",
+   "back": "True if the file:\n- `-e` exists (any kind)\n- `-f` is a regular file\n- `-d` is a directory\n- `-r` / `-w` / `-x` is readable / writable / executable by you\n- `-s` has size greater than zero\n\nExample: `if [[ -d $f ]]; then echo \"directory\"; fi` (Midterm 2024 Q2D)"
   },
   {
    "id": "d5-fc-16",
    "topic": "d5-if",
    "front": "`-z str` vs `-n str`",
    "back": "`-z`: true if the string is empty (length zero). `-n`: true if its length is greater than zero."
-  },
-  {
-   "id": "d5-fc-18",
-   "topic": "d5-if",
-   "front": "String operators inside `[[ ]]`",
-   "back": "`==` (or `=`) equal, `!=` not equal, `<` before (lexicographically), `>` after, `=~` regex match."
-  },
-  {
-   "id": "d5-fc-19",
-   "topic": "d5-if",
-   "front": "Is `[[ 100 < 2 ]]` true or false?",
-   "back": "True. `<` compares **strings**; `\"1\"` comes before `\"2\"`."
   },
   {
    "id": "d5-fc-20",
@@ -1666,24 +1510,6 @@
    "back": "`-eq -ne -lt -le -gt -ge` (equal, not equal, less than, less or equal, greater than, greater or equal)."
   },
   {
-   "id": "d5-fc-22",
-   "topic": "d5-if",
-   "front": "Two ways to test that `n` is less than 10",
-   "back": "`[[ $n -lt 10 ]]` or `(( n < 10 ))`."
-  },
-  {
-   "id": "d5-fc-23",
-   "topic": "d5-if",
-   "front": "What happens to a non-integer like `hello` in `[[ $x -eq 0 ]]`?",
-   "back": "It is usually treated as `0`, with no error (so `[[ hello -eq 0 ]]` is true)."
-  },
-  {
-   "id": "d5-fc-24",
-   "topic": "d5-if",
-   "front": "`[[ -v x ]]`",
-   "back": "True if the variable `x` has been assigned a value (even empty). Write the name, not `$x`."
-  },
-  {
    "id": "d5-fc-25",
    "topic": "d5-if",
    "front": "Standard usage-message check for a script that needs exactly one argument",
@@ -1694,24 +1520,6 @@
    "topic": "d5-if",
    "front": "Quiz 2 Q1E: print `not readable` if the file named in `f` is not readable",
    "back": "`if [[ ! -r $f ]]; then echo \"not readable\"; fi`"
-  },
-  {
-   "id": "d5-fc-62",
-   "topic": "d5-if",
-   "front": "Validator script (like `testpw.sh`): how do you report EVERY failed rule and still exit with status 2?",
-   "back": "`status=0` at the start; one separate `if` per rule that prints its message with `>&2` and sets `status=2`; `exit $status` at the end."
-  },
-  {
-   "id": "d6-fc-22",
-   "topic": "d6-loops",
-   "front": "`while` vs `until`?",
-   "back": "`while` loops while the test command succeeds (status 0); `until` loops while it fails (stops when it succeeds)."
-  },
-  {
-   "id": "d6-fc-23",
-   "topic": "d6-loops",
-   "front": "Write a while loop that prints 1 to 5.",
-   "back": "`i=1; while (( i <= 5 )); do echo $i; (( i++ )); done`"
   },
   {
    "id": "d6-fc-24",
@@ -1732,22 +1540,10 @@
    "back": "Unquoted, each argument is word-split, so `\"a b\"` becomes two iterations (see `bad_for_each_arg.sh`)."
   },
   {
-   "id": "d6-fc-27",
-   "topic": "d6-loops",
-   "front": "What does `shift` do?",
-   "back": "Moves the positional parameters left by one (`$2` becomes `$1`, ...), drops the old `$1`, and decreases `$#` by 1."
-  },
-  {
    "id": "d6-fc-28",
    "topic": "d6-loops",
    "front": "Process arguments with `while` and `shift`.",
    "back": "`while (( $# > 0 )); do echo \"$1\"; shift; done`"
-  },
-  {
-   "id": "d6-fc-29",
-   "topic": "d6-loops",
-   "front": "`for f in *.pdf` when no `.pdf` files exist?",
-   "back": "The body runs once with `f` set to the literal text `*.pdf`."
   },
   {
    "id": "d6-fc-30",
@@ -1768,58 +1564,10 @@
    "back": "`for (( i = 0; i < ${#s}; i++ )); do c=${s:i:1}; ... done`"
   },
   {
-   "id": "d6-fc-33",
-   "topic": "d6-loops",
-   "front": "`break` vs `continue`?",
-   "back": "`break` exits the loop; `continue` skips to the next iteration. `break 2` / `continue 2` act on an outer loop."
-  },
-  {
    "id": "d6-fc-34",
    "topic": "d6-loops",
    "front": "Read the file named in `$file` one line at a time.",
    "back": "`while read -r line; do ...; done < \"$file\"`"
-  },
-  {
-   "id": "d6-fc-35",
-   "topic": "d6-loops",
-   "front": "Why `-r` in `read -r`?",
-   "back": "So backslashes in the input are kept as ordinary characters."
-  },
-  {
-   "id": "d6-fc-36",
-   "topic": "d6-loops",
-   "front": "Split comma-separated lines into fields while reading.",
-   "back": "`while IFS=\",\" read -r a b c; do ...; done < \"$file\"`"
-  },
-  {
-   "id": "d6-fc-37",
-   "topic": "d6-loops",
-   "front": "Why is `for i in $(seq 1 10)` discouraged in the course?",
-   "back": "`seq 1 10` is a separate program that prints 1 to 10; the shell must start a new process just to count. A C-style `for (( i = 1; i <= 10; i++ ))` loop does it in the shell."
-  },
-  {
-   "id": "d6-fc-60",
-   "topic": "d6-loops",
-   "front": "Write an infinite loop two ways.",
-   "back": "`while true; do ... done` or `until false; do ... done` (leave it with `break`, or Ctrl + C)."
-  },
-  {
-   "id": "d6-fc-61",
-   "topic": "d6-loops",
-   "front": "What does `(( count-- ))` do?",
-   "back": "Subtracts 1 from `count` (same as `count=$(( count - 1 ))`)."
-  },
-  {
-   "id": "d6-fc-62",
-   "topic": "d6-loops",
-   "front": "`str=\"a  b c\"; for w in $str; do ...` runs how many times?",
-   "back": "3 times (`a`, `b`, `c`): the unquoted variable is word split."
-  },
-  {
-   "id": "d6-fc-63",
-   "topic": "d6-loops",
-   "front": "Loop over the numbers 1 to 10 with brace expansion.",
-   "back": "`for i in {1..10}; do ... done`"
   },
   {
    "id": "d6-fc-64",
@@ -1828,76 +1576,10 @@
    "back": "`for x in \"${arr[@]}\"; do ... done`"
   },
   {
-   "id": "d6-fc-65",
-   "topic": "d6-loops",
-   "front": "Loop over the indexes in use in array `arr` (even if it is sparse).",
-   "back": "`for i in \"${!arr[@]}\"; do echo \"${arr[i]}\"; done`"
-  },
-  {
-   "id": "d6-fc-66",
-   "topic": "d6-loops",
-   "front": "Visit array `arr` from its last element to its first.",
-   "back": "`for (( i = ${#arr[@]} - 1; i >= 0; i-- )); do echo \"${arr[i]}\"; done`"
-  },
-  {
-   "id": "d6-fc-67",
-   "topic": "d6-loops",
-   "front": "How many times does `for x in \"${arr[*]}\"` run when `arr=(a b c)`?",
-   "back": "Once: `\"${arr[*]}\"` is one word, `a b c`."
-  },
-  {
-   "id": "d6-fc-68",
-   "topic": "d6-loops",
-   "front": "Inside `(( ))`, how do you write element `i` of `arr`?",
-   "back": "`arr[i]` (no `$`, no braces), e.g. `(( total += arr[i] ))`. Outside `(( ))` write `${arr[i]}`."
-  },
-  {
-   "id": "d6-fc-69",
-   "topic": "d6-loops",
-   "front": "When does `while read -r line; do ... done < \"$file\"` stop?",
-   "back": "When `read` fails: at the end of the file (no more complete lines)."
-  },
-  {
-   "id": "d6-fc-70",
-   "topic": "d6-loops",
-   "front": "`IFS=\",\" read -r a b` on the line `x,y,z`: what are `a` and `b`?",
-   "back": "`a` is `x`; `b` is `y,z` (the last variable gets the rest of the line)."
-  },
-  {
-   "id": "d6-fc-71",
-   "topic": "d6-loops",
-   "front": "Nested loops: the outer loop makes 3 passes, the inner loop 4 per pass. How many times does the inner body run?",
-   "back": "12 (the inner loop runs completely for each outer pass)."
-  },
-  {
-   "id": "d6-fc-72",
-   "topic": "d6-loops",
-   "front": "In `[[ -e $f ]] || continue`, what does `||` do?",
-   "back": "Runs `continue` only if the test fails, i.e. when `$f` does not exist (the literal unmatched glob)."
-  },
-  {
-   "id": "d6-fc-73",
-   "topic": "d6-loops",
-   "front": "In nested loops, which loop does a plain `break` leave?",
-   "back": "Only the innermost loop it is in; the outer loop goes on. `break 2` leaves both."
-  },
-  {
    "id": "d6-fc-38",
    "topic": "d6-functions",
    "front": "Course syntax to define a function `greet`.",
    "back": "`greet() {` newline, commands, newline `}`"
-  },
-  {
-   "id": "d6-fc-39",
-   "topic": "d6-functions",
-   "front": "What are the brace rules for a function body?",
-   "back": "A space or newline after `{`; the `}` must start a new command (its own line, or after `;`)."
-  },
-  {
-   "id": "d6-fc-40",
-   "topic": "d6-functions",
-   "front": "What happens if you call a function before its definition in a script?",
-   "back": "`command not found`: the definition has not run yet."
   },
   {
    "id": "d6-fc-41",
@@ -1912,18 +1594,6 @@
    "back": "`f \"$@\"`"
   },
   {
-   "id": "d6-fc-43",
-   "topic": "d6-functions",
-   "front": "What is a function's exit status if it has no `return`?",
-   "back": "The exit status of the last command it ran."
-  },
-  {
-   "id": "d6-fc-44",
-   "topic": "d6-functions",
-   "front": "What range can `return n` produce?",
-   "back": "0-255 (lowest 8 bits of n); `return 256` gives 0."
-  },
-  {
    "id": "d6-fc-45",
    "topic": "d6-functions",
    "front": "`return` vs `exit` inside a function?",
@@ -1934,12 +1604,6 @@
    "topic": "d6-functions",
    "front": "Two ways to get a value out of a Bash function.",
    "back": "1. `echo` it and capture with `var=$(f args)`. 2. Assign a non-local (global) variable that the caller reads."
-  },
-  {
-   "id": "d6-fc-47",
-   "topic": "d6-functions",
-   "front": "What is dynamic scoping?",
-   "back": "A function sees the variables of whoever called it (and their callers); variables it sets are visible to the caller afterwards unless `local`."
   },
   {
    "id": "d6-fc-48",
@@ -1958,48 +1622,6 @@
    "topic": "d6-functions",
    "front": "Use function `is_int` as a condition.",
    "back": "`if is_int \"$1\"; then ... fi` (true when it returns 0)"
-  },
-  {
-   "id": "d6-fc-74",
-   "topic": "d6-functions",
-   "front": "After `i=$(indexof z abc)`, what is `$?`?",
-   "back": "The exit status of `indexof` (1 if it returned 1): an assignment with `$( )` has the status of the command inside."
-  },
-  {
-   "id": "d6-fc-75",
-   "topic": "d6-functions",
-   "front": "`function f { ...; }` vs `f() { ...; }`?",
-   "back": "Both are legal Bash. The `function` form is not portable; the course writes `f() { ... }`."
-  },
-  {
-   "id": "d6-fc-76",
-   "topic": "d6-functions",
-   "front": "`f` sets `y=5` and prints `hi`. After `x=$(f)`, what are `x` and `y`?",
-   "back": "`x` is `hi`; `y` is unchanged (unset), because `$( )` ran `f` in a subshell."
-  },
-  {
-   "id": "d6-fc-77",
-   "topic": "d6-functions",
-   "front": "In selection sort, what does `minidx j` find?",
-   "back": "The index of the smallest element of `arr` from index `j` to the end."
-  },
-  {
-   "id": "d6-fc-78",
-   "topic": "d6-functions",
-   "front": "Swap `arr[j]` and `arr[idx]`.",
-   "back": "`tmp=${arr[j]}`, then `arr[j]=${arr[idx]}`, then `arr[idx]=$tmp`."
-  },
-  {
-   "id": "d6-fc-79",
-   "topic": "d6-functions",
-   "front": "Why quote the right side in `[[ ${s:i:1} == \"${s:j:1}\" ]]`?",
-   "back": "Unquoted, the right side of `==` is a glob pattern, so a `*` or `?` character would match anything. Quoted, it is compared literally."
-  },
-  {
-   "id": "d6-fc-80",
-   "topic": "d6-functions",
-   "front": "Should a function in a file meant for `source` end with `exit 1` on failure?",
-   "back": "No: use `return 1`. `exit` would end the shell that sourced the file (it can close your terminal)."
   }
  ],
  "quiz": [
