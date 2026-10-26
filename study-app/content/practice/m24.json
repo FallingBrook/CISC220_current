@@ -1,0 +1,706 @@
+{
+  "sourceId": "m24",
+  "source": "Midterm 2024",
+  "questions": [
+    {
+      "id": "m24-1a",
+      "source": "Midterm 2024, Q1A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nA) What would the command `pwd` print when run in the directory `CISC352`?",
+      "answer": "`/home/user2/courses/CISC352`",
+      "grading": "`pwd` prints the absolute path, so it must start with `/`. Printing just `CISC352` or a relative path loses the mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`/home/user2/courses/CISC352`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-1a-v",
+      "source": "Variant of Midterm 2024, Q1A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nA) Suppose that the current working directory is `courses` belonging to `user1`. What would the command `pwd` print after running `cd ../../user2`?",
+      "answer": "`/home/user2`",
+      "grading": "From /home/user1/courses, `..` is /home/user1 and `../..` is /home, so `../../user2` is /home/user2. Must be absolute.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`/home/user2`"
+        }
+      ],
+      "variantOf": "m24-1a"
+    },
+    {
+      "id": "m24-1b",
+      "source": "Midterm 2024, Q1B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nB) Suppose that the current working directory is `user1`. What command would you use to remove the file named `A1.pdf` from the directory `CISC220`?",
+      "answer": "```bash\nrm courses/CISC220/A1.pdf\n```",
+      "grading": "Accept the absolute path `/home/user1/courses/CISC220/A1.pdf` or `./courses/CISC220/A1.pdf`. Missing `courses/` is wrong (CISC220 is not directly in user1). `rmdir` is wrong; `rm -f`/`rm -i` are fine.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`rm` with a correct path to CISC220/A1.pdf"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-1b-v",
+      "source": "Variant of Midterm 2024, Q1B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nB) Suppose that the current working directory is `home`. What single command would you use to remove the directory `CISC352`, including everything inside it?",
+      "answer": "```bash\nrm -r user2/courses/CISC352\n```",
+      "grading": "Needs `-r` (or `-rf`/`-R`) because the directory may be non-empty. `rmdir` only removes empty directories (wrong). Path must go through user2/courses.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`rm -r user2/courses/CISC352` (or absolute path)"
+        }
+      ],
+      "variantOf": "m24-1b"
+    },
+    {
+      "id": "m24-1c",
+      "source": "Midterm 2024, Q1C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands",
+        "globs"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nC) Suppose that the current working directory is `user1`. What single command would you use to list the non-hidden files in all the directories in the `courses` directory belonging to `user1`?",
+      "answer": "```bash\nls courses/*\n```",
+      "grading": "`ls courses/*` or `ls courses/*/` both list the contents of every subdirectory (there are more directories not shown, so naming CISC204 and CISC220 explicitly is NOT enough). No `-a` (hidden files not wanted). `ls courses` lists only the directory names (wrong). `ls -R courses` is acceptable.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`ls courses/*` (glob over all subdirectories, no -a)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-1c-v",
+      "source": "Variant of Midterm 2024, Q1C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands",
+        "globs"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nC) Suppose that the current working directory is `home`. What single command would you use to list the non-hidden files in every `CISC204` directory (the ones belonging to `user1` and to `user2`)?",
+      "answer": "```bash\nls */courses/CISC204\n```",
+      "grading": "Accept `ls user1/courses/CISC204 user2/courses/CISC204` or absolute paths. No `-a`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`ls */courses/CISC204` or both paths listed"
+        }
+      ],
+      "variantOf": "m24-1c"
+    },
+    {
+      "id": "m24-1d",
+      "source": "Midterm 2024, Q1D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nD) Suppose that the current working directory is `CISC220`. What single command would you use to change to the directory `CISC204` belonging to `user1` using a relative path?",
+      "answer": "```bash\ncd ../CISC204\n```",
+      "grading": "Must be relative (no leading `/` or `~`). `cd ../../courses/CISC204` also works. `cd CISC204` is wrong (it is a sibling, not a child).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cd ../CISC204`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-1d-v",
+      "source": "Variant of Midterm 2024, Q1D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nD) Suppose that the current working directory is `CISC352`. What single command would you use to change to the directory `CISC220` belonging to `user1` using a relative path?",
+      "answer": "```bash\ncd ../../../user1/courses/CISC220\n```",
+      "grading": "Three `..`: CISC352 → courses → user2 → home. Must be relative.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cd ../../../user1/courses/CISC220`"
+        }
+      ],
+      "variantOf": "m24-1d"
+    },
+    {
+      "id": "m24-1e",
+      "source": "Midterm 2024, Q1E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands",
+        "globs"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nE) Suppose that the current user is one of `user1` or `user2` (but for the purposes of the question, you don't know which) and that they are in their `CISC204` directory. What command could they use to copy all the files in their `CISC204` directory into their home directory?",
+      "answer": "```bash\ncp * ~\n```",
+      "grading": "Because the user is unknown, the destination must not name user1 or user2: `~`, `~/`, `\"$HOME\"`, or the relative `../..` are all correct. `cp * /home/user1` loses the mark. `cp * ..` copies into courses (wrong).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cp *` to `~` (or `$HOME` or `../..`), not a hard-coded user"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-1e-v",
+      "source": "Variant of Midterm 2024, Q1E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands",
+        "globs"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n/\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    |       └── more directories not shown\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nE) Suppose that the current user is one of `user1` or `user2` (you don't know which) and that they are in one of their course directories. What command could they use to copy all the files whose names end in `.pdf` from their home directory into the current working directory?",
+      "answer": "```bash\ncp ~/*.pdf .\n```",
+      "grading": "Source `~/*.pdf` (or `\"$HOME\"/*.pdf` or `../../*.pdf`), destination `.`. Forgetting the `.` destination is a common error (then cp has no target).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cp ~/*.pdf .`"
+        }
+      ],
+      "variantOf": "m24-1e"
+    },
+    {
+      "id": "m24-2a",
+      "source": "Midterm 2024, Q2A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "globs"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nA) Explain what filenames are matched by the expansion `[abc]?.sh`",
+      "answer": "Filenames exactly 5 characters long: the first character is `a`, `b`, or `c`; the second is any single character; and the name ends in `.sh` (e.g. `ax.sh`, `b1.sh`, `cc.sh`).",
+      "grading": "Needs all three parts: first char one of a/b/c, exactly one more character of any kind, then `.sh`. Treating `?` as the regex \"optional\" (so `a.sh` would match) is wrong; so is saying `?` means any number of characters.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "First char a/b/c, then exactly one arbitrary char, then `.sh`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-2a-v",
+      "source": "Variant of Midterm 2024, Q2A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "globs"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nA) Explain what filenames are matched by the expansion `?[0-9]*.txt`",
+      "answer": "Non-hidden filenames whose first character is any character, whose second character is a digit, followed by zero or more of any characters, ending in `.txt` (e.g. `x7.txt`, `77.txt`, `a1b.txt`).",
+      "grading": "Must capture: any first char, a digit second, anything (including nothing) after, ending `.txt`. Saying \"starts with a digit\" is wrong (the digit is the second char).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Any char, then a digit, then anything, ending in `.txt`"
+        }
+      ],
+      "variantOf": "m24-2a"
+    },
+    {
+      "id": "m24-2b",
+      "source": "Midterm 2024, Q2B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "expansions"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nB) What kind of expansion is used when you want to store the output of a command in a variable? If you don't remember the name of the expansion, then provide an example instead.",
+      "answer": "Command substitution, e.g.\n\n```bash\nnow=$(date)\n```",
+      "grading": "Either the name \"command substitution\" or a correct example (`x=$(cmd)` or backticks) earns the mark. \"Arithmetic expansion\" or `x=cmd` is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Command substitution (or a correct `$( )` example)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-2b-v",
+      "source": "Variant of Midterm 2024, Q2B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "expansions",
+        "arithmetic"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nB) What kind of expansion is `$(( 3 + 4 ))`, and what does it expand to?",
+      "answer": "Arithmetic expansion; it expands to `7`.",
+      "grading": "Both the name (arithmetic expansion) and the value 7 are needed. Calling it command substitution is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Arithmetic expansion, value 7"
+        }
+      ],
+      "variantOf": "m24-2b"
+    },
+    {
+      "id": "m24-2c",
+      "source": "Midterm 2024, Q2C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "streams",
+        "commands"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nC) What is a `tee` used for?",
+      "answer": "`tee` reads standard input and copies it both to standard output and to one or more files. It is used in a pipeline to save the intermediate data to a file while still passing it on to the next command.",
+      "grading": "Key idea: splits the stream: writes to a file AND to standard output. \"Writes to a file\" alone is incomplete (that is just `>`).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Copies stdin to stdout and to a file (saves output mid-pipeline)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-2c-v",
+      "source": "Variant of Midterm 2024, Q2C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "streams"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nC) What does the pipe operator `|` do in a command such as `cmd1 | cmd2`?",
+      "answer": "It connects the standard output of `cmd1` to the standard input of `cmd2`.",
+      "grading": "Must mention stdout of the left command becoming stdin of the right command. \"Runs cmd2 after cmd1\" is wrong; \"or\" is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "stdout of cmd1 becomes stdin of cmd2"
+        }
+      ],
+      "variantOf": "m24-2c"
+    },
+    {
+      "id": "m24-2d",
+      "source": "Midterm 2024, Q2D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "conditionals",
+        "files"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nD) Suppose that the variable `f` stores the name of a file. Complete the following `if` statement so that the string `\"directory\"` is printed if `f` is the name of a directory.\n\n```bash\nif __________________________________\n    echo \"directory\"\nfi\n```",
+      "answer": "```bash\nif [[ -d $f ]]; then\n    echo \"directory\"\nfi\n```",
+      "grading": "The blank must contain both the test and `then`, since the skeleton has no `then` line: `[[ -d $f ]]; then` (or `[ -d \"$f\" ]; then`). Missing `; then` loses the mark. `-f` (regular file) or `-e` (exists) is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`[[ -d $f ]]; then`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-2d-v",
+      "source": "Variant of Midterm 2024, Q2D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "conditionals",
+        "files"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nD) Suppose that the variable `f` stores the name of a file. Complete the following `if` statement so that the string `\"writable\"` is printed if `f` is the name of a regular file that the user can write to.\n\n```bash\nif __________________________________\n    echo \"writable\"\nfi\n```",
+      "answer": "```bash\nif [[ -f $f && -w $f ]]; then\n    echo \"writable\"\nfi\n```",
+      "grading": "Needs both `-f` and `-w` combined with `&&` inside `[[ ]]` (or `[[ -f $f ]] && [[ -w $f ]]`), plus `; then`. `-a` inside `[[ ]]` is not the AND operator.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`[[ -f $f && -w $f ]]; then`"
+        }
+      ],
+      "variantOf": "m24-2d"
+    },
+    {
+      "id": "m24-2e",
+      "source": "Midterm 2024, Q2E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "arrays"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nE) Suppose that you have an array variable `a`. Show how to print the length of the array stored in `a`.",
+      "answer": "```bash\necho \"${#a[@]}\"\n```",
+      "grading": "`${#a[@]}` or `${#a[*]}` with echo. `${#a}` is the length of element 0 (wrong). Must actually print (echo).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`echo ${#a[@]}`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-2e-v",
+      "source": "Variant of Midterm 2024, Q2E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "arrays",
+        "quoting"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nE) Suppose that you have an array variable `a`. Show how to print all of the elements of the array stored in `a` on a single line.",
+      "answer": "```bash\necho \"${a[@]}\"\n```",
+      "grading": "`echo \"${a[@]}\"` or `echo \"${a[*]}\"`. `echo $a` prints only element 0 (wrong); `echo ${a}` likewise.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`echo \"${a[@]}\"`"
+        }
+      ],
+      "variantOf": "m24-2e"
+    },
+    {
+      "id": "m24-2f",
+      "source": "Midterm 2024, Q2F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "regex"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nF) Provide a regular expression that matches all strings that start and end with an uppercase `A`.",
+      "answer": "```\n^A(.*A)?$\n```\n\nThis matches `A` itself as well as `AA`, `AbcA`, `A A`, and so on.",
+      "grading": "Fully correct: `^A(.*A)?$` or `^A$|^A.*A$`. `^A.*A$` misses the one-character string `A`; the 2023 quiz solution treated that version as sufficient, so give the mark but point out the edge case. Missing anchors (`A.*A`) loses the mark (it matches any string containing two A's). Glob syntax `A*A` is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Anchored regex starting and ending with A (`^A(.*A)?$` or `^A.*A$`)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-2f-v",
+      "source": "Variant of Midterm 2024, Q2F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "regex"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nF) Provide a regular expression that matches all strings that start and end with a lowercase `x`.",
+      "answer": "```\n^x(.*x)?$\n```",
+      "grading": "Same as the original: `^x(.*x)?$` is exact (includes `x`); `^x.*x$` misses `x`; mention it but accept. Anchors required.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Anchored regex starting and ending with x"
+        }
+      ],
+      "variantOf": "m24-2f"
+    },
+    {
+      "id": "m24-2g",
+      "source": "Midterm 2024, Q2G",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "loops"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nG) Complete the missing parts of the following Bash loop so it outputs the letters `a`, `b`, and `c` on separate lines:\n\n```bash\n____________________ a b c __________\n\n\n\nfi\n```",
+      "answer": "```bash\nfor ch in a b c; do\n    echo \"$ch\"\ndone\n```\n\nFirst blank: `for ch in`. Second blank: `; do`. Body (in the gap): `echo \"$ch\"`. The loop ends with `done`.",
+      "grading": "The printed skeleton ends in `fi`, which is almost certainly a typo for `done` (a `for` loop ends with `done`; `fi` closes an `if`). Students should write `done` (or correct the `fi`); do NOT penalise either way for the typo. Essential: `for <var> in` before the list, `; do` after it, and `echo \"$var\"` in the body. Missing `do` or the echo loses the mark. `for ch in {a..c}` does not fit the given skeleton.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`for ch in` ... `; do echo \"$ch\"` (closing with done)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-2g-v",
+      "source": "Variant of Midterm 2024, Q2G",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "loops",
+        "arithmetic"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nG) Complete the missing parts of the following Bash loop so it outputs the even numbers `0`, `2`, `4`, `6`, and `8` on separate lines:\n\n```bash\nfor (( ______________________________ )); do\n    echo \"$i\"\n__________\n```",
+      "answer": "```bash\nfor (( i = 0; i < 10; i += 2 )); do\n    echo \"$i\"\ndone\n```",
+      "grading": "Header `i = 0; i < 10; i += 2` (or `i <= 8`, `i = i + 2`); closing `done`. `i++` prints 0..9 (wrong); `fi` is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`i = 0; i < 10; i += 2` and `done`"
+        }
+      ],
+      "variantOf": "m24-2g"
+    },
+    {
+      "id": "m24-3",
+      "source": "Midterm 2024, Q3",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "streams",
+        "commands"
+      ],
+      "prompt": "Question 3 (2 marks).\n\nThe `tabdate` command outputs the current time in the following format:\n\n```\nWed\tOct\t23\t12:54:59\tEDT\t2024\n```\n\nwhere each field of the output is separated from the next using a tab character.\n\nWrite a single pipeline that:\n\n- saves the month, day, and current time (2nd, 3rd, and 4th fields) to a file named `now.txt`, and\n- prints the current time to standard output",
+      "answer": "```bash\ntabdate | cut -f2-4 | tee now.txt | cut -f3\n```\n\nAfter the first `cut`, the time is the 3rd field of each line, so the second `cut` uses `-f3`.",
+      "grading": "`cut -f2-4` or `cut -f2,3,4` (tab is the default delimiter). The tee must come after the first cut so now.txt holds only fields 2-4. The final cut must be `-f3` (the time's position AFTER the first cut); `cut -f4` at the end is a common mistake (it prints an empty line because only 3 fields are left). `cut -d ' '` is wrong (tabs).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`tabdate | cut -f2-4 | tee now.txt`"
+        },
+        {
+          "marks": 1,
+          "item": "Then `cut -f3` (time is now field 3) to print the time"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-3-v",
+      "source": "Variant of Midterm 2024, Q3",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "streams",
+        "commands"
+      ],
+      "prompt": "Question 3 (2 marks).\n\nThe `tabdate` command outputs the current time in the following format:\n\n```\nWed\tOct\t23\t12:54:59\tEDT\t2024\n```\n\nwhere each field of the output is separated from the next using a tab character.\n\nWrite a single pipeline that:\n\n- saves the day of the week and the year (1st and 6th fields) to a file named `stamp.txt`, and\n- prints the year to standard output",
+      "answer": "```bash\ntabdate | cut -f1,6 | tee stamp.txt | cut -f2\n```",
+      "grading": "`cut -f1,6` (comma, not a range: `-f1-6` would keep everything). After that the year is field 2, so the final cut is `-f2`; `-f6` at the end is a common mistake.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`tabdate | cut -f1,6 | tee stamp.txt`"
+        },
+        {
+          "marks": 1,
+          "item": "Then `cut -f2` to print the year"
+        }
+      ],
+      "variantOf": "m24-3"
+    },
+    {
+      "id": "m24-4",
+      "source": "Midterm 2024, Q4",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "scripts",
+        "permissions",
+        "commands",
+        "quoting",
+        "variables"
+      ],
+      "prompt": "Question 4 (4 marks).\n\nWrite a complete Bash script that requires two input arguments where the first argument is a new\ndirectory name `d`, and the second argument is the name of an existing, readable, regular file `f`\nlocated in the same directory as the script.\n\nThe script creates the new directory `d` in the same directory as the script and moves the file `f`\ninto the newly created directory. It then changes the permissions of the file `f` by removing all\npermissions for all users who are not the owner of the file (you can assume that the owner is the\ncurrent user).\n\nNo error checking is required in this question. You can assume that two input arguments are\nalways given and that all required permissions are given.",
+      "answer": "```bash\n#!/bin/bash\n\nd=$1\nf=$2\n\n# directory that contains the script\nscriptdir=$(dirname \"$0\")\n\nmkdir \"$scriptdir/$d\"\nmv \"$scriptdir/$f\" \"$scriptdir/$d\"\nchmod go= \"$scriptdir/$d/$f\"        # or: chmod go-rwx ...\n```\n\nIf you assume the script is run from its own directory (the usual reading on the test), the simpler version is also full marks:\n\n```bash\n#!/bin/bash\n\nd=$1\nf=$2\n\nmkdir \"$d\"\nmv \"$f\" \"$d\"\nchmod go-rwx \"$d/$f\"\n```",
+      "grading": "Accept either version above; the simple one (assuming the current directory is the script's directory) is what most students write and should get full marks. `${0%/*}` for the script's directory is also fine. Essential: `mkdir \"$d\"`, `mv \"$f\" \"$d\"`, and chmod on the file at its NEW location `\"$d/$f\"`: `chmod go-rwx \"$f\"` after the move fails (file no longer there) and loses that mark. `go-rwx`, `go=`, or `g-rwx,o-rwx` are correct; `chmod 600`/`700` also change the owner's bits, which the question did not ask for: point this out, and deduct only if it clearly changes the owner's permissions in a wrong way. Variables holding file names should be quoted; unquoted expansions lose a mark. `cp` instead of `mv` loses the move mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash` and uses `$1` as d and `$2` as f"
+        },
+        {
+          "marks": 1,
+          "item": "`mkdir \"$d\"` (in the script's directory)"
+        },
+        {
+          "marks": 1,
+          "item": "`mv \"$f\" \"$d\"` moves the file into the new directory"
+        },
+        {
+          "marks": 1,
+          "item": "`chmod go-rwx \"$d/$f\"` on the moved file, variables quoted"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-4-v",
+      "source": "Variant of Midterm 2024, Q4",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "scripts",
+        "permissions",
+        "commands",
+        "quoting",
+        "variables"
+      ],
+      "prompt": "Question 4 (4 marks).\n\nWrite a complete Bash script that requires two input arguments where the first argument is the name of an\nexisting, readable, regular file `f` in the current working directory, and the second argument is a new\ndirectory name `d`.\n\nThe script creates the new directory `d` in the current working directory and copies the file `f` into the\nnewly created directory. It then changes the permissions of the copy so that the owner can read and write it,\nthe group can only read it, and other users have no permissions.\n\nNo error checking is required in this question. You can assume that two input arguments are always given and\nthat all required permissions are given.",
+      "answer": "```bash\n#!/bin/bash\n\nf=$1\nd=$2\n\nmkdir \"$d\"\ncp \"$f\" \"$d\"\nchmod u=rw,g=r,o= \"$d/$f\"           # or: chmod 640 \"$d/$f\"\n```",
+      "grading": "Note the argument order: file first, then directory. Copy (not move). chmod applies to the copy `\"$d/$f\"`, not the original. `640` or `u=rw,g=r,o=` both fine. Quote the variables.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash`, `$1` as f and `$2` as d"
+        },
+        {
+          "marks": 1,
+          "item": "`mkdir \"$d\"`"
+        },
+        {
+          "marks": 1,
+          "item": "`cp \"$f\" \"$d\"`"
+        },
+        {
+          "marks": 1,
+          "item": "`chmod 640 \"$d/$f\"` on the copy, quoted"
+        }
+      ],
+      "variantOf": "m24-4"
+    },
+    {
+      "id": "m24-5",
+      "source": "Midterm 2024, Q5",
+      "kind": "long",
+      "marks": 12,
+      "topics": [
+        "scripts",
+        "functions",
+        "strings",
+        "arrays",
+        "loops",
+        "streams",
+        "conditionals"
+      ],
+      "prompt": "Question 5 (12 marks).\n\nConsider a plain text file containing the names of students in a course, one name per line in no\nparticular order. An example of the contents of such a file is:\n\n```\nSimpson, Bart\nSimpson, Lisa\nWiggum, Ralph\n```\n\nNote that the names are always formatted as `lastname, firstname`.\n\nThe Bash command will read each line of a file named `fname` into an array `arr`:\n\n```bash\nreadarray -t arr < fname\n```\n\nFor example, if the sample file above is named `students.txt` then\n\n```bash\nreadarray -t arr < students.txt\n```\n\ncreates an array of size 3 where the elements are `\"Simpson, Bart\"`, `\"Simpson, Lisa\"`, and\n`\"Wiggum, Ralph\"`.\n\nWrite a script that performs the following steps:\n\n1. If the number of command line arguments is less than 1, then the script outputs an error\n   message to *standard error* and exits with a status of 1.\n\n2. If one or more command line arguments are given, then the first argument is interpreted\n   as the name of a file containing a list of student names as described above (and any\n   remaining arguments are ignored). Your script outputs the name of each student using\n   their first name, followed by a space, followed by their last name. For example, for the\n   file shown above your script should output (there is no space before the first name):\n\n```\nBart Simpson\nLisa Simpson\nRalph Wiggum\n```\n\nYou may assume that if a filename is provided to the script as an argument, then the file exists\nand is readable. Furthermore, every student has exactly one first name and one last name.\n\nYour script must implement and use the functions shown below. It is up to you to\ndecide how your functions receive their arguments and return their values.\n\nRecall that if `s` is a variable then `${s:offset:len}` expands to the substring of `s` starting at\nindex `offset` and having length `len`.\n\n```bash\nfunction index_of_comma {\n    # finds the index of the first comma in a specified string\n\n}\n\nfunction get_firstname {\n    # gets the first name of a student given their full name\n    #   e.g., \"Simpson, Bart\" has the first name \"Bart\"\n\n}\n\nfunction get_lastname {\n    # gets the last name of a student given their full name\n    #   e.g., \"Simpson, Bart\" has the last name \"Simpson\"\n\n}\n# the rest of your script starts here\n```",
+      "answer": "```bash\n#!/bin/bash\n\nindex_of_comma() {\n    # finds the index of the first comma in a specified string\n    # usage: index_of_comma str     prints the index (-1 if there is no comma)\n    local s=$1\n    local i\n    for (( i = 0; i < ${#s}; i++ )); do\n        if [[ ${s:i:1} == \",\" ]]; then\n            echo \"$i\"\n            return 0\n        fi\n    done\n    echo -1\n    return 1\n}\n\nget_firstname() {\n    # gets the first name of a student given their full name\n    #   e.g., \"Simpson, Bart\" has the first name \"Bart\"\n    local name=$1\n    local idx\n    idx=$(index_of_comma \"$name\")\n    echo \"${name:idx+2}\"            # skip the comma and the space after it\n}\n\nget_lastname() {\n    # gets the last name of a student given their full name\n    #   e.g., \"Simpson, Bart\" has the last name \"Simpson\"\n    local name=$1\n    local idx\n    idx=$(index_of_comma \"$name\")\n    echo \"${name:0:idx}\"\n}\n\n# the rest of your script starts here\nif (( $# < 1 )); then\n    echo \"usage: $0 filename\" >&2\n    exit 1\nfi\n\nreadarray -t arr < \"$1\"\n\nfor student in \"${arr[@]}\"; do\n    first=$(get_firstname \"$student\")\n    last=$(get_lastname \"$student\")\n    echo \"$first $last\"\ndone\n```\n\nTested on the sample file: prints `Bart Simpson`, `Lisa Simpson`, `Ralph Wiggum`; extra arguments are ignored; with no arguments it prints the usage message to stderr and exits with status 1.",
+      "grading": "All three functions must be implemented AND used: get_firstname and get_lastname should call index_of_comma and use `${s:offset:len}`. Writing get_firstname as `${name#*, }` without using index_of_comma works but ignores the required design: deduct the index_of_comma 'used' marks. Keeping the printed `function name {` header style is fine. Returning values: echo + command substitution `x=$(f \"$arg\")` or global variables are both fine; `return <index>` is not acceptable for a value (exit status 0-255 only, and it is meant for success/failure). index_of_comma alternatives: a loop over `${s:i:1}`, or `local before=${s%%,*}; echo \"${#before}\"`. First name starts at index+2 (comma and space); `idx+1` leaves a leading space (the question says there must be no space before the first name) - deduct 1. Last name is `${name:0:idx}`. Error check: `(( $# < 1 ))` or `[[ $# -lt 1 ]]`; message must go to stderr (`>&2`) and `exit 1`: printing to stdout or exiting 0 loses those marks. Must read the file named by `$1` (not a hard-coded students.txt), e.g. `readarray -t arr < \"$1\"`, and loop with `\"${arr[@]}\"` (quoted, because each element contains a space; unquoted splits \"Simpson,\" and \"Bart\" into separate elements - deduct). Output format exactly `first last`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks `$# < 1` and prints an error message to standard error (`>&2`)"
+        },
+        {
+          "marks": 1,
+          "item": "Exits with status 1 in that case"
+        },
+        {
+          "marks": 3,
+          "item": "index_of_comma correctly finds and returns (echo/global) the index of the first comma"
+        },
+        {
+          "marks": 2,
+          "item": "get_firstname uses index_of_comma and `${name:idx+2}` (no leading space)"
+        },
+        {
+          "marks": 2,
+          "item": "get_lastname uses index_of_comma and `${name:0:idx}`"
+        },
+        {
+          "marks": 1,
+          "item": "Reads the file named by `$1` into an array with `readarray -t arr < \"$1\"`"
+        },
+        {
+          "marks": 1,
+          "item": "Loops over every element with `\"${arr[@]}\"` (quoted)"
+        },
+        {
+          "marks": 1,
+          "item": "Calls the functions and prints `first last` for each student"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "m24-5-v",
+      "source": "Variant of Midterm 2024, Q5",
+      "kind": "long",
+      "marks": 12,
+      "topics": [
+        "scripts",
+        "functions",
+        "strings",
+        "arrays",
+        "loops",
+        "streams",
+        "conditionals"
+      ],
+      "prompt": "Question 5 (12 marks).\n\nConsider a plain text file containing the names of students in a course, one name per line in no\nparticular order. An example of the contents of such a file is:\n\n```\nBart Simpson\nLisa Simpson\nRalph Wiggum\n```\n\nNote that the names are always formatted as `firstname lastname` (separated by a single space).\n\nThe Bash command `readarray -t arr < fname` reads each line of a file named `fname` into an array `arr`.\n\nWrite a script that performs the following steps:\n\n1. If the number of command line arguments is not exactly 1, then the script outputs an error\n   message to *standard error* and exits with a status of 2.\n\n2. Otherwise the argument is the name of a file containing a list of student names as described above.\n   Your script outputs each student as their last name, a comma, a space, and the first letter of their\n   first name followed by a period. For the file shown above your script should output:\n\n```\nSimpson, B.\nSimpson, L.\nWiggum, R.\n```\n\nYou may assume that the file exists and is readable, and that every student has exactly one first name and\none last name.\n\nYour script must implement and use the functions shown below. It is up to you to decide how your functions\nreceive their arguments and return their values.\n\nRecall that if `s` is a variable then `${s:offset:len}` expands to the substring of `s` starting at\nindex `offset` and having length `len`.\n\n```bash\nindex_of_space() {\n    # finds the index of the first space in a specified string\n}\n\nget_firstname() {\n    # e.g., \"Bart Simpson\" has the first name \"Bart\"\n}\n\nget_lastname() {\n    # e.g., \"Bart Simpson\" has the last name \"Simpson\"\n}\n# the rest of your script starts here\n```",
+      "answer": "```bash\n#!/bin/bash\n\nindex_of_space() {\n    # finds the index of the first space in a specified string\n    local s=$1\n    local i\n    for (( i = 0; i < ${#s}; i++ )); do\n        if [[ ${s:i:1} == \" \" ]]; then\n            echo \"$i\"\n            return 0\n        fi\n    done\n    echo -1\n    return 1\n}\n\nget_firstname() {\n    # e.g., \"Bart Simpson\" has the first name \"Bart\"\n    local name=$1\n    local idx\n    idx=$(index_of_space \"$name\")\n    echo \"${name:0:idx}\"\n}\n\nget_lastname() {\n    # e.g., \"Bart Simpson\" has the last name \"Simpson\"\n    local name=$1\n    local idx\n    idx=$(index_of_space \"$name\")\n    echo \"${name:idx+1}\"\n}\n\nif (( $# != 1 )); then\n    echo \"usage: $0 filename\" >&2\n    exit 2\nfi\n\nreadarray -t arr < \"$1\"\n\nfor student in \"${arr[@]}\"; do\n    first=$(get_firstname \"$student\")\n    last=$(get_lastname \"$student\")\n    echo \"$last, ${first:0:1}.\"\ndone\n```",
+      "grading": "Same marking scheme as the original. Differences to check: the argument test is `!= 1` (not `< 1`), exit status 2, the last name starts at idx+1 (only a space to skip), and the initial is `${first:0:1}` followed by a period. Comparing a character to a space needs quotes: `[[ ${s:i:1} == \" \" ]]`. Functions must be used; `\"${arr[@]}\"` must be quoted.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks `$# != 1` and prints an error to standard error"
+        },
+        {
+          "marks": 1,
+          "item": "Exits with status 2"
+        },
+        {
+          "marks": 3,
+          "item": "index_of_space correctly finds and returns the index of the first space"
+        },
+        {
+          "marks": 2,
+          "item": "get_firstname uses index_of_space and `${name:0:idx}`"
+        },
+        {
+          "marks": 2,
+          "item": "get_lastname uses index_of_space and `${name:idx+1}`"
+        },
+        {
+          "marks": 1,
+          "item": "`readarray -t arr < \"$1\"`"
+        },
+        {
+          "marks": 1,
+          "item": "Loops over `\"${arr[@]}\"` (quoted)"
+        },
+        {
+          "marks": 1,
+          "item": "Prints `last, F.` using the functions and `${first:0:1}`"
+        }
+      ],
+      "variantOf": "m24-5"
+    }
+  ]
+}

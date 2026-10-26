@@ -1,0 +1,728 @@
+{
+  "sourceId": "q23a",
+  "source": "Quiz 1, 2023",
+  "questions": [
+    {
+      "id": "q23a-1a",
+      "source": "Quiz 1, 2023, Q1A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nA) The directory indicated by `???` is the root directory of the filesystem. What symbol is used for the name of the root directory?",
+      "answer": "`/`",
+      "grading": "Only `/` (forward slash) is correct. A backslash `\\` is wrong (that is Windows).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "States the root directory is named `/`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-1a-v",
+      "source": "Variant of Quiz 1, 2023, Q1A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nA) What single character can be used at the start of a pathname as shorthand for the home directory of the current user (for example, `/home/user1` when user1 is logged in)?",
+      "answer": "`~` (tilde)",
+      "grading": "Only `~` earns the mark. `$HOME` is a variable expansion, not a single character: give the mark only if the student also names `~`. `/` (root) and `.` (current directory) are wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Names `~` as the home-directory shorthand"
+        }
+      ],
+      "variantOf": "q23a-1a"
+    },
+    {
+      "id": "q23a-1b",
+      "source": "Quiz 1, 2023, Q1B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nB) What is the absolute pathname of the directory `CISC352`?",
+      "answer": "`/home/user2/courses/CISC352`",
+      "grading": "Must start with `/` (absolute). A trailing slash is fine. `home/user2/courses/CISC352` (no leading `/`) is relative and loses the mark. Case matters.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Gives `/home/user2/courses/CISC352` starting from `/`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-1b-v",
+      "source": "Variant of Quiz 1, 2023, Q1B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nB) What is the absolute pathname of the directory `CISC220`?",
+      "answer": "`/home/user1/courses/CISC220`",
+      "grading": "Must start with `/`. Trailing slash fine. Using user2 is wrong (only user1 has CISC220).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Gives `/home/user1/courses/CISC220` starting from `/`"
+        }
+      ],
+      "variantOf": "q23a-1b"
+    },
+    {
+      "id": "q23a-1c",
+      "source": "Quiz 1, 2023, Q1C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nC) Suppose that the current working directory is `home`. What single command would you use to list the files in the directories named `CISC220` and `CISC352`?",
+      "answer": "```bash\nls user1/courses/CISC220 user2/courses/CISC352\n```",
+      "grading": "Any single `ls` command naming both directories works: relative paths (as above) or absolute paths (`ls /home/user1/courses/CISC220 /home/user2/courses/CISC352`). A glob like `ls */courses/CISC2*` is wrong because it also matches user1's and user2's CISC204. Two separate commands do not satisfy \"single command\".",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "One `ls` command with correct paths to both CISC220 (user1) and CISC352 (user2)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-1c-v",
+      "source": "Variant of Quiz 1, 2023, Q1C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nC) Suppose that the current working directory is the `courses` directory belonging to `user1`. What single command would you use to list the files in the directory `CISC204` belonging to `user1` and the directory `CISC204` belonging to `user2`?",
+      "answer": "```bash\nls CISC204 ../../user2/courses/CISC204\n```",
+      "grading": "Any single `ls` with correct paths to both directories: relative (as above) or absolute (`/home/user2/courses/CISC204`). `../user2/...` is wrong (one `..` from courses only reaches user1). `ls ../../*/courses/CISC204` is also correct.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "One `ls` command with correct paths to both CISC204 directories"
+        }
+      ],
+      "variantOf": "q23a-1c"
+    },
+    {
+      "id": "q23a-1d",
+      "source": "Quiz 1, 2023, Q1D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands",
+        "globs"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nD) Suppose that the current working directory is `CISC204` belonging to `user1`. What single command would you use to copy all the files from the current working directory to the `CISC204` directory belonging to `user2`?",
+      "answer": "```bash\ncp * /home/user2/courses/CISC204\n```",
+      "grading": "Accept `cp * ../../../user2/courses/CISC204` (relative) or the absolute path. Needs `*` (or `./*`) for \"all the files\" (hidden files not required). Common mistakes: wrong number of `..`, `cp CISC204 ...` (copies nothing useful), or `cp -r . ...`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cp *` with a correct path to user2's CISC204"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-1d-v",
+      "source": "Variant of Quiz 1, 2023, Q1D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "paths",
+        "commands",
+        "globs"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nD) Suppose that the current working directory is `CISC204` belonging to `user1`. What single command would you use to copy all the files whose names end in `.txt` from the current working directory to the `CISC352` directory belonging to `user2`?",
+      "answer": "```bash\ncp *.txt /home/user2/courses/CISC352\n```",
+      "grading": "Accept the relative destination `../../../user2/courses/CISC352`. The glob must be `*.txt`; `*txt` is acceptable but slightly looser. A plain `*` loses the mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cp *.txt` with a correct path to user2's CISC352"
+        }
+      ],
+      "variantOf": "q23a-1d"
+    },
+    {
+      "id": "q23a-1e",
+      "source": "Quiz 1, 2023, Q1E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "commands"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nE) Suppose that the current working directory is `courses` belonging to `user1`. What single command would you use to rename the directory `CISC220` to `cisc220`?",
+      "answer": "```bash\nmv CISC220 cisc220\n```",
+      "grading": "Renaming is done with `mv`. `rename`, `cp -r` + `rm`, or `mkdir` do not earn the mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`mv CISC220 cisc220`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-1e-v",
+      "source": "Variant of Quiz 1, 2023, Q1E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "commands",
+        "paths"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nE) Suppose that the current working directory is `user2`. What single command would you use to rename the directory `CISC352` to `cisc352`?",
+      "answer": "```bash\nmv courses/CISC352 courses/cisc352\n```",
+      "grading": "Both source and destination need the `courses/` prefix. `mv courses/CISC352 cisc352` would move the directory up into user2 (wrong). Absolute paths are fine.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`mv` with correct paths for both old and new names"
+        }
+      ],
+      "variantOf": "q23a-1e"
+    },
+    {
+      "id": "q23a-1f",
+      "source": "Quiz 1, 2023, Q1F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "commands",
+        "globs"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nF) Suppose that the current working directory is `courses` belonging to `user2`. What single command would you use to list all the files including the hidden files found in the subdirectories of `courses`?",
+      "answer": "```bash\nls -a */\n```",
+      "grading": "Needs `-a` (or `-A`) and must list the contents of the subdirectories: `ls -a *`, `ls -a */`, or `ls -a CISC204 CISC352` are all fine. `ls -a` alone lists only courses itself; `ls -a .*` is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`ls -a` (or `-A`) applied to the subdirectories"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-1f-v",
+      "source": "Variant of Quiz 1, 2023, Q1F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "commands",
+        "globs",
+        "paths"
+      ],
+      "prompt": "Question 1 (1 mark each). Consider a filesystem having the directory structure shown below:\n\n```\n???\n└── home\n    ├── user1\n    |   └── courses\n    |       ├── CISC204\n    |       └── CISC220\n    └── user2\n        └── courses\n            ├── CISC204\n            └── CISC352\n```\n\nYour answer for each of the following parts should be very brief.\n\nF) Suppose that the current working directory is `home`. What single command would you use to list all the files including the hidden files found in the subdirectories of the `courses` directory belonging to `user1`?",
+      "answer": "```bash\nls -a user1/courses/*/\n```",
+      "grading": "Accept `ls -a user1/courses/*`, `ls -A ...`, or naming both directories explicitly. Missing `-a`/`-A` loses the mark, as does a path to user2.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`ls -a` on the subdirectories of user1/courses with a correct path"
+        }
+      ],
+      "variantOf": "q23a-1f"
+    },
+    {
+      "id": "q23a-2a",
+      "source": "Quiz 1, 2023, Q2A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "files"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nA) In Linux, a directory is a file that contains what information?",
+      "answer": "A table that maps filenames to inode numbers (the names of the files in the directory and the inode each one refers to).",
+      "grading": "Key idea: filenames → inodes (the directory entries / hard links). \"A list of the files it contains\" is weak but usually earns the mark only if it mentions names mapped to inodes; \"the files' contents\" or \"permissions\" is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Says a directory maps filenames to inodes (inode numbers)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-2a-v",
+      "source": "Variant of Quiz 1, 2023, Q2A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "files"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nA) In Linux, an inode stores information about a file. Name one important piece of information about a file that is NOT stored in its inode, and say where it is stored instead.",
+      "answer": "The filename. Filenames are stored in directories (a directory maps filenames to inode numbers).",
+      "grading": "Both parts needed: the filename, and that it lives in the directory. Inodes do store type, owner, size, permissions, timestamps and where the data is.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Filename, stored in the directory"
+        }
+      ],
+      "variantOf": "q23a-2a"
+    },
+    {
+      "id": "q23a-2b",
+      "source": "Quiz 1, 2023, Q2B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "scripts"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nB) Every command produces an exit status. If a command completes without encountering any errors, what is the expected value of its exit status?",
+      "answer": "`0`",
+      "grading": "Only 0. \"1\" or \"true\" is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "0"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-2b-v",
+      "source": "Variant of Quiz 1, 2023, Q2B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "scripts",
+        "variables"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nB) Every command produces an exit status. What special variable holds the exit status of the most recently executed command (show how to print it)?",
+      "answer": "```bash\necho $?\n```",
+      "grading": "Must be `$?`. `$#` (number of arguments) and `$$` (process id) are common wrong answers.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`$?`"
+        }
+      ],
+      "variantOf": "q23a-2b"
+    },
+    {
+      "id": "q23a-2c",
+      "source": "Quiz 1, 2023, Q2C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "globs"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nC) Suppose that the current working directory has no subdirectories but it does have one or more non-hidden files. What can you conclude about the filenames in the directory if\n\n```bash\nls *\n```\n\nproduces the exact same output as\n\n```bash\nls ?\n```\n\nBe as specific as possible in your answer.",
+      "answer": "All of the (non-hidden) filenames are exactly one character long.",
+      "grading": "Must say every non-hidden filename is a single character. \"Some files are one character\" is not specific enough (then `ls *` would list more).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Every non-hidden filename is exactly one character long"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-2c-v",
+      "source": "Variant of Quiz 1, 2023, Q2C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "globs"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nC) Suppose that the current working directory has no subdirectories but it does have one or more non-hidden files. What can you conclude about the filenames in the directory if\n\n```bash\nls *\n```\n\nproduces the exact same output as\n\n```bash\nls ??\n```\n\nBe as specific as possible in your answer.",
+      "answer": "All of the (non-hidden) filenames are exactly two characters long.",
+      "grading": "`??` matches exactly two characters, so every non-hidden name must be exactly two characters. \"At most two\" or \"at least two\" is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Every non-hidden filename is exactly two characters long"
+        }
+      ],
+      "variantOf": "q23a-2c"
+    },
+    {
+      "id": "q23a-2d",
+      "source": "Quiz 1, 2023, Q2D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "streams"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nD) What command could you use to overwrite the contents of a file name `myfile` with the string `OOPS`? Hint: Consider using a redirection.",
+      "answer": "```bash\necho OOPS > myfile\n```",
+      "grading": "Needs `>` (truncate/overwrite). `>>` appends and loses the mark. `printf OOPS > myfile` is fine.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`echo OOPS > myfile` using `>`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-2d-v",
+      "source": "Variant of Quiz 1, 2023, Q2D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "streams"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nD) What command could you use to add the string `DONE` as a new line at the end of a file named `log` without destroying its existing contents? Hint: Consider using a redirection.",
+      "answer": "```bash\necho DONE >> log\n```",
+      "grading": "Needs `>>` (append). `>` would overwrite the file and loses the mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`echo DONE >> log` using `>>`"
+        }
+      ],
+      "variantOf": "q23a-2d"
+    },
+    {
+      "id": "q23a-2e",
+      "source": "Quiz 1, 2023, Q2E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "scripts",
+        "variables"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nE) From inside a script, how can you print the number of command line arguments provided to the script?",
+      "answer": "```bash\necho $#\n```",
+      "grading": "Must use `$#`. `$@`/`$*` print the arguments themselves, not their count; `$0` is the script name.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`echo $#`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-2e-v",
+      "source": "Variant of Quiz 1, 2023, Q2E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "scripts",
+        "variables",
+        "quoting"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nE) From inside a script, how can you print all of the command line arguments provided to the script on a single line?",
+      "answer": "```bash\necho \"$@\"\n```",
+      "grading": "`echo \"$@\"`, `echo \"$*\"`, or unquoted `echo $@` all print them on one line. `$#` (count) and `$0` (script name) are wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`echo \"$@\"` or `echo \"$*\"`"
+        }
+      ],
+      "variantOf": "q23a-2e"
+    },
+    {
+      "id": "q23a-2f",
+      "source": "Quiz 1, 2023, Q2F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "variables",
+        "strings"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nF) How can you concatenate two strings stored in variables named `str1` and `str2` and store the resulting string in a variable named `str3`?",
+      "answer": "```bash\nstr3=\"$str1$str2\"\n```",
+      "grading": "`str3=$str1$str2` (unquoted) is also correct: no word splitting happens in an assignment. Spaces around `=` (`str3 = ...`) lose the mark. `str3=str1+str2` or `$str3=...` are wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`str3=$str1$str2` with no spaces around `=`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-2f-v",
+      "source": "Variant of Quiz 1, 2023, Q2F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "variables",
+        "strings"
+      ],
+      "prompt": "Question 2 (1 mark each). Your answer for each of the following parts should be very brief.\n\nF) Suppose that the variables `first` and `last` store a person's first and last names. How can you store the full name, the first name followed by a single space followed by the last name, in a variable named `full`?",
+      "answer": "```bash\nfull=\"$first $last\"\n```",
+      "grading": "Quotes are REQUIRED here because of the space: `full=$first $last` would try to run `$last` as a command with `full` set in its environment. No spaces around `=`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`full=\"$first $last\"` with quotes and no spaces around `=`"
+        }
+      ],
+      "variantOf": "q23a-2f"
+    },
+    {
+      "id": "q23a-3a",
+      "source": "Quiz 1, 2023, Q3A",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "strings",
+        "arithmetic"
+      ],
+      "prompt": "Question 3A (2 marks). Recall that if `s` is a variable then `${s:offset:len}` expands to the substring of `s` starting at index `offset` and having length `len`.\n\nUsing one or two lines of Bash, how could you print the first half of a string stored in a variable `s`? Assume that the string has even length.",
+      "answer": "```bash\nn=$(( ${#s} / 2 ))\necho \"${s:0:n}\"\n```",
+      "grading": "`${#s}` gives the length; integer division by 2; then `${s:0:n}` (`$n` inside is also fine). One-liner `echo \"${s:0:${#s}/2}\"` is correct too. Common mistakes: `$s.length`, `${s:0:${#s/2}}`, or using `expr` incorrectly.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Computes half the length with `${#s}` and arithmetic `/ 2`"
+        },
+        {
+          "marks": 1,
+          "item": "Prints `${s:0:n}` (substring from index 0 of length n)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-3a-v",
+      "source": "Variant of Quiz 1, 2023, Q3A",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "strings",
+        "arithmetic"
+      ],
+      "prompt": "Question 3A (2 marks). Recall that if `s` is a variable then `${s:offset:len}` expands to the substring of `s` starting at index `offset` and having length `len`.\n\nUsing one or two lines of Bash, how could you print the second half of a string stored in a variable `s`? Assume that the string has even length.",
+      "answer": "```bash\nn=$(( ${#s} / 2 ))\necho \"${s:n}\"\n```",
+      "grading": "Offset must be half the length; the length part can be omitted (`${s:n}` goes to the end) or written `${s:n:n}`. `${s: -n}` with a space also works. Using offset 0 prints the first half (wrong).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Computes half the length with `${#s}` and `/ 2`"
+        },
+        {
+          "marks": 1,
+          "item": "Prints the substring starting at offset n (to the end)"
+        }
+      ],
+      "variantOf": "q23a-3a"
+    },
+    {
+      "id": "q23a-3b",
+      "source": "Quiz 1, 2023, Q3B",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "streams",
+        "commands"
+      ],
+      "prompt": "Question 3B (2 marks). Suppose that you have a file named `classlist` that contains the last name, first name, and\nstudent number of each student in a course. A tab character separates the last name from the first\nname and the first name from the student number. For example:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWrite a single pipeline that extracts the student numbers from the file `classlist`, sorts the student numbers in ascending order, saves all the student numbers to a file named `snum` (in sorted order), and prints the first three student numbers (in sorted order). Hint: You need a `tee` somewhere in the pipeline.",
+      "answer": "```bash\ncut -f3 classlist | sort | tee snum | head -n 3\n```",
+      "grading": "`cut -f3` (tab is cut's default delimiter; `-d $'\\t'` is fine). `sort` or `sort -n` both fine (all numbers have 7 digits). `tee snum` must come AFTER sort and BEFORE head, otherwise snum is unsorted or only has 3 lines. `head -3` is accepted. `cut -d ' '` is wrong (fields are tab-separated).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cut -f3 classlist | sort` extracts and sorts the student numbers"
+        },
+        {
+          "marks": 1,
+          "item": "`tee snum` placed after sort and before `head -n 3`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-3b-v",
+      "source": "Variant of Quiz 1, 2023, Q3B",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "streams",
+        "commands"
+      ],
+      "prompt": "Question 3B (2 marks). Suppose that you have a file named `classlist` that contains the last name, first name, and\nstudent number of each student in a course. A tab character separates the last name from the first\nname and the first name from the student number. For example:\n\n```\nCade\tBarry\t3100025\nDay\tHolly\t2999999\nFriese\tAndy\t3001111\nYu\tSue\t1990000\n```\n\nWrite a single pipeline that extracts the last names from the file `classlist`, sorts them in reverse (descending) alphabetical order, saves all the sorted last names to a file named `lastnames`, and prints the first two last names (in that sorted order). Hint: You need a `tee` somewhere in the pipeline.",
+      "answer": "```bash\ncut -f1 classlist | sort -r | tee lastnames | head -n 2\n```",
+      "grading": "Needs field 1, `sort -r`, `tee lastnames` between sort and head, and `head -n 2` (or `head -2`). For the sample file the output is `Yu` then `Friese`. Putting tee before sort, or after head, loses the second mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`cut -f1 classlist | sort -r`"
+        },
+        {
+          "marks": 1,
+          "item": "`tee lastnames` between sort and `head -n 2`"
+        }
+      ],
+      "variantOf": "q23a-3b"
+    },
+    {
+      "id": "q23a-4",
+      "source": "Quiz 1, 2023, Q4",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "scripts",
+        "permissions",
+        "expansions",
+        "quoting"
+      ],
+      "prompt": "Question 4 (4 marks).\n\nWrite a script that accepts two command line arguments that are both file names. The first\nargument is the name of the source file, and the second argument is the name of the destination\nfile.\n\nThe script sets the permissions of the destination file to be equal to the permissions of the source\nfile (i.e., it copies the permissions from the source file to the destination file).\n\nNo error checking is required in this question. You can assume that two command line\narguments are always given, and that the source and destination files exist.\n\nFrom Assignment 2 recall that the `stat` command can print the permissions of a file:\n\n```bash\nstat -c %a filename\n```\n\nprints the three-digit octal permissions of the file named `filename`.",
+      "answer": "```bash\n#!/bin/bash\n\nsrc=$1\ndest=$2\n\n# permissions of src\nperm=$(stat -c %a \"$src\")\n\nchmod \"$perm\" \"$dest\"\n```",
+      "grading": "Essential: command substitution `$(stat -c %a \"$src\")` and `chmod` with that value on the destination. The posted solution says the quotes around `\"$src\"` and `\"$dest\"` are REQUIRED (file names may contain spaces): unquoted filename expansions lose a mark. Quoting `$perm` is optional. A one-liner `chmod \"$(stat -c %a \"$1\")\" \"$2\"` is full marks. `chmod --reference=\"$1\" \"$2\"` works on Linux but ignores the hint; accept it. Backticks instead of `$( )` are fine. Getting source/destination backwards loses 1 mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash` and uses `$1` as source, `$2` as destination"
+        },
+        {
+          "marks": 1,
+          "item": "Captures permissions with command substitution `$(stat -c %a ...)`"
+        },
+        {
+          "marks": 1,
+          "item": "`chmod` applies those permissions to the destination"
+        },
+        {
+          "marks": 1,
+          "item": "Filename variables quoted (`\"$src\"`, `\"$dest\"`)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-4-v",
+      "source": "Variant of Quiz 1, 2023, Q4",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "scripts",
+        "permissions",
+        "expansions",
+        "quoting"
+      ],
+      "prompt": "Question 4 (4 marks).\n\nWrite a script that accepts two command line arguments that are both file names. The first\nargument is the name of the destination file, and the second argument is the name of the source\n(reference) file.\n\nThe script prints the message `setting permissions of DEST to PERM` (where DEST is the destination\nfile name and PERM is the three-digit octal permissions of the source file), and then sets the permissions\nof the destination file to be equal to the permissions of the source file.\n\nNo error checking is required in this question. You can assume that two command line\narguments are always given, and that the source and destination files exist.\n\nFrom Assignment 2 recall that the `stat` command can print the permissions of a file:\n\n```bash\nstat -c %a filename\n```\n\nprints the three-digit octal permissions of the file named `filename`.",
+      "answer": "```bash\n#!/bin/bash\n\ndest=$1\nsrc=$2\n\nperm=$(stat -c %a \"$src\")\necho \"setting permissions of $dest to $perm\"\nchmod \"$perm\" \"$dest\"\n```",
+      "grading": "Note the argument ORDER is reversed from the usual: `$1` is the destination. Must stat the source (`$2`). Quotes on filename variables required. The message must use the destination name and the octal permissions.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash`, `$1` used as destination and `$2` as source"
+        },
+        {
+          "marks": 1,
+          "item": "`perm=$(stat -c %a \"$src\")`"
+        },
+        {
+          "marks": 1,
+          "item": "Prints the required message and runs `chmod \"$perm\" \"$dest\"`"
+        },
+        {
+          "marks": 1,
+          "item": "Filename variables quoted"
+        }
+      ],
+      "variantOf": "q23a-4"
+    },
+    {
+      "id": "q23a-5",
+      "source": "Quiz 1, 2023, Q5",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "scripts",
+        "strings",
+        "permissions",
+        "quoting",
+        "commands"
+      ],
+      "prompt": "Question 5 (10 marks).\n\nThe fact that file removal in Linux is permanent can be inconvenient. Instead of removing a file,\nwe can create a command that moves the file into a hidden trashcan directory.\n\nCreate a script named `trash.sh` that moves a single file into a hidden trashcan directory by\nperforming the following steps:\n\n1. finds the name of the directory `dir` that the file is located in\n2. creates a directory named `.trash` in `dir`\n3. changes the permissions of the `.trash` directory so that the owner has all permissions\n   and all other users have no permissions\n4. prints the message `\"moving filename to the trashcan\"` where `filename` is the\n   first command line argument provided to the script (see below)\n5. moves the file into the `.trash` directory created in Step 2\n\nObviously, the script requires one command line argument (the pathname of the file to move into\nthe trash).\n\nNo error checking is required. Assume that one command line argument is always provided to\nthe script, and that the argument is the pathname to a file that is owned by the user of the script.\nAlso, assume that the pathname always includes the directory that the file is located in.\n\nStep 2 will cause an error message to be printed if the directory `.trash` already exists in `dir`.\nYou should ignore the fact that this error can occur.\n\nHint: If `str` is a variable then `${str%pattern}` expands to the string formed by removing the\nshortest trailing part of `str` that matches `pattern`.\n\nExample 1:\n```\ntrash.sh ./myfile\n```\nmoves `./myfile` into the `.trash` directory created in the current working directory\n\nExample 2:\n```\ntrash.sh /home/user1/somedir/myfile\n```\nmoves `/home/user1/somedir/myfile` into the `.trash` directory created in the directory\n`/home/user1/somedir/`",
+      "answer": "```bash\n#!/bin/bash\n\npathname=$1\n\n# Step 1\ndir=${pathname%/*}\n\n# Step 2\ntrashdir=$dir/.trash\nmkdir \"$trashdir\"\n\n# Step 3\nchmod u=rwx,go= \"$trashdir\"     # or: chmod 700 \"$trashdir\"\n\n# Step 4\necho \"moving $pathname to the trashcan\"\n\n# Step 5\nmv \"$pathname\" \"$trashdir\"\n```",
+      "grading": "Step 1: `${pathname%/*}` removes the shortest trailing `/name`, leaving the directory (`dirname \"$1\"` is also accepted). Step 3: `chmod 700` or `chmod u=rwx,go=` (`chmod go-rwx` alone is not enough unless u=rwx is also set). Quotes are required around pathname variables in `mkdir`, `chmod` and `mv`; missing quotes lose marks. NOTE: the posted 2023 solution writes `mv \"$pathname $trashdir\"`, which is a typo (it makes one argument); the correct form is `mv \"$pathname\" \"$trashdir\"`. Using `rm` or `cp` instead of `mv` in step 5 loses that step. Using `##` instead of `%` in step 1 gives the filename, not the directory (wrong).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash` and uses `$1` as the pathname"
+        },
+        {
+          "marks": 2,
+          "item": "Step 1: directory found with `${pathname%/*}` (or dirname)"
+        },
+        {
+          "marks": 2,
+          "item": "Step 2: `mkdir \"$dir/.trash\"` in the file's directory"
+        },
+        {
+          "marks": 2,
+          "item": "Step 3: `chmod 700` (owner all, others none) on .trash"
+        },
+        {
+          "marks": 1,
+          "item": "Step 4: prints `moving <pathname> to the trashcan`"
+        },
+        {
+          "marks": 2,
+          "item": "Step 5: `mv \"$pathname\" \"$trashdir\"` with separate quoted arguments"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23a-5-v",
+      "source": "Variant of Quiz 1, 2023, Q5",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "scripts",
+        "strings",
+        "permissions",
+        "quoting",
+        "commands"
+      ],
+      "prompt": "Question 5 (10 marks).\n\nBefore editing a file it can be useful to keep a backup copy. Create a script named `backup.sh` that copies a\nsingle file into a hidden backup directory by performing the following steps:\n\n1. finds the name of the directory `dir` that the file is located in, and the name `name` of the file itself\n   (the pathname without its directory part)\n2. creates a directory named `.backup` in `dir`\n3. changes the permissions of the `.backup` directory so that the owner has all permissions, the group has\n   read and execute permissions, and all other users have no permissions\n4. prints the message `\"backing up filename\"` where `filename` is the first command line argument provided to\n   the script\n5. copies the file into the `.backup` directory created in Step 2, naming the copy `name.bak` (e.g., a file\n   `notes.txt` is copied to `.backup/notes.txt.bak`)\n\nThe script requires one command line argument (the pathname of the file to back up).\n\nNo error checking is required. Assume that one command line argument is always provided, that it is the\npathname of a file owned by the user, and that the pathname always includes the directory that the file is\nlocated in. Step 2 prints an error if `.backup` already exists; ignore this.\n\nHint: If `str` is a variable then `${str%pattern}` removes the shortest trailing part of `str` matching\n`pattern`, and `${str##pattern}` removes the longest leading part of `str` matching `pattern`.\n\nExample:\n```\nbackup.sh /home/user1/somedir/notes.txt\n```\ncreates `/home/user1/somedir/.backup` and copies the file to `/home/user1/somedir/.backup/notes.txt.bak`",
+      "answer": "```bash\n#!/bin/bash\n\npathname=$1\n\n# Step 1\ndir=${pathname%/*}\nname=${pathname##*/}\n\n# Step 2\nbackupdir=$dir/.backup\nmkdir \"$backupdir\"\n\n# Step 3\nchmod u=rwx,g=rx,o= \"$backupdir\"     # or: chmod 750 \"$backupdir\"\n\n# Step 4\necho \"backing up $pathname\"\n\n# Step 5\ncp \"$pathname\" \"$backupdir/$name.bak\"\n```",
+      "grading": "`${pathname##*/}` gives the file name (longest leading `*/` removed); `basename \"$1\"` accepted. Permissions must be 750 (`u=rwx,g=rx,o=`). Copy, not move. All pathname variables must be quoted (names may contain spaces). The `.bak` suffix must be appended to the name: `\"$backupdir/$name.bak\"`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`#!/bin/bash` and uses `$1`"
+        },
+        {
+          "marks": 2,
+          "item": "Step 1: dir via `${pathname%/*}` and name via `${pathname##*/}`"
+        },
+        {
+          "marks": 2,
+          "item": "Step 2: `mkdir \"$dir/.backup\"`"
+        },
+        {
+          "marks": 2,
+          "item": "Step 3: `chmod 750` (or symbolic equivalent)"
+        },
+        {
+          "marks": 1,
+          "item": "Step 4: correct message"
+        },
+        {
+          "marks": 2,
+          "item": "Step 5: `cp \"$pathname\" \"$backupdir/$name.bak\"` quoted"
+        }
+      ],
+      "variantOf": "q23a-5"
+    }
+  ]
+}

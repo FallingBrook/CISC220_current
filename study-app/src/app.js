@@ -990,6 +990,16 @@
   const mastered = (id) => !!(pStatus(id) && pStatus(id).correct);
   const paperLabel = (q) => q.source + (q.variantOf ? "" : "");
 
+  // The round keeps new questions (`fresh`) and missed ones (`retry`, each due again 4 answers later)
+  // apart, so missed questions return on schedule while new ones keep coming.
+  const practiceLeft = (s) => s.fresh.length + s.retry.length + (s.cur ? 1 : 0);
+  function practicePick(s) {
+    // At most every other question is a retry while new questions remain.
+    let k = s.lastWasRetry && s.fresh.length ? -1 : s.retry.findIndex((r) => r.due <= s.n);
+    if (k < 0 && !s.fresh.length && s.retry.length) k = 0;
+    s.lastWasRetry = k >= 0;
+    s.cur = k >= 0 ? s.retry.splice(k, 1)[0].id : (s.fresh.shift() || null);
+  }
   function practiceQueue(mode, papers) {
     const pool = PRACTICE.filter((q) => papers.indexOf(q.sourceId) >= 0).filter((q) => {
       if (mode === "missed") return pStatus(q.id) && !pStatus(q.id).correct;
@@ -1033,12 +1043,12 @@
 
   function practiceQuestionView() {
     const s = session;
-    if (!s.queue.length) {
+    if (!s.cur) {
       const right = s.log.filter((x) => x.correct).length;
       return '<div class="col"><div class="card empty"><h2>Round complete</h2><p>' + s.log.length + " answers marked, " + right + " correct. Every question in this round has now been answered correctly at least once.</p>" +
         '<div class="row" style="justify-content:center"><button class="btn primary" data-act="p-exit">Back to practice</button></div></div></div>';
     }
-    const q = pq[s.queue[0]];
+    const q = pq[s.cur];
     const st = pStatus(q.id);
     const long = q.kind === "long";
     let body = '<div class="row"><span class="chip accent">' + esc(q.source) + '</span><span class="chip">' + (long ? "Long answer" : "Short answer") + '</span><span class="marks">' + q.marks + " mark" + (q.marks === 1 ? "" : "s") + "</span>" +
@@ -1068,7 +1078,7 @@
         '<span class="spacer"></span><button class="btn primary" data-act="p-next">Next question <kbd>Enter</kbd></button></div>';
     }
     const total = PRACTICE.length, done = PRACTICE.filter((x) => mastered(x.id)).length;
-    return '<div class="col"><div class="head"><div class="eyebrow"><a href="#practice" data-act="p-exit">Past-paper practice</a> · ' + s.queue.length + " left in this round · " + done + "/" + total + " correct overall</div>" +
+    return '<div class="col"><div class="head"><div class="eyebrow"><a href="#practice" data-act="p-exit">Past-paper practice</a> · ' + practiceLeft(s) + " left in this round · " + done + "/" + total + " correct overall</div>" +
       '<div class="progress"><i style="width:' + Math.round((done / total) * 100) + '%"></i></div></div><div class="card">' + body + "</div></div>";
   }
   function practiceAnswerKey(q) {
@@ -1085,13 +1095,13 @@
     save();
   }
   function practiceFinish(result) {
-    const s = session; const id = s.queue[0];
-    s.result = result; s.phase = "result";
+    const s = session; const id = s.cur;
+    s.result = result; s.phase = "result"; s.n++;
     s.log.push({ id: id, correct: result.correct });
     practiceRecord(id, result.correct, result.score);
   }
   async function practiceGrade() {
-    const s = session; const q = pq[s.queue[0]];
+    const s = session; const q = pq[s.cur];
     const answer = (s.draft || "").trim();
     if (!answer) { toast("Write an answer first, or choose \"I don't know\"."); return; }
     if (selfMarking) { s.phase = "self"; rerender(true); return; }
@@ -1149,8 +1159,9 @@
     if (session === s) rerender(true);
   }
   function practiceNext() {
-    const s = session; const id = s.queue.shift();
-    if (s.result && !s.result.correct) s.queue.splice(Math.min(s.queue.length, 4), 0, id);
+    const s = session;
+    if (s.result && !s.result.correct) s.retry.push({ id: s.cur, due: s.n + 4 });
+    practicePick(s);
     s.phase = "answer"; s.result = null; s.draft = ""; s.error = null;
     rerender(); window.scrollTo(0, 0);
   }
@@ -1163,7 +1174,8 @@
         S.practice.papers = papers; save();
         const queue = practiceQueue(el.dataset.mode, papers);
         if (!queue.length) { toast(el.dataset.mode === "missed" ? "Nothing to retry: you've got them all right." : "Everything in those papers is already correct. Choose \"All questions\" to go again."); return; }
-        session = { type: "practice", route: "practice", queue: queue, phase: "answer", draft: "", log: [] };
+        session = { type: "practice", route: "practice", fresh: queue, retry: [], n: 0, cur: null, phase: "answer", draft: "", log: [] };
+        practicePick(session);
         rerender(); window.scrollTo(0, 0); break;
       }
       case "p-exit": session = null; rerender(); break;
@@ -1172,9 +1184,9 @@
       case "p-self": s.phase = "self"; rerender(true); break;
       case "p-selfmark": practiceFinish({ score: null, correct: el.dataset.ok === "1", feedback: "" }); rerender(true); break;
       case "p-dontknow": practiceFinish({ score: 0, correct: false, gaveUp: true, feedback: "" }); rerender(true); break;
-      case "p-skip": { const id = s.queue.shift(); s.queue.push(id); s.draft = ""; rerender(); break; }
+      case "p-skip": { s.fresh.push(s.cur); practicePick(s); s.draft = ""; rerender(); break; }
       case "p-override": {
-        const id = s.queue[0]; s.result.correct = true; s.log[s.log.length - 1].correct = true;
+        const id = s.cur; s.result.correct = true; s.log[s.log.length - 1].correct = true;
         S.practice.status[id].correct = true; save(); rerender(true); break;
       }
       case "p-next": practiceNext(); break;

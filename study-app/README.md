@@ -22,7 +22,7 @@ the order of `start_here.ipynb`, with the time put where the marks are.
 | 2 | Wed Oct 21 | Filename expansion, quoting, files, permissions |
 | 3 | Sun Oct 25 | Crash day 1: streams, expansions, intro to scripting, variables, strings, `tr`, regex |
 | 4 | Mon Oct 26 | Crash day 2: arithmetic, arrays, conditional operators, `if`, loops, functions; mini mock (the two 10-mark questions); one-page summary |
-| 5 | Tue Oct 27 | Exam morning: 20-minute skim of your summary and missed cards |
+| 5 | Tue Oct 27 | Exam morning: past-paper practice (every Bash question from the 2024 midterm, 2023 quizzes and past finals, plus a variant of each, marked by Claude), then a skim of your summary |
 
 A crash day runs: a short spaced review, the lessons in order, a 25-question mixed quiz, the 7 *core* handwritten
 scripts (the past-quiz questions plus one blank-page exercise per topic; the rest are marked as extras), and
@@ -30,6 +30,14 @@ flashcards. Terminal drills are optional on crash days. The full mock exams A an
 *Exam practice*.
 
 The *Why the days are built this way* section of the plan page explains the research behind each step.
+
+## Past-paper practice
+
+`content/practice/` holds every Bash question from the papers in `bash/Bash-Past-Tests/` (C questions and topics the
+current notebooks don't teach are left out), each followed by one close variant: 94 questions. The practice page
+asks them one at a time. In the published web version, Claude marks each answer against the model answer, grading
+notes and rubric, so any correct solution passes. In the local `index.html`, you mark yourself against the model
+answer. Missed questions come back a few questions later until you get them right.
 
 ## Terminal drills (Ubuntu)
 

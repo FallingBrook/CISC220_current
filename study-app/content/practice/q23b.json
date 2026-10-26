@@ -1,0 +1,326 @@
+{
+  "sourceId": "q23b",
+  "source": "Quiz 2, 2023",
+  "questions": [
+    {
+      "id": "q23b-1a",
+      "source": "Quiz 2, 2023, Q1A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "regex"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nA) What does the metacharacter `?` mean in a regular expression?",
+      "answer": "Zero or one occurrence of the preceding atom (the preceding character, bracket expression or group is optional).",
+      "grading": "Must say zero-or-one AND that it applies to the preceding item. \"Any single character\" is the GLOB meaning of `?` (that is `.` in a regex) and is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Zero or one instance of the preceding atom"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23b-1a-v",
+      "source": "Variant of Quiz 2, 2023, Q1A",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "regex"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nA) What does the metacharacter `+` mean in a regular expression?",
+      "answer": "One or more occurrences of the preceding atom.",
+      "grading": "Must be one-or-more of the preceding item. \"Zero or more\" is `*` (wrong).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "One or more instances of the preceding atom"
+        }
+      ],
+      "variantOf": "q23b-1a"
+    },
+    {
+      "id": "q23b-1b",
+      "source": "Quiz 2, 2023, Q1B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "regex"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nB) Provide a regular expression that matches all strings that start and end with a lowercase English letter.",
+      "answer": "```\n^[a-z](.*[a-z])?$\n```\n\nThis matches a single lowercase letter (e.g. `a`) as well as longer strings such as `a1b`.",
+      "grading": "Exactly correct: `^[a-z](.*[a-z])?$` or `^[a-z]$|^[a-z].*[a-z]$`. The posted solution also lists `^[a-z]+$` and `^[a-z]*[a-z]$` as \"correct\" (those only match strings made entirely of lowercase letters, e.g. not `a1b`, so they read the question as \"lowercase-letter strings\"), and says `^[a-z].*[a-z]$` was \"sufficient for the quiz\" even though it misses one-letter strings. Give the mark for any of these, but mention the single-letter edge case if it is missed. Missing anchors (`[a-z].*[a-z]`) loses the mark, as does a glob such as `[a-z]*[a-z]`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Anchored regex requiring a lowercase letter at both the start and the end"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23b-1b-v",
+      "source": "Variant of Quiz 2, 2023, Q1B",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "regex"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nB) Provide a regular expression that matches all strings that start with a digit and end with an uppercase English letter.",
+      "answer": "```\n^[0-9].*[A-Z]$\n```\n\n(A single character cannot be both a digit and an uppercase letter, so every match has at least two characters and `.*` in the middle is exactly right.)",
+      "grading": "Needs both anchors, `[0-9]` at the start, `[A-Z]` at the end and `.*` between. `^[0-9]+[A-Z]+$` is too narrow (rejects `1xQ`). `[[:digit:]]`/`[[:upper:]]` are fine.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`^[0-9].*[A-Z]$` or equivalent"
+        }
+      ],
+      "variantOf": "q23b-1b"
+    },
+    {
+      "id": "q23b-1c",
+      "source": "Quiz 2, 2023, Q1C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "arrays"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nC) Show how to create a Bash array `arr` that contains the values 1, 2, and 3.",
+      "answer": "```bash\narr=(1 2 3)\n```",
+      "grading": "No spaces around `=`, no commas. `arr=(1, 2, 3)` or `arr=[1 2 3]` is wrong. `declare -a arr=(1 2 3)` and assigning each `arr[0]=1` etc. are fine.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`arr=(1 2 3)`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23b-1c-v",
+      "source": "Variant of Quiz 2, 2023, Q1C",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "arrays",
+        "quoting"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nC) Show how to create a Bash array `names` that contains the two values `Ann Lee` and `Bo Li` (each value contains a space).",
+      "answer": "```bash\nnames=(\"Ann Lee\" \"Bo Li\")\n```",
+      "grading": "Each element must be quoted, otherwise word splitting makes four elements. No commas, no spaces around `=`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`names=(\"Ann Lee\" \"Bo Li\")` with each element quoted"
+        }
+      ],
+      "variantOf": "q23b-1c"
+    },
+    {
+      "id": "q23b-1d",
+      "source": "Quiz 2, 2023, Q1D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "arrays"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nD) Given a Bash array `arr`, show how to get the number of elements in `arr`.",
+      "answer": "```bash\n${#arr[@]}\n```",
+      "grading": "`${#arr[@]}` or `${#arr[*]}`. `${#arr}` is the length of element 0 (wrong); `$#` is the argument count (wrong).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`${#arr[@]}` or `${#arr[*]}`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23b-1d-v",
+      "source": "Variant of Quiz 2, 2023, Q1D",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "arrays"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nD) Given a Bash array `arr`, show how to append the value `4` to the end of `arr`.",
+      "answer": "```bash\narr+=(4)\n```",
+      "grading": "`arr+=(4)` (or `arr[${#arr[@]}]=4`, fine for a contiguous array). `arr+=4` is wrong: it appends the text 4 to element 0.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`arr+=(4)` with the parentheses"
+        }
+      ],
+      "variantOf": "q23b-1d"
+    },
+    {
+      "id": "q23b-1e",
+      "source": "Quiz 2, 2023, Q1E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "conditionals",
+        "files"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nE) Suppose that you have a variable `f` that stores the name of a file. Write a Bash `if` statement that prints the message `not readable` to standard output if the file whose name is stored in `f` is not a readable file.",
+      "answer": "```bash\nif [[ ! -r $f ]]; then echo \"not readable\"; fi\n```",
+      "grading": "Needs `!` and `-r` inside `[[ ]]` (`[ ! -r \"$f\" ]` fine), plus `then` and `fi`. Inside `[[ ]]` quoting `$f` is optional. Missing `; then` (when on one line) or `fi` loses the mark. `-e`/`-f` test something else.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Complete `if [[ ! -r $f ]]; then echo \"not readable\"; fi`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23b-1e-v",
+      "source": "Variant of Quiz 2, 2023, Q1E",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "conditionals",
+        "files"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nE) Suppose that you have a variable `d` that stores a name. Write a Bash `if` statement that prints the message `no such directory` to standard output if `d` is not the name of an existing directory.",
+      "answer": "```bash\nif [[ ! -d $d ]]; then echo \"no such directory\"; fi\n```",
+      "grading": "Needs `! -d`, `then`, `fi`. `-e` is not enough (a regular file exists but is not a directory).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Complete `if [[ ! -d $d ]]; then ...; fi`"
+        }
+      ],
+      "variantOf": "q23b-1e"
+    },
+    {
+      "id": "q23b-1f",
+      "source": "Quiz 2, 2023, Q1F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "loops",
+        "quoting"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nF) Fill in the blank in the following Bash `for` loop so that the loop processes each command line argument given to a script:\n\n```bash\nfor ____________________; do\n    # loop body not shown\ndone\n```",
+      "answer": "```bash\nfor arg in \"$@\"; do\n    echo \"$arg\"    # loop body\ndone\n```\n\nThe blank is `arg in \"$@\"`.",
+      "grading": "`arg in \"$@\"` (any variable name). Quotes around `$@` are needed so arguments with spaces stay whole; unquoted `$@` or `$*` loses the mark under course conventions. `for arg; do` (no `in` list) is also correct. `for (( i = 1; i <= $#; i++ ))` gives indexes, not arguments, unless the body is shown to use them.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`arg in \"$@\"` with quotes"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23b-1f-v",
+      "source": "Variant of Quiz 2, 2023, Q1F",
+      "kind": "short",
+      "marks": 1,
+      "topics": [
+        "loops",
+        "arrays",
+        "quoting"
+      ],
+      "prompt": "Question 1 (1 mark each). Your answer for each of the following parts should be very brief.\n\nF) Fill in the blank in the following Bash `for` loop so that the loop processes each element of an array `arr` (elements may contain spaces):\n\n```bash\nfor ____________________; do\n    # loop body not shown\ndone\n```",
+      "answer": "```bash\nfor elem in \"${arr[@]}\"; do\n    echo \"$elem\"    # loop body\ndone\n```\n\nThe blank is `elem in \"${arr[@]}\"`.",
+      "grading": "Must be `\"${arr[@]}\"` quoted. `${arr[@]}` unquoted splits elements with spaces; `\"${arr[*]}\"` gives one single string; `$arr` gives only element 0.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`elem in \"${arr[@]}\"` quoted"
+        }
+      ],
+      "variantOf": "q23b-1f"
+    },
+    {
+      "id": "q23b-4",
+      "source": "Quiz 2, 2023, Q4",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "functions",
+        "arrays",
+        "loops",
+        "arithmetic",
+        "scripts"
+      ],
+      "prompt": "Question 4 (10 marks).\n\nThe selection sort algorithm for sorting an array `arr` of `n` integers can be described as follows:\n\n```\nfor j=0, 1, 2, ..., n-1\n   idx = minidx(j)\n   swap arr[j] and arr[idx]\n```\n\nThe function call `minidx(j)` finds the index of the minimum element in `arr` starting at index `j`\nand going to the end of `arr`. For example, if `arr` is the array\n\n```\n[0, 3, 1, 4, 2]\n```\n\nthen\n\n```\nminidx(0) returns 0\nminidx(1) returns 2\nminidx(2) returns 2\nminidx(3) returns 4\nminidx(4) returns 4\n```\n\nComplete the following Bash script so that it implements the selection sort algorithm to sort the\ncommand line arguments provided to the script. The functions `sort` and `minidx` are the\nselection sort algorithm and minimum index algorithm described above.\n\n```bash\n#!/bin/bash\n\nfunction sort {\n}\n\nfunction minidx {\n}\n\n# places the command line arguments into arr and calls sort\narr=(\"$@\")\nsort\n\n# print the sorted elements of arr on a single line after this comment\n```\n\nYou may answer this question by providing implementations of the `sort` and `minidx` functions\nand by showing how to print the elements of the sorted array on a single line.\n\nNo error checking is required. You may assume that the command line arguments provided to the\nscript are always integers.\n\nYou may choose how to call `minidx` and how to return a value from `minidx`.",
+      "answer": "```bash\n#!/bin/bash\n\nsort() {\n    local n=${#arr[@]}\n    local j tmp\n    for (( j = 0; j < n; j++ )); do\n        minidx \"$j\"                 # sets the global variable idx\n        tmp=${arr[j]}\n        arr[j]=${arr[idx]}\n        arr[idx]=$tmp\n    done\n}\n\nminidx() {\n    local start=$1\n    local n=${#arr[@]}\n    local i\n    idx=$start                      # result returned in the global idx\n    for (( i = start + 1; i < n; i++ )); do\n        if (( arr[i] < arr[idx] )); then\n            idx=$i\n        fi\n    done\n}\n\n# places the command line arguments into arr and calls sort\narr=(\"$@\")\nsort\n\n# print the sorted elements of arr on a single line after this comment\necho \"${arr[@]}\"\n```\n\nTested: `./sort.sh 0 3 1 4 2` prints `0 1 2 3 4`; `./sort.sh 5 -3 10 -3 0 7` prints `-3 -3 0 5 7 10`.",
+      "grading": "Any correct way to return the index is fine: a global variable (dynamic scoping, as above) or printing it and capturing with `idx=$(minidx \"$j\")`. `return idx` is NOT acceptable as a general solution (exit status is 0-255) - deduct 1 mark. Comparison must be numeric: `(( ... < ... ))` or `[[ $a -lt $b ]]`; `[[ $a < $b ]]` is a STRING comparison (wrong for e.g. 10 vs 9) - deduct. The swap needs a temporary variable. `n` must be known before `sort` runs: the posted solution sets `n=${#arr[@]}` but only after the call to `sort` in its layout, so compute `n` inside the functions or before `sort` is called. Keeping the printed `function sort {` style is fine. Watch for `minidx` clobbering the caller's loop variable when both use the same global name (e.g. both use `i` without `local`). Print with `echo \"${arr[@]}\"` (or `${arr[*]}`).",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "minidx loops i from start+1 to n-1 over arr"
+        },
+        {
+          "marks": 2,
+          "item": "minidx uses a numeric comparison and tracks the index of the smallest value"
+        },
+        {
+          "marks": 1,
+          "item": "minidx returns the index via a global variable or echo + command substitution (not `return`)"
+        },
+        {
+          "marks": 2,
+          "item": "sort loops j from 0 to n-1 and calls minidx with j"
+        },
+        {
+          "marks": 2,
+          "item": "sort swaps arr[j] and arr[idx] correctly using a temporary"
+        },
+        {
+          "marks": 1,
+          "item": "Prints the sorted array on one line with `echo \"${arr[@]}\"`"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "q23b-4-v",
+      "source": "Variant of Quiz 2, 2023, Q4",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "functions",
+        "arrays",
+        "loops",
+        "arithmetic",
+        "scripts"
+      ],
+      "prompt": "Question 4 (10 marks).\n\nThe selection sort algorithm for sorting an array `arr` of `n` integers into DESCENDING order (largest first) can be described as follows:\n\n```\nfor j=0, 1, 2, ..., n-1\n   idx = maxidx(j)\n   swap arr[j] and arr[idx]\n```\n\nThe function call `maxidx(j)` finds the index of the maximum element in `arr` starting at index `j`\nand going to the end of `arr`. For example, if `arr` is the array\n\n```\n[0, 3, 1, 4, 2]\n```\n\nthen\n\n```\nmaxidx(0) returns 3\nmaxidx(1) returns 3\nmaxidx(2) returns 3\nmaxidx(3) returns 3\nmaxidx(4) returns 4\n```\n\nComplete the following Bash script so that it implements the selection sort algorithm to sort the\ncommand line arguments provided to the script into descending order. The functions `sort_desc` and `maxidx`\nare the selection sort algorithm and maximum index algorithm described above.\n\n```bash\n#!/bin/bash\n\nfunction sort_desc {\n}\n\nfunction maxidx {\n}\n\n# places the command line arguments into arr and calls sort_desc\narr=(\"$@\")\nsort_desc\n\n# print the sorted elements of arr on a single line after this comment\n```\n\nYou may answer this question by providing implementations of the `sort_desc` and `maxidx` functions\nand by showing how to print the elements of the sorted array on a single line.\n\nNo error checking is required. You may assume that the command line arguments provided to the\nscript are always integers.\n\nYou may choose how to call `maxidx` and how to return a value from `maxidx`.",
+      "answer": "```bash\n#!/bin/bash\n\nsort_desc() {\n    local n=${#arr[@]}\n    local j tmp idx\n    for (( j = 0; j < n; j++ )); do\n        idx=$(maxidx \"$j\")          # maxidx prints its result\n        tmp=${arr[j]}\n        arr[j]=${arr[idx]}\n        arr[idx]=$tmp\n    done\n}\n\nmaxidx() {\n    local start=$1\n    local n=${#arr[@]}\n    local i\n    local hi=$start\n    for (( i = start + 1; i < n; i++ )); do\n        if (( arr[i] > arr[hi] )); then\n            hi=$i\n        fi\n    done\n    echo \"$hi\"\n}\n\n# places the command line arguments into arr and calls sort_desc\narr=(\"$@\")\nsort_desc\n\n# print the sorted elements of arr on a single line after this comment\necho \"${arr[@]}\"\n```\n\nTested: `./sort.sh 0 3 1 4 2` prints `4 3 2 1 0`; `./sort.sh 12 9 100 1` prints `100 12 9 1`.",
+      "grading": "Same marking as the original. The comparison must be `>` (numeric). Returning the index with echo + `$( )` works because the subshell can still read `arr`; a global variable is also fine. `return` for the index is not acceptable. Swap needs a temporary.",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "maxidx loops i from start+1 to n-1"
+        },
+        {
+          "marks": 2,
+          "item": "maxidx uses a numeric `>` comparison and tracks the index of the largest value"
+        },
+        {
+          "marks": 1,
+          "item": "maxidx returns the index via echo + command substitution or a global"
+        },
+        {
+          "marks": 2,
+          "item": "sort_desc loops j from 0 to n-1 calling maxidx j"
+        },
+        {
+          "marks": 2,
+          "item": "Correct swap of arr[j] and arr[idx] with a temporary"
+        },
+        {
+          "marks": 1,
+          "item": "Prints `\"${arr[@]}\"` on one line"
+        }
+      ],
+      "variantOf": "q23b-4"
+    }
+  ]
+}
