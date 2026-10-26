@@ -33,8 +33,10 @@ The *Why the days are built this way* section of the plan page explains the rese
 
 ## Past-paper practice
 
-`content/practice/` holds every Bash question from the papers in `bash/Bash-Past-Tests/` (C questions and topics the
-current notebooks don't teach are left out), each followed by one close variant: 94 questions. The practice page
+`content/practice/` holds the Bash questions from the papers in `bash/Bash-Past-Tests/`, each followed by one close
+variant: 86 questions. From the finals, only the questions Prof. Ma lists as relevant to this offering are included
+(2014F Q1, 2015F Q1 and Q3, 2016F Q1; Q1 of April 2022 is excluded), and C questions are left out because the
+midterm covers only Bash. The practice page
 asks them one at a time. In the published web version, Claude marks each answer against the model answer, grading
 notes and rubric, so any correct solution passes. In the local `index.html`, you mark yourself against the model
 answer. Missed questions come back a few questions later until you get them right.
