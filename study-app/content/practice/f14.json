@@ -1,0 +1,154 @@
+{
+  "sourceId": "f14",
+  "source": "Final exam 2014",
+  "questions": [
+    {
+      "id": "f14-1a",
+      "source": "Final exam 2014, Q1A",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "scripts",
+        "loops",
+        "strings",
+        "conditionals"
+      ],
+      "prompt": "**Question 1 (10 points): Linux & Bash**\n\n**A (5 points):** Write a bash script that prints the third character of each of its arguments, all in one line with no spaces between. If any of the arguments has fewer than three characters, print nothing for it. If there are no arguments or if none of the arguments have three or more characters, your script may either print nothing or print a blank line.\n\nExample (if your script is called `thirdChars`):\n```\n-------$ thirdChars apple xx orange y \"\" banana\npan\n```",
+      "answer": "```bash\n#!/bin/bash\nresult=\"\"\nfor arg in \"$@\"; do\n    if (( ${#arg} >= 3 )); then\n        result+=\"${arg:2:1}\"\n    fi\ndone\necho \"$result\"\n```\n\nAn equivalent approach prints each character with `echo -n \"${arg:2:1}\"` inside the loop and a final `echo` after it.",
+      "grading": "Essential: loop over all arguments with `for arg in \"$@\"` (or `for arg` / shifting through `$1`); extract the third character with `${arg:2:1}` (index 2, length 1); skip arguments shorter than 3 characters (`(( ${#arg} >= 3 ))` or `[[ ${#arg} -ge 3 ]]`); output all on one line with no spaces.\n- Accept accumulating into a string and echoing once, or `echo -n`/`printf '%s'` per character followed by one trailing newline (or none).\n- Note: `${arg:2:1}` on a short string already expands to empty, so a solution that omits the length test still prints the correct output; accept it for full marks if the output is correct, but the grader may note the explicit test is clearer.\n- Lose marks for: `${arg:3:1}` or `${arg:2}` (off-by-one / whole remainder); `echo \"${arg:2:1}\"` per argument (prints on separate lines); using `$*` unquoted or `$@` unquoted (breaks on the `\"\"` argument only in loop counts, but missing quotes is against course conventions; deduct at most 1 mark); spaces between characters (e.g. `echo $result` built from a list joined with spaces).\n- Using `cut -c3` per argument is acceptable if output is on one line.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over every command-line argument (\"$@\")"
+        },
+        {
+          "marks": 1,
+          "item": "Tests the argument's length (${#arg}) and skips arguments shorter than 3 characters (or equivalent correct behaviour)"
+        },
+        {
+          "marks": 2,
+          "item": "Extracts exactly the third character, e.g. ${arg:2:1}"
+        },
+        {
+          "marks": 1,
+          "item": "Prints all characters on a single line with no spaces between them"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f14-1a-v",
+      "source": "Variant of Final exam 2014, Q1A",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "scripts",
+        "loops",
+        "strings",
+        "conditionals"
+      ],
+      "prompt": "**A (5 points):** Write a bash script that prints the second-to-last character of each of its arguments, all in one line with no spaces between. If any of the arguments has fewer than two characters, print nothing for it. If there are no arguments or if none of the arguments have two or more characters, your script may either print nothing or print a blank line.\n\nExample (if your script is called `lastChars`):\n```\n-------$ lastChars apple xx orange y \"\" banana\nlxgn\n```",
+      "answer": "```bash\n#!/bin/bash\nresult=\"\"\nfor arg in \"$@\"; do\n    if (( ${#arg} >= 2 )); then\n        result+=\"${arg: -2:1}\"\n    fi\ndone\necho \"$result\"\n```\n\nThe space before `-2` is required: `${arg:-2:1}` would be parsed as the `:-` default-value expansion. `${arg:${#arg}-2:1}` also works.",
+      "grading": "Essential: loop over `\"$@\"`; skip arguments with fewer than 2 characters (`(( ${#arg} >= 2 ))`); extract the second-to-last character with `${arg: -2:1}` (note the space, or `${arg:(-2):1}`, or `${arg:${#arg}-2:1}`); print all on one line with no spaces.\n- The length test matters here: for a 1-character argument, `${arg: -2:1}` expands to empty in bash, but `${arg:${#arg}-2:1}` gives offset -1 and prints the last (only) character, so a solution without the test must still produce the right output to get that mark.\n- Lose marks for: `${arg:-2:1}` with no space (this is the default-value expansion and prints the whole argument) - deduct the 2 extraction marks; `${arg: -1}` (last character, wrong); printing each character on its own line; spaces between characters.\n- Accept `echo -n`/`printf '%s'` per character plus a final `echo`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over every command-line argument (\"$@\")"
+        },
+        {
+          "marks": 1,
+          "item": "Skips arguments shorter than 2 characters (length test with ${#arg} or equivalent correct behaviour)"
+        },
+        {
+          "marks": 2,
+          "item": "Extracts exactly the second-to-last character, e.g. ${arg: -2:1} (with the space) or ${arg:${#arg}-2:1}"
+        },
+        {
+          "marks": 1,
+          "item": "Prints all characters on a single line with no spaces between them"
+        }
+      ],
+      "variantOf": "f14-1a"
+    },
+    {
+      "id": "f14-1b",
+      "source": "Final exam 2014, Q1B",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "scripts",
+        "loops",
+        "expansions",
+        "arithmetic",
+        "conditionals",
+        "streams"
+      ],
+      "prompt": "**B. (5 points):** Suppose there is a program or script called `compute` which takes a file name as a parameter and prints an integer on the standard output, based on the contents of the file. In some cases, `compute` will encounter an error and fail. You don't have to write a `compute` script; just assume it exists.\n\nYour job is to write a bash script that assumes each of its arguments is the name of a file and calls `compute` with each of the files. Your script must print two lines stating the sum of all of the values printed by successful calls to `compute` as well as the number of files for which `compute` failed. These two lines should be the only output from your script. If a call to the compute script prints a number and then fails, that number should not be included in the sum.\n\nExample: Suppose that your script is called `totals` and that `compute file1` would print 11, `compute file2` would print 5, and `compute file3` would print 99 and then fail. Then `totals` should behave like this:\n```\n-------$ totals file1 file2 file3\nsum of all compute values: 16\nnumber of failures: 1\n-------$ totals file1 file2\nsum of all compute values: 16\nnumber of failures: 0\n-------$ totals file3\nsum of all compute values: 0\nnumber of failures: 1\n-------$ totals\nsum of all compute values: 0\nnumber of failures: 0\n```",
+      "answer": "```bash\n#!/bin/bash\nsum=0\nfailures=0\nfor f in \"$@\"; do\n    if value=$(compute \"$f\"); then\n        (( sum += value ))\n    else\n        (( failures++ ))\n    fi\ndone\necho \"sum of all compute values: $sum\"\necho \"number of failures: $failures\"\n```\n\nEquivalent form using `$?`:\n```bash\nvalue=$(compute \"$f\")\nif (( $? == 0 )); then ...\n```",
+      "grading": "Essential: initialise sum and failure count to 0; loop over `\"$@\"`; capture compute's output with command substitution `$(compute \"$f\")` (which also keeps it off the script's own output); check compute's exit status (`if value=$(compute \"$f\"); then`, or `$?` checked IMMEDIATELY after the assignment); add the value only on success; count failures otherwise; print exactly the two lines.\n- \"Fail\" means non-zero exit status. A solution that decides failure from whether output is empty is wrong (file3 prints 99 and then fails).\n- Lose marks for: checking `$?` after another command (e.g. after an `echo`) so it no longer refers to compute; letting compute's output reach the terminal (e.g. calling `compute \"$f\"` bare, then calling it again) - calling compute twice is acceptable only if the first call's output is discarded and the logic is correct; adding the value before checking status; `sum=$sum+$value` without arithmetic (string concatenation); unquoted `$f` (course convention, deduct at most 1).\n- Accept `sum=$(( sum + value ))`, `let`, `[[ $? -eq 0 ]]`. Redirecting compute's stderr (`2>/dev/null`) is a nice touch but not required, since \"only output\" refers to stdout.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Initialises sum and failure counter to 0 and prints the two required lines with the final values (0 and 0 when there are no arguments)"
+        },
+        {
+          "marks": 1,
+          "item": "Loops over every argument (\"$@\") calling compute with that file name"
+        },
+        {
+          "marks": 1,
+          "item": "Captures compute's output with command substitution so it is not printed"
+        },
+        {
+          "marks": 1,
+          "item": "Correctly tests compute's exit status (if var=$(...) or $? immediately after the call)"
+        },
+        {
+          "marks": 1,
+          "item": "Adds the value with arithmetic only on success and increments the failure count only on failure"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f14-1b-v",
+      "source": "Variant of Final exam 2014, Q1B",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "scripts",
+        "loops",
+        "expansions",
+        "arithmetic",
+        "conditionals",
+        "streams"
+      ],
+      "prompt": "**B. (5 points):** Suppose there is a program or script called `measure` which takes a file name as a parameter and prints an integer on the standard output, based on the contents of the file. In some cases, `measure` will encounter an error and fail. You don't have to write a `measure` script; just assume it exists.\n\nYour job is to write a bash script that assumes each of its arguments is the name of a file and calls `measure` with each of the files. Your script must print three lines stating the number of files for which `measure` succeeded, the total of all of the values printed by successful calls to `measure`, and the number of files for which `measure` failed. These three lines should be the only output from your script. If a call to `measure` prints a number and then fails, that number should not be included in the total. File names may contain spaces.\n\nExample: Suppose that your script is called `summary` and that `measure a.txt` would print 4, `measure b.txt` would print 10, `measure c.txt` would print 3 and then fail, and `measure \"d e.txt\"` would print 6. Then `summary` should behave like this:\n```\n-------$ summary a.txt b.txt c.txt \"d e.txt\"\nsuccesses: 3\ntotal: 20\nfailures: 1\n-------$ summary c.txt\nsuccesses: 0\ntotal: 0\nfailures: 1\n-------$ summary\nsuccesses: 0\ntotal: 0\nfailures: 0\n```",
+      "answer": "```bash\n#!/bin/bash\ntotal=0\nok=0\nbad=0\nfor f in \"$@\"; do\n    if value=$(measure \"$f\"); then\n        (( total += value ))\n        (( ok++ ))\n    else\n        (( bad++ ))\n    fi\ndone\necho \"successes: $ok\"\necho \"total: $total\"\necho \"failures: $bad\"\n```",
+      "grading": "Essential: three counters initialised to 0; loop over `\"$@\"` (quoted, because file names may contain spaces); `value=$(measure \"$f\")` with `\"$f\"` quoted; test measure's exit status directly (`if value=$(...)`) or via `$?` immediately after; on success add value and increment successes; on failure increment failures; print exactly the three lines in the given order.\n- Lose marks for: unquoted `$@` or `$f` (breaks \"d e.txt\" - deduct the loop mark); deciding failure from empty output; checking `$?` after an intervening command; letting measure's output reach the terminal; string concatenation instead of arithmetic.\n- Accept `$(( ))`, `let`, `[[ $? -eq 0 ]]`; accept counting successes as (number of arguments - failures).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Initialises the counters to 0 and prints the three required lines in order (all 0 with no arguments)"
+        },
+        {
+          "marks": 1,
+          "item": "Loops over \"$@\" and passes \"$f\" quoted so names with spaces work"
+        },
+        {
+          "marks": 1,
+          "item": "Captures measure's output with command substitution so it is not printed"
+        },
+        {
+          "marks": 1,
+          "item": "Correctly tests measure's exit status (if var=$(...) or $? immediately after the call)"
+        },
+        {
+          "marks": 1,
+          "item": "On success adds the value arithmetically and counts the success; on failure counts the failure only"
+        }
+      ],
+      "variantOf": "f14-1b"
+    }
+  ]
+}

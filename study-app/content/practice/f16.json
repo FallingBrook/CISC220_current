@@ -1,0 +1,207 @@
+{
+  "sourceId": "f16",
+  "source": "Final exam 2016",
+  "questions": [
+    {
+      "id": "f16-1",
+      "source": "Final exam 2016, Q1",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "scripts",
+        "loops",
+        "globs",
+        "expansions",
+        "arithmetic",
+        "conditionals"
+      ],
+      "prompt": "**Question 1 (10 points): Shell Scripting**\n\nSuppose there is a program on your path called `score`, which takes the name of a file as a parameter and prints an integer score for that file, which will always be between 0 and 100.\n\nWrite a script called `maxScore` that takes the name of a directory as its only parameter and prints the highest score reported by the `score` program for any file in that directory.\n\nYour script may assume that there is at least one file in the directory. If there is a tie for the highest score it's not a problem; your script should just print that highest score.\n\nPlease note that I am *not* asking you to write the `score` program. Just assume that it exists, so that whenever you type\n\n```\nscore filename\n```\n\nand *filename* is the name of an existing file, the command will print an integer between 0 and 100 to the standard output. Your job is just to write a `maxScore` script.\n\nFor example, suppose my current directory has a sub-directory called `myfiles` which contains four files, called `fileA`, `fileB`, `fileC` and `fileD`. Here is what happens when I invoke the `score` program with each of these four files:\n\n```\n-------$ score myfiles/fileA\n34\n-------$ score myfiles/fileB\n57\n-------$ score myfiles/fileC\n44\n-------$ score myfiles/fileD\n56\n```\n\nThe command `score myfiles` should print 57, since that is the largest score of any of the files in the `myfiles` directory.",
+      "answer": "```bash\n#!/bin/bash\nmax=0\nfor f in \"$1\"/*; do\n    if [[ -f \"$f\" ]]; then\n        s=$(score \"$f\")\n        if (( s > max )); then\n            max=$s\n        fi\n    fi\ndone\necho \"$max\"\n```\n\nStarting `max` at 0 is safe because every score is between 0 and 100. With the example directory, `maxScore myfiles` prints `57`.",
+      "grading": "The paper's last line says \"The command `score myfiles` should print 57\"; that is a typo for `maxScore myfiles`. Don't penalise a student who points this out.\n\nEssential:\n- Loop over the files in the directory named by `$1`, e.g. `for f in \"$1\"/*`. Looping over `$(ls \"$1\")` loses the directory part (then `score` gets `fileA` instead of `myfiles/fileA`) and breaks on names with spaces. Take marks off unless the student puts the directory back (`\"$1/$f\"`).\n- Capture each score with command substitution: `s=$(score \"$f\")`.\n- Compare numerically with `(( s > max ))` or `[[ $s -gt $max ]]`. `[[ $s > $max ]]` compares strings, so \"9\" > \"57\"; that is a real bug and loses the comparison mark.\n- Keep a running maximum, initialised to 0 (or -1, or the first file's score), and print it once after the loop.\n\nAccepted alternatives:\n- A pipeline: `for f in \"$1\"/*; do score \"$f\"; done | sort -n | tail -n 1` (or `sort -rn | head -n 1`) gets full marks. Plain `sort` without `-n` is wrong (it sorts as text).\n- Skipping the `[[ -f \"$f\" ]]` test is fine; the question says the directory holds files.\n- Using `$1` without quotes loses at most a fraction of a mark under course conventions (quote `\"$1\"` and `\"$f\"`). Not handling a missing argument is fine; the question doesn't ask for it.\n\nCommon wrong answers: printing inside the loop (prints several lines); `max=s` without `$` outside `(( ))`; resetting `max` inside the loop; forgetting `#!/bin/bash` (minor).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "#!/bin/bash and uses $1 as the directory"
+        },
+        {
+          "marks": 2,
+          "item": "Loops over every file in the directory with the path kept (\"$1\"/*), quoted"
+        },
+        {
+          "marks": 2,
+          "item": "Runs score on each file and captures its output with $( )"
+        },
+        {
+          "marks": 2,
+          "item": "Correct numeric comparison ((( )) or -gt), not a string comparison"
+        },
+        {
+          "marks": 2,
+          "item": "Running maximum initialised sensibly and updated correctly"
+        },
+        {
+          "marks": 1,
+          "item": "Prints the maximum exactly once, after the loop"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f16-1-v",
+      "source": "Variant of Final exam 2016, Q1",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "scripts",
+        "loops",
+        "globs",
+        "expansions",
+        "arithmetic",
+        "conditionals",
+        "quoting"
+      ],
+      "prompt": "**Shell Scripting**\n\nSuppose there is a program on your path called `rating`, which takes the name of a file as a parameter and prints an integer rating for that file, which will always be between 1 and 10.\n\nWrite a script called `lowestFile` that takes the name of a directory as its only parameter and prints the **name** (without the directory part) of the file in that directory with the lowest rating reported by the `rating` program.\n\nYour script may assume that there is at least one file in the directory. If several files tie for the lowest rating, your script may print the name of any one of them. File names may contain spaces.\n\nPlease note that I am *not* asking you to write the `rating` program. Just assume that it exists, so that whenever you type\n\n```\nrating filename\n```\n\nand *filename* is the name of an existing file, the command will print an integer between 1 and 10 to the standard output.\n\nFor example, suppose my current directory has a sub-directory called `reviews` which contains the files `alpha`, `beta file` and `gamma`:\n\n```\n-------$ rating reviews/alpha\n7\n-------$ rating \"reviews/beta file\"\n3\n-------$ rating reviews/gamma\n9\n-------$ lowestFile reviews\nbeta file\n```",
+      "answer": "```bash\n#!/bin/bash\nmin=11\nfor f in \"$1\"/*; do\n    if [[ -f \"$f\" ]]; then\n        r=$(rating \"$f\")\n        if (( r < min )); then\n            min=$r\n            lowest=$f\n        fi\n    fi\ndone\nbasename \"$lowest\"\n```\n\nStarting `min` at 11 (above any possible rating) means the first file always replaces it. `\"${lowest##*/}\"` instead of `basename` is also fine.",
+      "grading": "Essential:\n- Loop over `\"$1\"/*` (or loop over the names and build `\"$1/$f\"`). The quotes matter here because the question says names may contain spaces: `for f in $(ls \"$1\")` splits `beta file` into two words and should lose marks.\n- Capture `rating \"$f\"` with `$( )`, and quote `\"$f\"` in the call.\n- Numeric comparison `(( r < min ))` or `[[ $r -lt $min ]]`; `[[ $r < $min ]]` is a string comparison and is a bug (\"10\" < \"3\").\n- Track both the minimum value and the file that holds it, and update both together.\n- Print only the file name, without the directory: `basename \"$lowest\"`, `${lowest##*/}`, or loop with `cd \"$1\"` first. Printing `reviews/beta file` loses the output mark.\n\nAccepted: initialising `min` from the first file, or to any value > 10; a `sort -n | head -n 1` pipeline that keeps the names (e.g. printing \"rating name\" pairs then cutting) if it handles spaces correctly. Using `<=` instead of `<` (printing the last of the tied files) is fine.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "#!/bin/bash and uses $1 as the directory"
+        },
+        {
+          "marks": 2,
+          "item": "Loops over every file in the directory, quoted so names with spaces work"
+        },
+        {
+          "marks": 2,
+          "item": "Runs rating on each file and captures its output with $( )"
+        },
+        {
+          "marks": 2,
+          "item": "Correct numeric comparison ((( )) or -lt) with a sensible starting minimum"
+        },
+        {
+          "marks": 2,
+          "item": "Remembers the file name along with the minimum and updates both together"
+        },
+        {
+          "marks": 1,
+          "item": "Prints only the file name (no directory part), once, after the loop"
+        }
+      ],
+      "variantOf": "f16-1"
+    },
+    {
+      "id": "f16-2",
+      "source": "Final exam 2016, Q2",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "files",
+        "streams"
+      ],
+      "prompt": "**Question 2 (10 points): Linux and Links**\n\nIn your answer booklet, write the output of the commands below. There should be exactly 10 lines of output, one for each of the \"cat\" lines.\n\nIf you think a command would produce an error message, just write \"error\". I don't care about the exact text of the error message. Continue on to the end of the session after the error.\n\n```\necho \"Coulson\" > file1\nln file1 file2\nln -s file1 file3\necho \"Skye\" >| file1\ncat file3\nmv file1 file4\necho \"Fitz\" >| file4\ncat file1\ncat file2\ncat file3\ncat file4\n\necho \"Simmons\" > fileA\nln fileA fileB\nln -s fileA fileC\nrm fileA\necho \"Ward\" >| fileA\ncat fileB\ncat fileC\necho \"Fury\" >| fileA\ncat fileA\ncat fileB\ncat fileC\n```",
+      "answer": "```\nSkye\nerror\nFitz\nerror\nFitz\nSimmons\nWard\nFury\nSimmons\nFury\n```\n\nWhy:\n- `file1` and `file2` are two names for the same inode (hard link); `file3` is a symbolic link holding the name \"file1\". `>|` overwrites that inode, so `cat file3` follows the name to it: **Skye**.\n- `mv file1 file4` renames the hard link: the inode now has names `file2` and `file4`, and there is no `file1`. Writing Fitz to `file4` changes the shared inode. `cat file1`: **error**; `cat file2`: **Fitz**; `cat file3`: the symlink points at the missing name `file1` (dangling): **error**; `cat file4`: **Fitz**.\n- `fileB` is a hard link to the Simmons inode; `fileC` is a symlink to the name \"fileA\". `rm fileA` removes only that name, so `fileB` still holds **Simmons**. `echo \"Ward\" >| fileA` creates a brand-new file called `fileA`, and the symlink `fileC` now reaches it: **Ward**. Overwriting it with Fury: `cat fileA` **Fury**, `cat fileB` **Simmons**, `cat fileC` **Fury**.",
+      "grading": "One mark per line, in order. \"error\" (or any wording meaning cat fails / no such file) is accepted for lines 2 and 4; the student doesn't need the exact message.\n\n`>|` is redirection that overwrites even when the shell option `noclobber` is set; with noclobber off (the default) it behaves exactly like `>`. The current course doesn't cover noclobber, so treat `>|` as `>`.\n\nCommon mistakes:\n- Line 4 (`cat file3` after the mv): answering Fitz. A symbolic link stores a *name*, not the inode, so renaming file1 breaks it.\n- Line 3 (`cat file2`): answering Coulson or Skye. Hard links share one inode, so the write through `file4` shows through `file2`.\n- Lines 6 and 9 (`cat fileB`): answering Ward/Fury or error. `rm` only removes one name; the hard link keeps the old data, and the new `fileA` is a different inode.\n- Line 7 (`cat fileC`): answering error. The symlink works again as soon as a file called `fileA` exists.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Line 1: Skye"
+        },
+        {
+          "marks": 1,
+          "item": "Line 2: error (file1 no longer exists)"
+        },
+        {
+          "marks": 1,
+          "item": "Line 3: Fitz"
+        },
+        {
+          "marks": 1,
+          "item": "Line 4: error (dangling symlink file3)"
+        },
+        {
+          "marks": 1,
+          "item": "Line 5: Fitz"
+        },
+        {
+          "marks": 1,
+          "item": "Line 6: Simmons"
+        },
+        {
+          "marks": 1,
+          "item": "Line 7: Ward"
+        },
+        {
+          "marks": 1,
+          "item": "Line 8: Fury"
+        },
+        {
+          "marks": 1,
+          "item": "Line 9: Simmons"
+        },
+        {
+          "marks": 1,
+          "item": "Line 10: Fury"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f16-2-v",
+      "source": "Variant of Final exam 2016, Q2",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "files",
+        "streams"
+      ],
+      "prompt": "**Linux and Links**\n\nIn your answer booklet, write the output of the commands below. There should be exactly 10 lines of output, one for each of the \"cat\" lines.\n\nIf you think a command would produce an error message, just write \"error\". I don't care about the exact text of the error message. Continue on to the end of the session after the error.\n\n```\necho \"Picard\" > crew1\nln -s crew1 crew2\nln crew1 crew3\necho \"Riker\" >| crew1\ncat crew2\nmv crew1 crew4\necho \"Data\" >| crew3\ncat crew1\ncat crew2\ncat crew3\ncat crew4\n\necho \"Worf\" > shipA\nln -s shipA shipB\nln shipA shipC\nrm shipA\ncat shipB\ncat shipC\necho \"Troi\" >| shipA\ncat shipA\ncat shipB\ncat shipC\n```",
+      "answer": "```\nRiker\nerror\nerror\nData\nData\nerror\nWorf\nTroi\nTroi\nWorf\n```\n\nWhy:\n- `crew2` is a symlink to the name \"crew1\"; `crew3` is a hard link to the same inode as `crew1`. Overwriting `crew1` with Riker: `cat crew2` follows the name: **Riker**.\n- `mv crew1 crew4` renames the hard link, so the inode's names are now `crew3` and `crew4`. Writing Data through `crew3` changes that inode. `cat crew1`: **error** (gone); `cat crew2`: dangling symlink, **error**; `cat crew3`: **Data**; `cat crew4`: **Data**.\n- `shipB` is a symlink to \"shipA\"; `shipC` is a hard link to the Worf inode. After `rm shipA`, `cat shipB` fails (**error**) but `cat shipC` still prints **Worf**. Writing Troi creates a new `shipA`, so `cat shipA` **Troi**, `cat shipB` **Troi** (the symlink works again), `cat shipC` **Worf** (still the old inode).",
+      "grading": "One mark per line, in order. Any wording meaning the cat fails is accepted for the three \"error\" lines. Treat `>|` as `>` (it only differs when noclobber is set, which the course doesn't cover).\n\nCommon mistakes: answering Data for `cat crew2` (a symlink stores a name, and `crew1` no longer exists after the mv); answering Riker for `cat crew3`/`cat crew4` (the later write through `crew3` changed the shared inode); answering error for `cat shipC` after the rm (the hard link keeps the data); answering Troi for the final `cat shipC` (the new `shipA` is a different inode).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Line 1: Riker"
+        },
+        {
+          "marks": 1,
+          "item": "Line 2: error (crew1 no longer exists)"
+        },
+        {
+          "marks": 1,
+          "item": "Line 3: error (dangling symlink crew2)"
+        },
+        {
+          "marks": 1,
+          "item": "Line 4: Data"
+        },
+        {
+          "marks": 1,
+          "item": "Line 5: Data"
+        },
+        {
+          "marks": 1,
+          "item": "Line 6: error (shipB points at removed shipA)"
+        },
+        {
+          "marks": 1,
+          "item": "Line 7: Worf"
+        },
+        {
+          "marks": 1,
+          "item": "Line 8: Troi"
+        },
+        {
+          "marks": 1,
+          "item": "Line 9: Troi"
+        },
+        {
+          "marks": 1,
+          "item": "Line 10: Worf"
+        }
+      ],
+      "variantOf": "f16-2"
+    }
+  ]
+}

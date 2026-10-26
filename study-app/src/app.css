@@ -234,3 +234,5 @@ kbd { background: var(--surface-2); border: 1px solid var(--line); border-bottom
 .callout.try { border-color: var(--good); background: var(--good-soft); }
 .callout.try > .lab { color: var(--good); }
 .callout.try > .lab::before { content: "$ "; font-family: var(--font-mono); }
+.btn.primary kbd { background: transparent; border-color: currentColor; color: inherit; opacity: 0.8; }
+details > summary { cursor: pointer; color: var(--muted); }

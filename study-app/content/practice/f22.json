@@ -1,0 +1,195 @@
+{
+  "sourceId": "f22",
+  "source": "Final exam 2022",
+  "questions": [
+    {
+      "id": "f22-1a",
+      "source": "Final exam 2022, Q1(a)",
+      "kind": "long",
+      "marks": 3,
+      "topics": [
+        "loops",
+        "arithmetic",
+        "scripts"
+      ],
+      "prompt": "**Question 1(a) (3 points):**\n\nWrite a Bash script that prints the sequence of integer values from 1 to 19 in steps of 2 (1, 3, 5, 7, …, 19) to standard output, one value per line, using a loop.",
+      "answer": "```bash\n#!/bin/bash\nfor (( i = 1; i <= 19; i += 2 )); do\n    echo \"$i\"\ndone\n```",
+      "grading": "Any loop that prints exactly 1, 3, ..., 19 one per line earns full marks. Accept a C-style `for (( ... ))`, a `while (( i <= 19 ))` loop with `(( i += 2 ))`, `for i in {1..19..2}`, or `for i in $(seq 1 2 19)`. The question requires a loop: a bare `seq 1 2 19` or `echo` of a hard-coded list without a loop loses the loop mark. Off-by-one bounds (stopping at 17 or printing 21) lose the bounds mark. Printing all values on one line (e.g. `echo -n`) loses the output mark. `#!/bin/bash` expected but not worth a mark on its own.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct loop structure (for/while with valid Bash syntax)"
+        },
+        {
+          "marks": 1,
+          "item": "Starts at 1, steps by 2, and stops at 19 (correct bounds)"
+        },
+        {
+          "marks": 1,
+          "item": "Prints each value on its own line to standard output"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-1a-v",
+      "source": "Variant of Final exam 2022, Q1(a)",
+      "kind": "long",
+      "marks": 3,
+      "topics": [
+        "loops",
+        "arithmetic",
+        "scripts"
+      ],
+      "prompt": "Write a Bash script that prints the sequence of integer values from 30 down to 3 in steps of 3 (30, 27, 24, …, 3) to standard output, one value per line, using a loop.",
+      "answer": "```bash\n#!/bin/bash\nfor (( i = 30; i >= 3; i -= 3 )); do\n    echo \"$i\"\ndone\n```",
+      "grading": "Any loop that prints exactly 30, 27, ..., 3 (10 values) one per line earns full marks. Accept `for (( i = 30; i > 0; i -= 3 ))`, a while loop with `(( i -= 3 ))`, `for i in {30..3..3}` (brace expansion counts down automatically), or `for i in $(seq 30 -3 3)`. A bare `seq 30 -3 3` without a loop loses the loop mark. Counting up instead of down, or printing 0, loses the bounds mark.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct loop structure (for/while with valid Bash syntax)"
+        },
+        {
+          "marks": 1,
+          "item": "Starts at 30, decreases by 3, and stops at 3 (correct bounds and direction)"
+        },
+        {
+          "marks": 1,
+          "item": "Prints each value on its own line to standard output"
+        }
+      ],
+      "variantOf": "f22-1a"
+    },
+    {
+      "id": "f22-1b",
+      "source": "Final exam 2022, Q1(b)",
+      "kind": "long",
+      "marks": 3,
+      "topics": [
+        "arrays",
+        "loops",
+        "arithmetic",
+        "scripts"
+      ],
+      "prompt": "**Question 1(b) (3 points):**\n\nConsider the following Bash script:\n\n```bash\n#!/bin/bash\narr=($(cat \"$1\"))\n```\n\nThe script as it is shown above expects one command line argument that is the name of a file containing some integer values, one value per line. It stores the integer values in the array arr.\n\nComplete the script so that it computes the sum of the values in the array arr using a loop and prints the sum to standard output.\n\nYou do not need to perform any error checking.",
+      "answer": "```bash\n#!/bin/bash\narr=($(cat \"$1\"))\nsum=0\nfor val in \"${arr[@]}\"; do\n    (( sum += val ))\ndone\necho \"$sum\"\n```",
+      "grading": "Essentials: initialise the sum to 0, loop over every element of the array, add with arithmetic (`(( sum += val ))`, `sum=$(( sum + val ))`), print the sum after the loop. Accept an index loop `for (( i = 0; i < ${#arr[@]}; i++ )); do (( sum += arr[i] )); done`. Common wrong answers: `sum=$sum+$val` (string concatenation, prints `0+5+-3...`) loses the arithmetic mark; `for val in $arr` or `\"${arr}\"` (only the first element) loses the loop mark; looping to `<= ${#arr[@]}` is harmless for summing but is an off-by-one worth noting; printing inside the loop loses the output mark. The course quotes array expansions: `\"${arr[@]}\"`. (The paper prints the skeleton with curly quotes around $1; these are typesetting artefacts for ordinary double quotes.)",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over all elements of arr (e.g. for val in \"${arr[@]}\" or an index loop to ${#arr[@]})"
+        },
+        {
+          "marks": 1,
+          "item": "Accumulates the sum with correct arithmetic, starting from 0"
+        },
+        {
+          "marks": 1,
+          "item": "Prints the final sum once, after the loop"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-1b-v",
+      "source": "Variant of Final exam 2022, Q1(b)",
+      "kind": "long",
+      "marks": 3,
+      "topics": [
+        "arrays",
+        "loops",
+        "arithmetic",
+        "conditionals",
+        "scripts"
+      ],
+      "prompt": "Consider the following Bash script:\n\n```bash\n#!/bin/bash\narr=($(cat \"$1\"))\n```\n\nThe script as it is shown above expects one command line argument that is the name of a file containing some integer values (at least one), one value per line. It stores the integer values in the array arr.\n\nComplete the script so that it finds the largest value in the array arr using a loop and prints that value to standard output.\n\nYou do not need to perform any error checking.",
+      "answer": "```bash\n#!/bin/bash\narr=($(cat \"$1\"))\nmax=${arr[0]}\nfor val in \"${arr[@]}\"; do\n    if (( val > max )); then\n        max=$val\n    fi\ndone\necho \"$max\"\n```",
+      "grading": "Essentials: initialise max to the first element `${arr[0]}` (NOT 0, which fails when every value is negative, e.g. -7 -2 -9 should print -2), loop over all elements, compare numerically with `(( val > max ))` or `[[ $val -gt $max ]]`, print after the loop. Using `[[ $val > $max ]]` is a string comparison inside [[ ]] and is wrong (e.g. 9 > 10 is true as strings): lose the comparison mark. Initialising to 0 loses the initialisation half of the comparison/update mark. Accept an index loop.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over all elements of arr"
+        },
+        {
+          "marks": 1,
+          "item": "Initialises max to an array element and updates it using a numeric comparison"
+        },
+        {
+          "marks": 1,
+          "item": "Prints the maximum once, after the loop"
+        }
+      ],
+      "variantOf": "f22-1b"
+    },
+    {
+      "id": "f22-1c",
+      "source": "Final exam 2022, Q1(c)",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "permissions",
+        "conditionals",
+        "loops",
+        "globs",
+        "scripts"
+      ],
+      "prompt": "**Question 1(c) (4 points):**\n\nWrite a Bash script that changes the permissions of all the regular files (but not the directories) in the current directory (but not files in any subdirectory) so that the user has only read permission on the files and all other users have no permissions on the files. For each file where the user did not originally have permission to read the file, your script should print to standard output the message:\n\n```\nAdding read permission to filename\n```\n\nwhere filename is the name of the file whose permissions were changed.\n\nYour script does not need to consider hidden files.",
+      "answer": "```bash\n#!/bin/bash\nfor f in *; do\n    if [[ -f \"$f\" ]]; then\n        if [[ ! -r \"$f\" ]]; then\n            echo \"Adding read permission to $f\"\n        fi\n        chmod 400 \"$f\"\n    fi\ndone\n```",
+      "grading": "Essentials: loop over `*` (not `ls` output; `for f in $(ls)` breaks on names with spaces), test `[[ -f \"$f\" ]]` to skip directories, test `[[ ! -r \"$f\" ]]` BEFORE calling chmod (testing after chmod always finds the file readable, so nothing prints), print the exact message, then `chmod 400 \"$f\"`. Accept `chmod u=r,go= \"$f\"` or `chmod u=r,g=,o= \"$f\"`. Wrong: `chmod u+r` or `chmod 444`/`a+r` (does not remove other permissions / gives others read); `chmod -R` or recursing into subdirectories. Missing quotes around \"$f\" loses a mark (files with spaces). Note: when run as root, `-r` is always true, so test as a normal user.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over files in the current directory with a glob (*) and selects only regular files with -f"
+        },
+        {
+          "marks": 1,
+          "item": "Tests -r (not readable) before changing permissions"
+        },
+        {
+          "marks": 1,
+          "item": "Prints exactly 'Adding read permission to <name>' only for files that were not readable"
+        },
+        {
+          "marks": 1,
+          "item": "Sets permissions to user read only, no permissions for group/others (chmod 400 or u=r,go=), with \"$f\" quoted"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-1c-v",
+      "source": "Variant of Final exam 2022, Q1(c)",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "permissions",
+        "conditionals",
+        "loops",
+        "globs",
+        "scripts"
+      ],
+      "prompt": "Write a Bash script that changes the permissions of all the regular files (but not the directories) in the current directory (but not files in any subdirectory) so that the user has only read and write permission on the files, the group has only read permission, and all other users have no permissions on the files. For each file where the user did not originally have permission to write the file, your script should print to standard output the message:\n\n```\nAdding write permission to filename\n```\n\nwhere filename is the name of the file whose permissions were changed.\n\nYour script does not need to consider hidden files.",
+      "answer": "```bash\n#!/bin/bash\nfor f in *; do\n    if [[ -f \"$f\" ]]; then\n        if [[ ! -w \"$f\" ]]; then\n            echo \"Adding write permission to $f\"\n        fi\n        chmod 640 \"$f\"\n    fi\ndone\n```",
+      "grading": "Essentials: `for f in *`, `[[ -f \"$f\" ]]` to skip directories, `[[ ! -w \"$f\" ]]` checked BEFORE chmod, exact message, then `chmod 640 \"$f\"`. Accept `chmod u=rw,g=r,o= \"$f\"`. Wrong: 644 (others get read), 660 (group gets write), `u+w` alone (does not set the others), testing -r instead of -w, testing after chmod, recursing into subdirectories, unquoted $f.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over files in the current directory with a glob (*) and selects only regular files with -f"
+        },
+        {
+          "marks": 1,
+          "item": "Tests -w (not writable) before changing permissions"
+        },
+        {
+          "marks": 1,
+          "item": "Prints exactly 'Adding write permission to <name>' only for files that were not writable"
+        },
+        {
+          "marks": 1,
+          "item": "Sets permissions to rw for user, r for group, none for others (chmod 640 or u=rw,g=r,o=), with \"$f\" quoted"
+        }
+      ],
+      "variantOf": "f22-1c"
+    }
+  ]
+}

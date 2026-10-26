@@ -18,7 +18,7 @@
   // ---------------------------------------------------------------- state
   const blank = () => ({
     v: 1, srs: {}, steps: {}, topicsDone: {}, quizRuns: {}, write: {}, drills: {}, dumps: {}, mocks: {},
-    topicStats: {}, reviewDone: {}, drafts: {}, dayOverride: null, theme: null,
+    topicStats: {}, reviewDone: {}, drafts: {}, dayOverride: null, theme: null, practice: { status: {}, papers: null },
   });
   let S = blank();
   try {
@@ -103,7 +103,7 @@
 
   // ---------------------------------------------------------------- the plan
   const DAY_META = {
-    5: { title: "Exam morning", goal: "A light 20-minute warm-up so the syntax is fresh. No new material." },
+    5: { title: "Exam morning: past-paper practice", goal: "Work through real past exam questions with instant marking, then a short skim of your summary before the midterm." },
   };
   function dayTitle(n) { return (dayData[n] && dayData[n].title) || (DAY_META[n] && DAY_META[n].title) || "Day " + n; }
   function dayGoal(n) { return (dayData[n] && dayData[n].goal) || (DAY_META[n] && DAY_META[n].goal) || ""; }
@@ -145,11 +145,15 @@
         steps.push({ key: "sheet", title: "Write your one-page summary from memory", mins: 15, href: "sheet",
           desc: "One page of syntax from memory, then compare with the reference sheet and fill the gaps in a different colour. This is what you skim tomorrow morning." });
       }
+      if (n === 4) steps.push({ key: "practice", title: "Past-paper practice (optional tonight)", mins: 0, href: "practice", optional: true,
+        desc: "Real questions from past midterms, quizzes and finals, marked by Claude. Start tonight if you have energy left; tomorrow morning continues where you stop." });
       steps.push({ key: "drills", title: "Terminal drills (optional, if time)", mins: 0, href: "drills-" + n, optional: true,
         desc: "Type in and test the scripts you wrote today. Skip this if you're short on time: writing on paper is closer to the exam." });
       if (n === 4) steps.push({ key: "sleep", title: "Stop by 10:30 pm and sleep", mins: 0, href: null,
         desc: "Sleep consolidates what you've practised. An all-nighter costs more marks than it gains." });
     } else if (n === 5) {
+      steps.push({ key: "practice", title: "Past-paper practice: real exam questions", mins: 60, href: "practice",
+        desc: "Every Bash question from the 2024 midterm, the 2023 quizzes and past finals, plus a close variant of each, one at a time. Claude marks each answer; ones you get wrong come back until you get them right. Start with the 2024 midterm and the 2023 quizzes, and stop with time to spare before the exam." });
       steps.push({ key: "sheet", title: "Skim your one-page summary", mins: 10, href: "sheet",
         desc: "Read the page you wrote last night. Look at the reference sheet only for the lines you'd forgotten." });
       steps.push({ key: "missed", title: "Cards you've missed before", mins: 10, href: "review-missed",
@@ -169,6 +173,7 @@
       case "write": return !!d && d.write.length > 0 && d.write.every((w) => S.write[w.id]);
       case "drills": return !!S.drills[n];
       case "mini": return !!(S.mocks.mini && S.mocks.mini.score != null);
+      case "practice": return PRACTICE.length > 0 && PRACTICE.every((q) => mastered(q.id));
       case "dump": return !!(S.dumps[n] && S.dumps[n].trim());
       case "mockA": case "mockB": return !!(S.mocks[key] && S.mocks[key].score != null);
       case "drillsA": return !!S.drills[7];
@@ -387,6 +392,7 @@
       "<h6>Exam practice</h6>" +
       '<a href="#mock-mockA" class="' + on("mock-mockA").trim() + '"><span>Mock exam A</span>' + mockBadge("mockA") + "</a>" +
       '<a href="#mock-mockB" class="' + on("mock-mockB").trim() + '"><span>Mock exam B</span>' + mockBadge("mockB") + "</a>" +
+      '<a href="#practice" class="' + on("practice").trim() + '"><span>Past-paper practice</span>' + (PRACTICE.length ? '<span class="badge' + (PRACTICE.some((q) => mastered(q.id)) ? "" : " zero") + '">' + PRACTICE.filter((q) => mastered(q.id)).length + "/" + PRACTICE.length + "</span>" : "") + "</a>" +
       '<a href="#weak" class="' + on("weak").trim() + '"><span>Weak spots</span></a>' +
       '<a href="#sheet" class="' + on("sheet").trim() + '"><span>Summary sheet</span></a>' +
       "<h6>More</h6>" +
@@ -964,6 +970,218 @@
 
   function notFound() { return '<div class="col"><div class="card empty"><h3>Page not found</h3><a class="btn" href="#today">Go to Today</a></div></div>'; }
 
+  // ---------------------------------------------------------------- past-paper practice
+  // Every Bash question from the past papers plus a close variant of each, one at a time.
+  // Claude marks each answer (the `sample` capability); where that is unavailable, the student marks it.
+  const PRACTICE = (DATA.practice && DATA.practice.questions) || [];
+  const PAPERS = (DATA.practice && DATA.practice.papers) || [];
+  const pq = {};
+  PRACTICE.forEach((q) => { pq[q.id] = q; });
+  let samplePromise = null;
+  let selfMarking = false; // true once Claude marking is refused or unavailable in this view
+  function getSample() {
+    if (!samplePromise) {
+      samplePromise = window.claude && typeof window.claude.use === "function"
+        ? window.claude.use("sample").catch(() => null) : Promise.resolve(null);
+    }
+    return samplePromise;
+  }
+  const pStatus = (id) => S.practice.status[id];
+  const mastered = (id) => !!(pStatus(id) && pStatus(id).correct);
+  const paperLabel = (q) => q.source + (q.variantOf ? "" : "");
+
+  function practiceQueue(mode, papers) {
+    const pool = PRACTICE.filter((q) => papers.indexOf(q.sourceId) >= 0).filter((q) => {
+      if (mode === "missed") return pStatus(q.id) && !pStatus(q.id).correct;
+      if (mode === "all") return true;
+      return !mastered(q.id);
+    });
+    const originals = shuffle(pool.filter((q) => !q.variantOf).map((q) => q.id));
+    const out = originals.slice();
+    shuffle(pool.filter((q) => q.variantOf).map((q) => q.id)).forEach((id) => {
+      // A variant comes a few questions after its original, so it tests recall rather than copying.
+      const at = out.indexOf(pq[id].variantOf);
+      const pos = at < 0 ? Math.floor(Math.random() * (out.length + 1)) : Math.min(out.length, at + 3 + Math.floor(Math.random() * 6));
+      out.splice(pos, 0, id);
+    });
+    return out;
+  }
+
+  function viewPractice() {
+    if (!PRACTICE.length) return '<div class="col"><div class="card empty"><h3>The practice bank isn\'t loaded yet</h3></div></div>';
+    if (session && session.type === "practice") return practiceQuestionView();
+    const total = PRACTICE.length;
+    const done = PRACTICE.filter((q) => mastered(q.id)).length;
+    const missed = PRACTICE.filter((q) => pStatus(q.id) && !pStatus(q.id).correct).length;
+    const chosen = S.practice.papers || PAPERS.map((p) => p.sourceId);
+    const paperRows = PAPERS.map((p) => {
+      const qs = PRACTICE.filter((q) => q.sourceId === p.sourceId);
+      const m = qs.filter((q) => mastered(q.id)).length;
+      return '<label><input type="checkbox" data-paper="' + esc(p.sourceId) + '"' + (chosen.indexOf(p.sourceId) >= 0 ? " checked" : "") + "><span><b>" + esc(p.source) + "</b>" +
+        (p.note ? ' <span class="muted small">' + esc(p.note) + "</span>" : "") + '</span><span class="m">' + m + "/" + qs.length + "</span></label>";
+    }).join("");
+    return '<div class="col"><div class="head"><div class="eyebrow">Exam practice</div><h1>Past-paper practice</h1>' +
+      '<p class="lede">Every Bash question from your past midterms, quizzes and finals, worded as on the paper, plus one close variant of each. One question at a time: write your answer, and Claude marks it. Any correct solution counts, not just the model answer. Questions you get wrong come back a few questions later until you get them right.</p></div>' +
+      '<div class="stats">' + stat(done + " / " + total, "questions answered correctly") + stat(missed, "got wrong, waiting for another try") + stat(total - done - missed, "not tried yet") + "</div>" +
+      '<div class="card"><h3>Which papers?</h3><div class="rubric" id="paperPick">' + paperRows + "</div>" +
+      '<p class="small muted" style="margin:0">The 2024 midterm and the 2023 quizzes are closest to your exam. The finals add more of the same kinds of question.</p></div>' +
+      '<div class="row"><button class="btn primary" data-act="p-start" data-mode="todo">Start: everything not yet correct</button>' +
+      (missed ? '<button class="btn" data-act="p-start" data-mode="missed">Only the ones I got wrong (' + missed + ")</button>" : "") +
+      '<button class="btn ghost" data-act="p-start" data-mode="all">All questions, including correct ones</button></div>' +
+      '<div class="callout why"><div class="lab">How marking works</div><div class="prose"><p>In the web version, the first time you submit, Claude asks your permission to mark answers. Each answer uses a little of your Claude usage and takes a few seconds to mark. In the local <code>index.html</code> file, or if you decline, you mark yourself against the model answer and rubric instead.</p></div></div></div>';
+  }
+
+  function practiceQuestionView() {
+    const s = session;
+    if (!s.queue.length) {
+      const right = s.log.filter((x) => x.correct).length;
+      return '<div class="col"><div class="card empty"><h2>Round complete</h2><p>' + s.log.length + " answers marked, " + right + " correct. Every question in this round has now been answered correctly at least once.</p>" +
+        '<div class="row" style="justify-content:center"><button class="btn primary" data-act="p-exit">Back to practice</button></div></div></div>';
+    }
+    const q = pq[s.queue[0]];
+    const st = pStatus(q.id);
+    const long = q.kind === "long";
+    let body = '<div class="row"><span class="chip accent">' + esc(q.source) + '</span><span class="chip">' + (long ? "Long answer" : "Short answer") + '</span><span class="marks">' + q.marks + " mark" + (q.marks === 1 ? "" : "s") + "</span>" +
+      (st && st.tries && (s.phase === "answer" ? !st.correct : st.tries > 1) ? '<span class="chip high">try ' + (s.phase === "answer" ? st.tries + 1 : st.tries) + "</span>" : "") + "</div>" +
+      '<div class="prose">' + md(q.prompt) + "</div>";
+    const locked = s.phase !== "answer";
+    body += '<textarea class="ans' + (long ? " tall" : "") + '" id="pans" spellcheck="false" placeholder="' + (long ? "Write your full answer, as you would on the exam paper." : "Your answer") + '"' + (locked ? " readonly" : "") + ">" + esc(s.draft || "") + "</textarea>";
+    if (s.phase === "answer") {
+      body += '<div class="row"><button class="btn primary" data-act="p-submit">' + (selfMarking ? "Check my answer" : "Submit for marking") + ' <kbd>Ctrl+Enter</kbd></button>' +
+        '<button class="btn ghost" data-act="p-dontknow">I don\'t know: show me</button><span class="spacer"></span><button class="btn ghost" data-act="p-skip">Skip for now</button></div>';
+    } else if (s.phase === "grading") {
+      body += '<div class="row"><span class="verdict">Claude is marking your answer…</span><span class="spacer"></span><button class="btn ghost" data-act="p-stop">Stop</button></div>';
+    } else if (s.phase === "error") {
+      body += '<div class="callout pitfall"><div class="lab">Couldn\'t mark it</div><div class="prose"><p>' + esc(s.error) + '</p></div></div>' +
+        '<div class="row"><button class="btn primary" data-act="p-submit">Try again</button><button class="btn" data-act="p-self">Mark it myself</button></div>';
+    } else if (s.phase === "self") {
+      body += practiceAnswerKey(q) +
+        '<div class="row"><span>Compare carefully. Would your answer get full marks?</span><button class="btn bad" data-act="p-selfmark" data-ok="0">No</button><button class="btn good" data-act="p-selfmark" data-ok="1">Yes</button></div>';
+    } else if (s.phase === "result") {
+      const r = s.result;
+      body += '<div class="callout ' + (r.correct ? "try" : "pitfall") + '"><div class="lab">' + (r.correct ? "Correct" : r.gaveUp ? "Here's the answer" : "Not yet") +
+        (r.score != null ? " · " + r.score + " / " + q.marks : "") + "</div>" +
+        (r.feedback ? '<div class="prose">' + md(r.feedback) + "</div>" : "") +
+        (r.correct ? "" : '<p class="small" style="margin:0">This question comes back in a few questions. Study the model answer, then write it from memory next time.</p>') + "</div>" +
+        (r.correct ? '<details><summary class="small">Show the model answer</summary>' + practiceAnswerKey(q) + "</details>" : practiceAnswerKey(q)) +
+        '<div class="row">' + (!r.correct && !r.gaveUp ? '<button class="btn ghost" data-act="p-override">The marking is wrong: count mine as correct</button>' : "") +
+        '<span class="spacer"></span><button class="btn primary" data-act="p-next">Next question <kbd>Enter</kbd></button></div>';
+    }
+    const total = PRACTICE.length, done = PRACTICE.filter((x) => mastered(x.id)).length;
+    return '<div class="col"><div class="head"><div class="eyebrow"><a href="#practice" data-act="p-exit">Past-paper practice</a> · ' + s.queue.length + " left in this round · " + done + "/" + total + " correct overall</div>" +
+      '<div class="progress"><i style="width:' + Math.round((done / total) * 100) + '%"></i></div></div><div class="card">' + body + "</div></div>";
+  }
+  function practiceAnswerKey(q) {
+    return '<div class="callout check"><div class="lab">Model answer</div><div class="prose">' + md(q.answer) + "</div></div>" +
+      (q.rubric && q.rubric.length ? '<div class="prose small"><b>Marking scheme</b><ul>' + q.rubric.map((x) => "<li>" + inline(x.item) + " (" + x.marks + ")</li>").join("") + "</ul></div>" : "") +
+      (q.grading ? '<div class="prose small"><b>Grading notes:</b> ' + md(q.grading) + "</div>" : "");
+  }
+
+  function practiceRecord(id, correct, score) {
+    const st = S.practice.status[id] || { tries: 0, correct: false };
+    st.tries++; st.correct = correct; st.last = today();
+    if (score != null) st.best = Math.max(st.best || 0, score);
+    S.practice.status[id] = st;
+    save();
+  }
+  function practiceFinish(result) {
+    const s = session; const id = s.queue[0];
+    s.result = result; s.phase = "result";
+    s.log.push({ id: id, correct: result.correct });
+    practiceRecord(id, result.correct, result.score);
+  }
+  async function practiceGrade() {
+    const s = session; const q = pq[s.queue[0]];
+    const answer = (s.draft || "").trim();
+    if (!answer) { toast("Write an answer first, or choose \"I don't know\"."); return; }
+    if (selfMarking) { s.phase = "self"; rerender(true); return; }
+    s.phase = "grading"; s.ctl = new AbortController(); rerender(true);
+    const sample = await getSample();
+    if (session !== s) return;
+    if (!sample) { selfMarking = true; s.phase = "self"; rerender(true); return; }
+    const prompt = [
+      "You are a careful, fair teaching assistant marking one answer on a CISC220 (Queen's University) exam about Bash on GNU/Linux (Ubuntu, bash 5). The exam is handwritten, closed book.",
+      "",
+      "Mark the student's answer out of " + q.marks + ". ANY correct answer earns full marks, even if it is written differently from the model answer: check whether the student's commands or script would actually do what the question asks (trace it on the question's examples and on the edge cases it mentions).",
+      "Deduct marks for real errors: wrong output, syntax that bash would reject (for example spaces around = in an assignment, missing spaces inside [[ ]], missing then/do/fi/done), wrong options, or missing quotes where a value could contain spaces and the question or course expects quoting. Follow the grading notes and the marking scheme. Ignore handwriting-style slips that don't change meaning (curly quotes, an extra blank line, a missing #!/bin/bash on a one-line answer), and don't require comments.",
+      "",
+      "QUESTION (" + q.source + ", " + q.marks + " marks):",
+      q.prompt,
+      "",
+      "MODEL ANSWER:",
+      q.answer,
+      "",
+      "GRADING NOTES:",
+      q.grading || "(none)",
+      "",
+      "MARKING SCHEME:",
+      (q.rubric || []).map((x) => "- (" + x.marks + ") " + x.item).join("\n") || "(none)",
+      "",
+      "STUDENT'S ANSWER (between the lines):",
+      "-----",
+      answer,
+      "-----",
+      "",
+      'Reply with only a JSON object: {"score": <number from 0 to ' + q.marks + '>, "feedback": "<1 to 4 short sentences for the student: say what is right, and exactly what is wrong and how to fix it. Use backticks for code. If it is fully correct, say so in one sentence.>"}',
+    ].join("\n");
+    try {
+      const r = await sample.json(prompt, { signal: s.ctl.signal, modelTier: "default" });
+      if (session !== s) return;
+      let score = Number(r && r.score);
+      if (!isFinite(score)) score = 0;
+      score = Math.max(0, Math.min(q.marks, Math.round(score * 2) / 2));
+      const correct = score >= q.marks || (q.marks >= 4 && score >= q.marks - 1);
+      practiceFinish({ score: score, correct: correct, feedback: String((r && r.feedback) || "") });
+    } catch (e) {
+      if (session !== s) return;
+      const code = e && e.code;
+      if (code === "cancelled") { s.phase = "answer"; }
+      else if (["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "capability_removed"].indexOf(code) >= 0) {
+        selfMarking = true; s.phase = "self";
+        toast("Claude marking isn't available here, so mark this one yourself.");
+      } else {
+        s.phase = "error";
+        s.error = code === "rate_limited" ? "Claude is busy, or you've reached a usage limit. Wait a minute and try again, or mark this one yourself."
+          : code === "session_expired" ? "You've been signed out of Claude. Sign in again, then try again."
+          : "The marking didn't come back properly. Try again, or mark this one yourself.";
+      }
+    }
+    if (session === s) rerender(true);
+  }
+  function practiceNext() {
+    const s = session; const id = s.queue.shift();
+    if (s.result && !s.result.correct) s.queue.splice(Math.min(s.queue.length, 4), 0, id);
+    s.phase = "answer"; s.result = null; s.draft = ""; s.error = null;
+    rerender(); window.scrollTo(0, 0);
+  }
+  function practiceAction(act, el) {
+    const s = session;
+    switch (act) {
+      case "p-start": {
+        const papers = $$("#paperPick input").filter((i) => i.checked).map((i) => i.dataset.paper);
+        if (!papers.length) { toast("Pick at least one paper."); return; }
+        S.practice.papers = papers; save();
+        const queue = practiceQueue(el.dataset.mode, papers);
+        if (!queue.length) { toast(el.dataset.mode === "missed" ? "Nothing to retry: you've got them all right." : "Everything in those papers is already correct. Choose \"All questions\" to go again."); return; }
+        session = { type: "practice", route: "practice", queue: queue, phase: "answer", draft: "", log: [] };
+        rerender(); window.scrollTo(0, 0); break;
+      }
+      case "p-exit": session = null; rerender(); break;
+      case "p-submit": practiceGrade(); break;
+      case "p-stop": if (s && s.ctl) s.ctl.abort(); break;
+      case "p-self": s.phase = "self"; rerender(true); break;
+      case "p-selfmark": practiceFinish({ score: null, correct: el.dataset.ok === "1", feedback: "" }); rerender(true); break;
+      case "p-dontknow": practiceFinish({ score: 0, correct: false, gaveUp: true, feedback: "" }); rerender(true); break;
+      case "p-skip": { const id = s.queue.shift(); s.queue.push(id); s.draft = ""; rerender(); break; }
+      case "p-override": {
+        const id = s.queue[0]; s.result.correct = true; s.log[s.log.length - 1].correct = true;
+        S.practice.status[id].correct = true; save(); rerender(true); break;
+      }
+      case "p-next": practiceNext(); break;
+      default: break;
+    }
+  }
+
   // ---------------------------------------------------------------- router
   function route() {
     const h = location.hash.replace(/^#/, "") || "today";
@@ -984,6 +1202,7 @@
     else if ((m = h.match(/^dump-(\d+)$/))) html = viewDump(+m[1]);
     else if ((m = h.match(/^mock-(.+)$/))) html = viewMock(m[1]);
     else if (h === "weak") html = viewWeak();
+    else if (h === "practice") html = viewPractice();
     else if (h === "sheet") html = viewSheet();
     else if (h === "library") html = viewLibrary();
     else if (h === "data") html = viewData();
@@ -1029,6 +1248,7 @@
     if (!el) return;
     const act = el.dataset.act;
     const s = session;
+    if (act.indexOf("p-") === 0) { if (act === "p-exit") e.preventDefault(); practiceAction(act, el); return; }
     switch (act) {
       case "toggle-step": {
         const k = el.dataset.day + ":" + el.dataset.key;
@@ -1149,6 +1369,7 @@
   document.addEventListener("input", (e) => {
     const t = e.target;
     if (t.dataset && t.dataset.draft) { S.drafts[t.dataset.draft] = t.value; save(); }
+    if (t.id === "pans" && session && session.type === "practice") session.draft = t.value;
   });
   document.addEventListener("keydown", (e) => {
     const t = e.target;
@@ -1161,6 +1382,11 @@
       return;
     }
     if (!session) return;
+    if (session.type === "practice") {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && session.phase === "answer") { e.preventDefault(); practiceGrade(); return; }
+      if (e.key === "Enter" && session.phase === "result" && t.tagName !== "TEXTAREA" && t.tagName !== "INPUT") { e.preventDefault(); practiceNext(); }
+      return;
+    }
     if (session.type === "quiz" && session.i < session.queue.length) {
       if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !session.answered) { e.preventDefault(); const b = $('[data-act="quiz-submit"]'); if (b) b.click(); return; }
       if (t.tagName === "TEXTAREA" || t.tagName === "INPUT") return;

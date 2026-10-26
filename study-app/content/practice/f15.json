@@ -1,0 +1,155 @@
+{
+  "sourceId": "f15",
+  "source": "Final exam 2015",
+  "questions": [
+    {
+      "id": "f15-1",
+      "source": "Final exam 2015, Q1",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "scripts",
+        "loops",
+        "conditionals",
+        "commands"
+      ],
+      "prompt": "**Question 1 (5 points): Linux Scripting**\n\nSuppose that on your Linux system there is a command called `legal`, which takes the name of a file as an argument and checks whether the file is \"legal\" according to some set of conditions. The command never prints any output, either to the standard output or the standard error stream. It finishes with exit status zero if the file is \"legal\"; otherwise it finishes with a non-zero status.\n\nThere is another command called `rating`, which takes the name of a file as an argument and prints a rating (a number between 1 and 4) on the standard output. It never prints anything besides this number, either on the standard output or the standard error.\n\nWrite a Linux script that takes the name of a directory as its only argument. It must print the number of files in the directory that are \"legal\" and get a rating of 4 from the `rating` command. Your script should print nothing but a number. It should be looking at files in the directory named by the argument, but not in sub-directories.\n\nFor example, suppose there are 19 files in the current directory. Ten of them are legal and nine are not. Of the ten legal files, six get a rating of 4. Your script should print 6 and nothing else. It's possible that some of the illegal files also get a rating of 4, but that should not increase the count.\n\nIf there are no legal files in the directory that get a rating of 4, your script should print 0.\n\nYour script doesn't have to do any error checking. You may assume that it will be called with exactly one argument, and that this argument will be the name of an existing, readable directory.",
+      "answer": "```bash\n#!/bin/bash\ncount=0\nfor f in \"$1\"/*; do\n    if [[ -f \"$f\" ]] && legal \"$f\" && (( $(rating \"$f\") == 4 )); then\n        count=$((count + 1))\n    fi\ndone\necho \"$count\"\n```",
+      "grading": "Essentials: loop over the entries of the directory `\"$1\"/*` (not a recursive search); use `legal`'s **exit status** directly as the condition (`if legal \"$f\"` or `legal \"$f\"; if (( $? == 0 ))`), NOT its output (it prints nothing, so `[[ $(legal \"$f\") ]]` is wrong); capture `rating`'s **output** with command substitution `$(rating \"$f\")` and compare to 4 (`(( ... == 4 ))`, `[[ $(rating \"$f\") -eq 4 ]]` or `[[ $(rating \"$f\") == 4 ]]` all fine); increment only when both hold; print only the count, and print 0 when nothing matches (so initialise the counter to 0).\n\nAccepted alternatives: `for f in \"$1\"/*` with or without the `[[ -f \"$f\" ]]` test (the question says files; skipping sub-directories is good practice but should not lose marks); `cd \"$1\"` then `for f in *`; calling `rating` only after `legal` succeeds or the other way round; counting with `((count++))`, `count=$((count+1))`, or echoing names and piping to `wc -l` (as long as only a number is printed). Ignoring dot-files is fine.\n\nLoses marks: unquoted `$f`/`$1` (breaks on names with spaces; the course requires quotes); using `ls \"$1\"` output in a loop without prefixing the directory (calls `legal name` instead of `legal dir/name`); testing `legal`'s output instead of its exit status; printing extra text such as \"Count: 6\"; searching sub-directories; comparing with `=` inside `(( ))` (that is assignment).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over each entry in the directory given by \"$1\" (e.g. for f in \"$1\"/*), correctly quoted, not recursive"
+        },
+        {
+          "marks": 1,
+          "item": "Uses legal's exit status (not its output) as the test"
+        },
+        {
+          "marks": 1,
+          "item": "Captures rating's output with $(rating \"$f\") and compares it numerically/string-wise to 4"
+        },
+        {
+          "marks": 1,
+          "item": "Increments a counter only when the file is legal AND rated 4"
+        },
+        {
+          "marks": 1,
+          "item": "Prints only the final number, which is 0 when there are no matches (counter initialised)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f15-1-v",
+      "source": "Variant of Final exam 2015, Q1",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "scripts",
+        "loops",
+        "conditionals",
+        "commands",
+        "strings"
+      ],
+      "prompt": "**Linux Scripting**\n\nSuppose that on your Linux system there is a command called `approved`, which takes the name of a file as an argument and checks whether the file is \"approved\". The command never prints any output, either to the standard output or the standard error stream. It finishes with exit status zero if the file is approved; otherwise it finishes with a non-zero status.\n\nThere is another command called `sizeclass`, which takes the name of a file as an argument and prints one of the words `small`, `medium` or `large` on the standard output. It never prints anything besides this word, either on the standard output or the standard error.\n\nWrite a Linux script that takes the name of a directory as its only argument. It must print the number of files in the directory that are **not** approved and that get the class `large` from the `sizeclass` command. Your script should print nothing but a number. It should be looking at files in the directory named by the argument, but not in sub-directories.\n\nFor example, suppose there are 12 files in the directory. Five of them are not approved, and of those five, two are classed `large`. Your script should print 2 and nothing else. Approved files that are classed `large` must not increase the count.\n\nIf there are no such files, your script should print 0.\n\nYour script doesn't have to do any error checking. You may assume that it will be called with exactly one argument, and that this argument will be the name of an existing, readable directory.",
+      "answer": "```bash\n#!/bin/bash\ncount=0\nfor f in \"$1\"/*; do\n    if [[ -f \"$f\" ]] && ! approved \"$f\" && [[ \"$(sizeclass \"$f\")\" == \"large\" ]]; then\n        count=$((count + 1))\n    fi\ndone\necho \"$count\"\n```",
+      "grading": "Essentials: loop over `\"$1\"/*` (not recursive); use `approved`'s **exit status**, negated (`! approved \"$f\"`, or `approved \"$f\"` then `(( $? != 0 ))`, or put the count in the `else` branch); capture `sizeclass`'s **output** with `$(sizeclass \"$f\")` and compare as a **string** with `[[ ... == large ]]` (not `-eq`, and not inside `(( ))`); print only the number, 0 if none.\n\nAccepted alternatives: with or without `[[ -f \"$f\" ]]`; `cd \"$1\"` then `for f in *`; `((count++))`; piping matching names to `wc -l`. Ignoring dot-files is fine.\n\nLoses marks: forgetting the negation (counting approved files); using `-eq` or `(( ))` for the word comparison; unquoted variables; using `approved`'s output instead of its status; extra output; recursing into sub-directories.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loops over each entry in the directory \"$1\" (quoted, not recursive)"
+        },
+        {
+          "marks": 1,
+          "item": "Uses approved's exit status, correctly negated, as the test"
+        },
+        {
+          "marks": 1,
+          "item": "Captures sizeclass output with $(...) and compares it as a string to large"
+        },
+        {
+          "marks": 1,
+          "item": "Increments a counter only when both conditions hold"
+        },
+        {
+          "marks": 1,
+          "item": "Prints only the final number, 0 when there are no matches"
+        }
+      ],
+      "variantOf": "f15-1"
+    },
+    {
+      "id": "f15-2",
+      "source": "Final exam 2015, Q2",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "files",
+        "streams"
+      ],
+      "prompt": "**Question 2 (5 points): Bash Output and Links**\n\nRead the following sequence of shell commands. Assume that the current directory has no files in it before these commands are executed. Write the output of this sequence of commands in your answer booklet. If a line would produce an error message, just write \"ERROR\"; you don't have to know the exact error message. If a line would produce an error message, continue on to the next line regardless.\n\n```bash\necho xmas >| one.txt\nln one.txt two.txt\nln -s one.txt three.txt\ncp one.txt four.txt\nmv one.txt five.txt\necho kwanzaa >> one.txt\necho hanukkah >> two.txt\necho newyear >> three.txt\necho boxingday >> four.txt\necho yule >> five.txt\ncat one.txt\necho \"---\"\ncat two.txt\necho \"---\"\ncat three.txt\necho \"---\"\ncat four.txt\necho \"---\"\ncat five.txt\necho \"---\"\n```",
+      "answer": "```text\nkwanzaa\nnewyear\n---\nxmas\nhanukkah\nyule\n---\nkwanzaa\nnewyear\n---\nxmas\nboxingday\n---\nxmas\nhanukkah\nyule\n---\n```\n\nWhy: `two.txt` is a hard link (same inode) to the original `one.txt`; `three.txt` is a symbolic link to the *name* `one.txt`; `four.txt` is an independent copy. `mv one.txt five.txt` renames the original inode, so `five.txt` and `two.txt` are the same file and the symlink `three.txt` is left dangling. `echo kwanzaa >> one.txt` creates a brand-new `one.txt`, which `three.txt` now points to, so `newyear` is appended to that new file. `hanukkah` and `yule` both go into the shared inode of `two.txt`/`five.txt`. No line produces an error.",
+      "grading": "`>|` forces the redirection even if the shell option `noclobber` is set; with default settings it behaves exactly like `>` (the current notebooks don't cover `>|`, so treat it as `>`).\n\nOne mark per block. Key ideas: (1) `one.txt` is a NEW file (kwanzaa) and receives `newyear` through the symlink; (2) `two.txt` and `five.txt` are the same inode, so both show xmas, hanukkah, yule; (3) `three.txt` shows exactly what `one.txt` shows; (4) `four.txt` is an independent copy: xmas, boxingday.\n\nCommon wrong answers: writing ERROR for `echo newyear >> three.txt` or `cat three.txt` (the dangling link was repaired when `one.txt` was re-created); showing `five.txt` without `hanukkah` (forgetting hard links share data); showing `four.txt` with hanukkah/yule (cp makes a separate file); showing `one.txt` containing xmas (mv removed the old name). Missing `---` separators or blank lines are not penalised if the content is clear.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "one.txt block: kwanzaa, newyear"
+        },
+        {
+          "marks": 1,
+          "item": "two.txt block: xmas, hanukkah, yule"
+        },
+        {
+          "marks": 1,
+          "item": "three.txt block: kwanzaa, newyear (no ERROR)"
+        },
+        {
+          "marks": 1,
+          "item": "four.txt block: xmas, boxingday"
+        },
+        {
+          "marks": 1,
+          "item": "five.txt block: xmas, hanukkah, yule"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f15-2-v",
+      "source": "Variant of Final exam 2015, Q2",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "files",
+        "streams"
+      ],
+      "prompt": "**Bash Output and Links**\n\nRead the following sequence of shell commands. Assume that the current directory has no files in it before these commands are executed. Write the output of this sequence of commands. If a line would produce an error message, just write \"ERROR\"; you don't have to know the exact error message. If a line would produce an error message, continue on to the next line regardless.\n\n```bash\necho apple > a.txt\nln -s a.txt b.txt\nln a.txt c.txt\nmv a.txt d.txt\ncat b.txt\necho pear >> b.txt\ncp c.txt e.txt\necho plum >> c.txt\necho kiwi >> d.txt\necho lime >> e.txt\ncat a.txt\necho \"---\"\ncat b.txt\necho \"---\"\ncat c.txt\necho \"---\"\ncat d.txt\necho \"---\"\ncat e.txt\necho \"---\"\n```",
+      "answer": "```text\nERROR\npear\n---\npear\n---\napple\nplum\nkiwi\n---\napple\nplum\nkiwi\n---\napple\nlime\n---\n```\n\nWhy: `b.txt` is a symbolic link to the name `a.txt`; `c.txt` is a hard link to the same inode. After `mv a.txt d.txt`, `d.txt` and `c.txt` share that inode and `b.txt` dangles, so `cat b.txt` is an ERROR. `echo pear >> b.txt` follows the dangling link and creates a new `a.txt` containing `pear`. `e.txt` is a copy of `c.txt` taken while it held only `apple`. `plum` and `kiwi` both go into the shared inode of `c.txt`/`d.txt`.",
+      "grading": "One mark for the first `cat b.txt` being ERROR, then marks for the a/b, c/d and e blocks (see rubric).\n\nCommon wrong answers: writing ERROR for `echo pear >> b.txt` (appending through a dangling symlink creates the target file); writing ERROR for `cat a.txt` (it was re-created by the previous append); leaving `kiwi` out of `c.txt` or `plum` out of `d.txt` (hard links share data); putting `plum` in `e.txt` (cp made an independent copy before plum was added). Exact error text is not required.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "First cat b.txt (dangling symlink) gives ERROR"
+        },
+        {
+          "marks": 1,
+          "item": "a.txt block: pear (re-created through the symlink)"
+        },
+        {
+          "marks": 1,
+          "item": "b.txt block: pear (same as a.txt)"
+        },
+        {
+          "marks": 1,
+          "item": "c.txt and d.txt blocks both: apple, plum, kiwi"
+        },
+        {
+          "marks": 1,
+          "item": "e.txt block: apple, lime"
+        }
+      ],
+      "variantOf": "f15-2"
+    }
+  ]
+}
