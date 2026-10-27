@@ -1258,7 +1258,20 @@ details > summary { cursor: pointer; color: var(--muted); }
     s.lastWasRetry = k >= 0;
     s.cur = k >= 0 ? s.retry.splice(k, 1)[0].id : (s.fresh.shift() || null);
   }
+  // An original and its variant form a pair; "unique" mode asks one question per pair you haven't touched yet.
+  const pairOf = (q) => q.variantOf || q.id;
+  function uniqueQueue(papers) {
+    const groups = {};
+    PRACTICE.filter((q) => papers.indexOf(q.sourceId) >= 0).forEach((q) => { (groups[pairOf(q)] = groups[pairOf(q)] || []).push(q); });
+    const out = [];
+    Object.values(groups).forEach((g) => {
+      if (g.some((q) => pStatus(q.id))) return;
+      out.push((g.find((q) => !q.variantOf) || g[0]).id);
+    });
+    return shuffle(out);
+  }
   function practiceQueue(mode, papers) {
+    if (mode === "unique") return uniqueQueue(papers);
     const pool = PRACTICE.filter((q) => papers.indexOf(q.sourceId) >= 0).filter((q) => {
       if (mode === "missed") return pStatus(q.id) && !pStatus(q.id).correct;
       if (mode === "all") return true;
@@ -1296,8 +1309,10 @@ details > summary { cursor: pointer; color: var(--muted); }
       '<div class="stats">' + stat(done + " / " + total, "questions answered correctly") + stat(missed, "got wrong, waiting for another try") + stat(total - done - missed, "not tried yet") + "</div>" +
       '<div class="card"><h3>Which papers?</h3><div class="rubric" id="paperPick">' + paperRows + "</div>" +
       '<p class="small muted" style="margin:0">The 2024 midterm and the 2023 quizzes are closest to your exam. The finals add more of the same kinds of question.</p></div>' +
-      '<div class="row">' + recycleToggle() + "</div>" +
-      '<div class="row"><button class="btn primary" data-act="p-start" data-mode="todo">Start: everything not yet correct</button>' +
+      '<div class="row">' + recycleToggle() + (S.practice.recycle ? '<span class="small muted">Switch this off if you don\'t want repeats.</span>' : "") + "</div>" +
+      '<p class="small muted" style="margin:0"><b>New questions only</b> asks one question from each original-and-variant pair, and skips every pair you\'ve already answered either half of, so nothing repeats.</p>' +
+      '<div class="row"><button class="btn primary" data-act="p-start" data-mode="unique">New questions only (' + uniqueQueue(chosen).length + ")</button>" +
+      '<button class="btn" data-act="p-start" data-mode="todo">Everything not yet correct, variants included</button>' +
       (missed ? '<button class="btn" data-act="p-start" data-mode="missed">Only the ones I got wrong (' + missed + ")</button>" : "") +
       '<button class="btn ghost" data-act="p-start" data-mode="all">All questions, including correct ones</button></div>' +
       '<div class="callout why"><div class="lab">How marking works</div><div class="prose"><p>In the web version, the first time you submit, Claude asks your permission to mark answers. Each answer uses a little of your Claude usage and takes a few seconds to mark. In the local <code>index.html</code> file, or if you decline, you mark yourself against the model answer and rubric instead.</p></div></div></div>';
@@ -1435,7 +1450,7 @@ details > summary { cursor: pointer; color: var(--muted); }
         if (!papers.length) { toast("Pick at least one paper."); return; }
         S.practice.papers = papers; save();
         const queue = practiceQueue(el.dataset.mode, papers);
-        if (!queue.length) { toast(el.dataset.mode === "missed" ? "Nothing to retry: you've got them all right." : "Everything in those papers is already correct. Choose \"All questions\" to go again."); return; }
+        if (!queue.length) { toast(el.dataset.mode === "missed" ? "Nothing to retry: you've got them all right." : el.dataset.mode === "unique" ? "You've answered at least one question from every pair. Try \"Everything not yet correct\"." : "Everything in those papers is already correct. Choose \"All questions\" to go again."); return; }
         session = { type: "practice", route: "practice", fresh: queue, retry: [], n: 0, cur: null, phase: "answer", draft: "", log: [] };
         practicePick(session);
         rerender(); window.scrollTo(0, 0); break;
