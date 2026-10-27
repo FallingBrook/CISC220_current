@@ -39,7 +39,7 @@ variant: 86 questions. From the finals, only the questions Prof. Ma lists as rel
 midterm covers only Bash. The practice page
 asks them one at a time. In the published web version, Claude marks each answer against the model answer, grading
 notes and rubric, so any correct solution passes. In the local `index.html`, you mark yourself against the model
-answer. Missed questions come back a few questions later until you get them right.
+answer. Each question is asked once per round; switch on "Bring back questions I get wrong" to have missed questions come back a few questions later.
 
 ## Terminal drills (Ubuntu)
 

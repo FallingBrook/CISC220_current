@@ -1017,6 +1017,9 @@
     return out;
   }
 
+  function recycleToggle() {
+    return '<label class="toggle"><input type="checkbox" id="pRecycle"' + (S.practice.recycle ? " checked" : "") + "><span>Bring back questions I get wrong</span></label>";
+  }
   function viewPractice() {
     if (!PRACTICE.length) return '<div class="col"><div class="card empty"><h3>The practice bank isn\'t loaded yet</h3></div></div>';
     if (session && session.type === "practice") return practiceQuestionView();
@@ -1031,10 +1034,11 @@
         (p.note ? ' <span class="muted small">' + esc(p.note) + "</span>" : "") + '</span><span class="m">' + m + "/" + qs.length + "</span></label>";
     }).join("");
     return '<div class="col"><div class="head"><div class="eyebrow">Exam practice</div><h1>Past-paper practice</h1>' +
-      '<p class="lede">Every Bash question from your past midterms, quizzes and finals, worded as on the paper, plus one close variant of each. One question at a time: write your answer, and Claude marks it. Any correct solution counts, not just the model answer. Questions you get wrong come back a few questions later until you get them right.</p></div>' +
+      '<p class="lede">Every Bash question from your past midterms, quizzes and finals, worded as on the paper, plus one close variant of each. One question at a time: write your answer, and Claude marks it. Any correct solution counts, not just the model answer. Each question is asked once; switch on the option below to have the ones you get wrong come back a few questions later.</p></div>' +
       '<div class="stats">' + stat(done + " / " + total, "questions answered correctly") + stat(missed, "got wrong, waiting for another try") + stat(total - done - missed, "not tried yet") + "</div>" +
       '<div class="card"><h3>Which papers?</h3><div class="rubric" id="paperPick">' + paperRows + "</div>" +
       '<p class="small muted" style="margin:0">The 2024 midterm and the 2023 quizzes are closest to your exam. The finals add more of the same kinds of question.</p></div>' +
+      '<div class="row">' + recycleToggle() + "</div>" +
       '<div class="row"><button class="btn primary" data-act="p-start" data-mode="todo">Start: everything not yet correct</button>' +
       (missed ? '<button class="btn" data-act="p-start" data-mode="missed">Only the ones I got wrong (' + missed + ")</button>" : "") +
       '<button class="btn ghost" data-act="p-start" data-mode="all">All questions, including correct ones</button></div>' +
@@ -1045,7 +1049,7 @@
     const s = session;
     if (!s.cur) {
       const right = s.log.filter((x) => x.correct).length;
-      return '<div class="col"><div class="card empty"><h2>Round complete</h2><p>' + s.log.length + " answers marked, " + right + " correct. Every question in this round has now been answered correctly at least once.</p>" +
+      return '<div class="col"><div class="card empty"><h2>Round complete</h2><p>' + s.log.length + " answers marked, " + right + " correct." + (s.log.length > right ? " Use \"Only the ones I got wrong\" to retry the rest." : "") + "</p>" +
         '<div class="row" style="justify-content:center"><button class="btn primary" data-act="p-exit">Back to practice</button></div></div></div>';
     }
     const q = pq[s.cur];
@@ -1072,14 +1076,14 @@
       body += '<div class="callout ' + (r.correct ? "try" : "pitfall") + '"><div class="lab">' + (r.correct ? "Correct" : r.gaveUp ? "Here's the answer" : "Not yet") +
         (r.score != null ? " · " + r.score + " / " + q.marks : "") + "</div>" +
         (r.feedback ? '<div class="prose">' + md(r.feedback) + "</div>" : "") +
-        (r.correct ? "" : '<p class="small" style="margin:0">This question comes back in a few questions. Study the model answer, then write it from memory next time.</p>') + "</div>" +
+        (r.correct ? "" : '<p class="small" style="margin:0">' + (S.practice.recycle ? "This question comes back in a few questions. Study the model answer, then write it from memory next time." : "Study the model answer below. It stays on your \"got wrong\" list, so you can retry it later with \"Only the ones I got wrong\".") + "</p>") + "</div>" +
         (r.correct ? '<details><summary class="small">Show the model answer</summary>' + practiceAnswerKey(q) + "</details>" : practiceAnswerKey(q)) +
         '<div class="row">' + (!r.correct && !r.gaveUp ? '<button class="btn ghost" data-act="p-override">The marking is wrong: count mine as correct</button>' : "") +
         '<span class="spacer"></span><button class="btn primary" data-act="p-next">Next question <kbd>Enter</kbd></button></div>';
     }
     const total = PRACTICE.length, done = PRACTICE.filter((x) => mastered(x.id)).length;
     return '<div class="col"><div class="head"><div class="eyebrow"><a href="#practice" data-act="p-exit">Past-paper practice</a> · ' + practiceLeft(s) + " left in this round · " + done + "/" + total + " correct overall</div>" +
-      '<div class="progress"><i style="width:' + Math.round((done / total) * 100) + '%"></i></div></div><div class="card">' + body + "</div></div>";
+      '<div class="progress"><i style="width:' + Math.round((done / total) * 100) + '%"></i></div><div class="row">' + recycleToggle() + '</div></div><div class="card">' + body + "</div></div>";
   }
   function practiceAnswerKey(q) {
     return '<div class="callout check"><div class="lab">Model answer</div><div class="prose">' + md(q.answer) + "</div></div>" +
@@ -1160,7 +1164,7 @@
   }
   function practiceNext() {
     const s = session;
-    if (s.result && !s.result.correct) s.retry.push({ id: s.cur, due: s.n + 4 });
+    if (s.result && !s.result.correct && S.practice.recycle) s.retry.push({ id: s.cur, due: s.n + 4 });
     practicePick(s);
     s.phase = "answer"; s.result = null; s.draft = ""; s.error = null;
     rerender(); window.scrollTo(0, 0);
@@ -1371,6 +1375,7 @@
   document.addEventListener("change", (e) => {
     const t = e.target;
     if (t.id === "dayOverride") { S.dayOverride = t.value ? +t.value : null; save(); rerender(true); }
+    if (t.id === "pRecycle") { S.practice.recycle = t.checked; save(); toast(t.checked ? "Questions you get wrong will come back" : "Each question is asked once"); }
     const mk = t.closest("[data-mock]");
     if (mk && t.type === "checkbox") {
       const id = mk.dataset.mock, part = mk.dataset.part;
