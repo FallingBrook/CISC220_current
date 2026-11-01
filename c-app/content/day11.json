@@ -1,0 +1,574 @@
+{
+ "day": 11,
+ "title": "Pointers, part 1",
+ "goal": "Understand addresses and pointer variables, read and write through a pointer with *, use NULL safely, and write functions like swap that change the caller's variables through pointer parameters.",
+ "topics": [
+  {
+   "id": "c11-address",
+   "title": "Addresses, & and pointer variables",
+   "notebook": "c/pointers.ipynb",
+   "priority": "high",
+   "examNote": "Exam traces (2016F Q3) start with `int *p, *q, *r;` and lines like `p = &a;`. You must know what `&a` gives and what a pointer variable holds, and be able to draw it.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Memory is a row of numbered boxes\n\nYour program's memory is a long row of **bytes**. Each byte has a number called its **address**, like a house number on a street.\n\nEvery variable you declare is an **object**: a piece of memory that holds a value. An `int` uses 4 bytes and a `double` uses 8. The **address of an object** is the address of its first byte.\n\nWe draw memory as a table. The addresses below are *pretend* addresses chosen to be easy to read. Real ones are long hexadecimal numbers like `0x7ffd6d831cac`.\n\n```c\nint a = 99;\nint b = 55;\n```\n\n| address | name | value |\n|---|---|---|\n| 1000 | `a` | 99 |\n| 1004 | `b` | 55 |\n\n`a` starts at 1000 and fills bytes 1000 to 1003, so `b` can start at 1004."
+    },
+    {
+     "type": "md",
+     "text": "### `&` gives an address; a pointer stores one\n\nThe **address-of operator** `&` gives you the address of an object. With the table above, `&a` is 1000 and `&b` is 1004.\n\nA **pointer** is a value that is an address. A **pointer variable** is a variable that stores a pointer. The notebook says: if `T` is a type, then `T *` is the type of a pointer that can store the address of a `T` object.\n\n```c\nint a = 99;\nint *ptr = &a;     // ptr gets the address of a\n```\n\nRead `int *ptr` as \"`ptr` is a **pointer to int**\". It can hold the address of any `int`.\n\n| address | name | value |\n|---|---|---|\n| 1000 | `a` | 99 |\n| 1008 | `ptr` | 1000 |\n\nThe pointer is an object too. It has its own address (1008) and its own value (1000, the address of `a`). On our 64-bit machines every pointer takes 8 bytes. We also draw it with an arrow: \"`ptr` **points to** `a`\".\n\n```\n    ptr                 a\n  +------+          +------+\n  | 1000 | -------> |  99  |\n  +------+          +------+\n   @1008             @1000\n```"
+    },
+    {
+     "type": "why",
+     "q": "Why does a pointer have a type (`int *`, `double *`) and not just \"address\"?",
+     "a": "An address only says where an object *starts*. The type says how many bytes the object uses and how to read them: 4 bytes as an `int`, or 8 bytes as a `double`. Tomorrow's arithmetic on pointers also needs the size."
+    },
+    {
+     "type": "md",
+     "text": "### Pointing somewhere else\n\nA pointer variable can be changed like any variable. Giving it a new address makes it point at a different object. The objects themselves do not change.\n\n```c\nint a = 99;\nint *ptr = &a;   // ptr points at a\n\nint b = 55;\nptr = &b;        // now ptr points at b; a is still 99\n```\n\nThe types must match: `ptr` is an `int *`, so it should only get addresses of `int` objects. For a `double d`, you need a `double *`: `double *dp = &d;`."
+    },
+    {
+     "type": "md",
+     "text": "### How to write the declaration\n\nThe notebook shows that the spaces do not matter. These three lines all declare a pointer to `int`:\n\n```c\nint *ptr1;\nint* ptr2;\nint * ptr3;\n```\n\nThe course writes `int *ptr`, with the `*` next to the name. There is a reason, shown in the next pitfall."
+    },
+    {
+     "type": "pitfall",
+     "text": "The `*` belongs to **one** name. `int *p, q;` makes `p` an `int *` but `q` a plain `int`. To declare three pointers on one line write `int *p, *q, *r;` (as in the 2016 final). gcc catches the mistake when you store an address in `q`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int a = 1;\n    int *p, q;            // p is an int *, but q is a plain int!\n    p = &a;\n    q = &a;\n    printf(\"%d %d\\n\", *p, q);\n    return 0;\n}",
+     "caption": "twodecl.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o twodecl twodecl.c\ntwodecl.c: In function 'main':\ntwodecl.c:7:7: warning: assignment to 'int' from 'int *' makes integer from pointer without a cast [-Wint-conversion]\n    7 |     q = &a;\n      |       ^",
+     "caption": "A warning means the program is almost certainly wrong. Fix it with int *p, *q; (and make q print *q)."
+    },
+    {
+     "type": "md",
+     "text": "### Printing an address with `%p`\n\n`printf` prints a pointer with the conversion `%p`. `%p` expects the general pointer type `void *` (Day 12 explains it), so the habit is to **cast** the pointer: `(void *) ptr`. The output is the address in hexadecimal (base 16, starting `0x`).\n\nThis program also uses `*ptr`, which you learn in the next lesson: it means \"the `int` that `ptr` points to\"."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int a = 99;\n    int *ptr = &a;      // ptr holds the address of a\n\n    printf(\"a           = %d\\n\", a);\n    printf(\"&a          = %p\\n\", (void *) &a);\n    printf(\"ptr         = %p\\n\", (void *) ptr);\n    printf(\"*ptr        = %d\\n\", *ptr);\n    printf(\"&ptr        = %p\\n\", (void *) &ptr);\n    printf(\"sizeof(ptr) = %zu\\n\", sizeof(ptr));\n    return 0;\n}",
+     "caption": "addr.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o addr addr.c\n$ ./addr\na           = 99\n&a          = 0x7ffd6d831cac\nptr         = 0x7ffd6d831cac\n*ptr        = 99\n&ptr        = 0x7ffd6d831cb0\nsizeof(ptr) = 8\n$ ./addr\na           = 99\n&a          = 0x7ffd326785dc\nptr         = 0x7ffd326785dc\n*ptr        = 99\n&ptr        = 0x7ffd326785e0\nsizeof(ptr) = 8",
+     "caption": "Two runs. The addresses are different every time (Linux places memory at a random spot on each run, for security), so yours will differ too. What never changes: ptr always equals &a, and the pointer is 8 bytes."
+    },
+    {
+     "type": "try",
+     "text": "Type in addr.c, compile it with gcc -std=c17 -Wall and run it three times. Check that the &a and ptr lines always match each other, even though they change from run to run. Then add a double d = 2.5; and a double *dp = &d; and print both with %p."
+    },
+    {
+     "type": "check",
+     "q": "Pretend addresses: `double d = 2.5;` is at 2000 and `double *dp = &d;` is at 2008. What are the type and value of `&d`? What is the value of `dp`? What is `&dp`?",
+     "a": "`&d` has type `double *` and value 2000. `dp` holds 2000 (it points at `d`). `&dp` is 2008, the address of the pointer variable itself."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Every object (variable) lives at an **address**; `&x` gives the address of `x`.\n- `T *p` declares `p` as a **pointer to T**: a variable that holds the address of a `T` object. It is an object too, with its own address (8 bytes on our machines).\n- Draw memory as a table (address, name, value) or as boxes with arrows.\n- A pointer can be changed to point at another object: `p = &b;`.\n- `int *p, q;` makes only `p` a pointer. Write `int *p, *q;`.\n- Print addresses with `%p` and `(void *) p`; the values change from run to run."
+    }
+   ]
+  },
+  {
+   "id": "c11-deref",
+   "title": "Dereferencing with *, and NULL",
+   "notebook": "c/pointers.ipynb",
+   "priority": "high",
+   "examNote": "2016F Q3 (10 marks) was a pure trace: three `int`s, three pointers, assignments like `p = q;`, `*p = *q;`, `*r = *q + 1;`, and printf lines to predict. Draw the memory table and update it line by line. The quiz has two traces in the same style.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `*` follows the pointer\n\nThe notebook quotes Wikipedia: a pointer is like a page number in a book's index. **Dereferencing** the pointer means turning to that page and reading what is there.\n\nIn C the **dereference operator** is `*` written in front of a pointer. If `ptr` points at `a`, then `*ptr` *is* `a`: you can read it and you can assign to it.\n\nReading through a pointer (the notebook's `ptr1.c`):"
+    },
+    {
+     "type": "code",
+     "code": "// ptr1.c\n\n#include <stdio.h>\n\nint main(void) {\n    int a = 99;\n    int *ptr = &a;        // ptr refers to a\n    int b = *ptr + 1;     // b = a + 1\n\n    printf(\"a = %d\\n\", a);\n    printf(\"b = %d\\n\", b);\n\n    return 0;\n}",
+     "caption": "ptr1.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o ptr1 ptr1.c\n$ ./ptr1\na = 99\nb = 100"
+    },
+    {
+     "type": "md",
+     "text": "Writing through a pointer (`ptr2.c`). The variable `a` changes even though the assignment never names `a`:"
+    },
+    {
+     "type": "code",
+     "code": "// ptr2.c\n\n#include <stdio.h>\n\nint main(void) {\n    int a = 99;\n    int *ptr = &a;        // ptr refers to a\n    *ptr = -33;           // assigns -33 to a\n\n    printf(\"a = %d\\n\", a);\n\n    return 0;\n}",
+     "caption": "ptr2.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o ptr2 ptr2.c\n$ ./ptr2\na = -33"
+    },
+    {
+     "type": "md",
+     "text": "Memory before and after `*ptr = -33;` (pretend addresses):\n\n| address | name | before | after |\n|---|---|---|---|\n| 1000 | `a` | 99 | **-33** |\n| 1008 | `ptr` | 1000 | 1000 |\n\n`ptr` itself did not change. Only the object it points to did."
+    },
+    {
+     "type": "md",
+     "text": "### Three jobs for `*`, two for `&`\n\n| You see | Where | Meaning |\n|---|---|---|\n| `int *p;` | in a declaration | `p` is a pointer to `int` |\n| `*p` | in front of a pointer, in an expression | the object `p` points to |\n| `a * b` | between two values | multiplication |\n| `&a` | in front of an object | the address of `a` |\n| `a && b` | between two conditions | logical AND |\n\nSo `*p * *q` means \"the int `p` points to, times the int `q` points to\". And `*&a` is just `a`: take the address of `a`, then follow it back."
+    },
+    {
+     "type": "md",
+     "text": "### `p = q` versus `*p = *q`\n\nThis is the difference that exam traces test.\n\n- `p = q;` copies the **address**. Now `p` points wherever `q` points. No `int` changes.\n- `*p = *q;` copies the **value**. The object `p` points at gets the value of the object `q` points at. No pointer changes.\n\nHere is a trace. Follow it with the tables underneath."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 10;\n    int y = 20;\n    int *p = &x;\n    int *q = &y;\n\n    printf(\"1: %d %d\\n\", *p, *q);\n\n    p = q;            // copy the ADDRESS: p now points at y too\n    printf(\"2: %d %d\\n\", *p, *q);\n\n    *p = 7;           // writes 7 into y\n    printf(\"3: x = %d, y = %d\\n\", x, y);\n\n    q = &x;\n    *q = *p + 1;      // x = y + 1\n    printf(\"4: x = %d, y = %d\\n\", x, y);\n    return 0;\n}",
+     "caption": "trace.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o trace trace.c\n$ ./trace\n1: 10 20\n2: 20 20\n3: x = 10, y = 7\n4: x = 8, y = 7"
+    },
+    {
+     "type": "md",
+     "text": "Memory after each step (`x` at 1000, `y` at 1004):\n\n| after line | `x` | `y` | `p` | `q` |\n|---|---|---|---|---|\n| `int *q = &y;` | 10 | 20 | 1000 (→x) | 1004 (→y) |\n| `p = q;` | 10 | 20 | 1004 (→y) | 1004 (→y) |\n| `*p = 7;` | 10 | **7** | 1004 (→y) | 1004 (→y) |\n| `q = &x;` | 10 | 7 | 1004 (→y) | 1000 (→x) |\n| `*q = *p + 1;` | **8** | 7 | 1004 (→y) | 1000 (→x) |\n\nMethod for any trace: keep one column per variable. For a pointer, write which object it points to. When you see `*p`, look up where `p` points and use (or change) **that** column."
+    },
+    {
+     "type": "check",
+     "q": "In trace.c, suppose line `p = q;` were `*p = *q;` instead. What would lines 2 and 3 print?",
+     "a": "`*p = *q` copies 20 into `x` and `p` still points at `x`. Line 2 prints `2: 20 20`. Then `*p = 7` changes `x`, so line 3 prints `3: x = 7, y = 20`."
+    },
+    {
+     "type": "md",
+     "text": "### `NULL`: a pointer to nothing\n\nThe name `NULL`, from the header `<stddef.h>` (also available through `<stdio.h>`), means \"no object\". A pointer that holds `NULL` is a **null pointer**.\n\n```c\n#include <stddef.h>\n\nint *ptr = NULL;\n```\n\nThe literal `0` also works, but `NULL` says what you mean. The **only safe thing** to do with a null pointer is to test it:\n\n| Test that `ptr` is null | Test that `ptr` is not null |\n|---|---|\n| `if (ptr == NULL)` | `if (ptr != NULL)` |\n| `if (!ptr)` | `if (ptr)` |\n\nA null pointer works like a signal: \"there is no object here\". It can mark the end of a list of pointers (much like `'\\0'` ends a string) or report an error. Later in the course, library functions such as `malloc` and `fopen` return `NULL` when they fail."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stddef.h>\n\nint main(void) {\n    int a = 5;\n    int *ptr = NULL;      // points at no object\n\n    if (ptr == NULL) {\n        puts(\"ptr is NULL: do not use *ptr\");\n    }\n\n    ptr = &a;\n    if (ptr != NULL) {\n        printf(\"*ptr = %d\\n\", *ptr);\n    }\n    return 0;\n}",
+     "caption": "nulltest.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o nulltest nulltest.c\n$ ./nulltest\nptr is NULL: do not use *ptr\n*ptr = 5"
+    },
+    {
+     "type": "md",
+     "text": "### Dereferencing `NULL` is undefined behaviour\n\n`*ptr` when `ptr` is `NULL` asks for \"the object at no object\". The C standard calls this **undefined behaviour**: anything may happen. On our Linux machines the program is usually killed with a *segmentation fault* (an access to memory the program may not touch), but you must not rely on that."
+    },
+    {
+     "type": "code",
+     "code": "// ptr3.c\n\n#include <stdio.h>\n\nint main(void) {\n    int *ptr = NULL;\n    *ptr = -33;           // oops, null pointer dereference\n\n    printf(\"a = %d\\n\", *ptr);\n\n    return 0;\n}",
+     "caption": "ptr3.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o ptr3 ptr3.c\n$ ./ptr3\nSegmentation fault\n$ echo $?\n139",
+     "caption": "gcc gives no warning here. On one run on Ubuntu the shell reported the crash (some shells add \"(core dumped)\"); 139 = 128 + 11, signal 11 is the segmentation fault. The notebook shows the same crash as \"exited with code -11\"."
+    },
+    {
+     "type": "pitfall",
+     "text": "An **uninitialized** pointer is worse than `NULL`: it holds a leftover value that may look like a real address. `int *ptr; *ptr = 5;` is undefined behaviour. With `-Wall` gcc usually warns: `warning: 'ptr' is used uninitialized [-Wuninitialized]`. Habit: give every pointer a value when you declare it, either the address of an object or `NULL`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Match the types. `double d = 2.5; int *p = &d;` gives `warning: initialization of 'int *' from incompatible pointer type 'double *'`. Reading `*p` would treat the bytes of a `double` as an `int`. Use `double *p = &d;`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `*p` is the object `p` points to: `x = *p;` reads it, `*p = 5;` writes it.\n- `p = q;` copies an address (now they point at the same object). `*p = *q;` copies a value (no pointer moves).\n- In a trace, keep one column per variable and record where each pointer points.\n- `NULL` (from `<stddef.h>`) means no object. Only test it: `p == NULL`, `!p`, `p != NULL`, `p`.\n- Dereferencing a null or uninitialized pointer is undefined behaviour (often \"Segmentation fault\"). Initialize every pointer."
+    }
+   ]
+  },
+  {
+   "id": "c11-swap",
+   "title": "Pointer parameters: changing the caller's variables",
+   "notebook": "c/pointers.ipynb",
+   "priority": "high",
+   "examNote": "Writing a function that changes its caller's variables through pointers (`swap`, putting values in order, rotating) is a standard handwritten-code task. Marks go for the `T *` parameters, `*` on every use inside, and `&` at the call.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Why `badswap` fails\n\nOn Day 2 you learned that C passes arguments **by value**: each parameter is a new variable that gets a **copy** of the argument. The notebook's first attempt at `swap` shows the problem:"
+    },
+    {
+     "type": "code",
+     "code": "// badswap.c\n\n#include <stdio.h>\n\nvoid swap(double x, double y) {\n    double tmp = x;\n    x = y;\n    y = tmp;\n    printf(\"inside swap: x = %f, y = %f\\n\", x, y);\n}\n\nint main(void) {\n    double a = 1.5;\n    double b = 99.9;\n    \n    printf(\"before calling swap: a = %f, b = %f\\n\", a, b);\n    swap(a, b);\n    printf(\"after calling swap: a = %f, b = %f\\n\", a, b);\n\n    return 0;\n}",
+     "caption": "badswap.c (c/src/pointers)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o badswap badswap.c\n$ ./badswap\nbefore calling swap: a = 1.500000, b = 99.900000\ninside swap: x = 99.900000, y = 1.500000\nafter calling swap: a = 1.500000, b = 99.900000"
+    },
+    {
+     "type": "md",
+     "text": "`swap` did swap something: its own copies. A memory picture while `swap` is running:\n\n```\n main's variables            swap's variables\n +--------+------+           +--------+-----------------+\n | a 1000 | 1.5  |  copied   | x 2000 | 1.5  -> 99.9    |\n | b 1008 | 99.9 |  ------>  | y 2008 | 99.9 -> 1.5     |\n +--------+------+           | tmp    | 1.5             |\n                             +--------+-----------------+\n```\n\n`x` and `y` are different objects at different addresses. When `swap` returns, `x`, `y` and `tmp` disappear, and `a` and `b` were never touched. The values of the parameters are **not** copied back."
+    },
+    {
+     "type": "md",
+     "text": "### The fix: pass the addresses\n\nFor `swap` to change `a` and `b`, it needs to know **where** they are. So the caller passes `&a` and `&b`, and the parameters become pointers (`swap.c`):"
+    },
+    {
+     "type": "code",
+     "code": "// swap.c\n\n#include <stdio.h>\n\nvoid swap(double *x, double *y) {\n    double tmp = *x;    // tmp gets the value of the object pointed to by x\n    *x = *y;            // the object pointed to by x gets the value of the object pointed to by y\n    *y = tmp;           // the object pointed to by y gets the value of tmp\n    printf(\"inside swap: x = %f, y = %f\\n\", *x, *y);\n}\n\nint main(void) {\n    double a = 1.5;\n    double b = 99.9;\n    \n    printf(\"before calling swap: a = %f, b = %f\\n\", a, b);\n    swap(&a, &b);      // calls swap with the address of a and the address of b\n    printf(\"after calling swap: a = %f, b = %f\\n\", a, b);\n}",
+     "caption": "swap.c (c/src/pointers)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o swap swap.c\n$ ./swap\nbefore calling swap: a = 1.500000, b = 99.900000\ninside swap: x = 99.900000, y = 1.500000\nafter calling swap: a = 99.900000, b = 1.500000"
+    },
+    {
+     "type": "md",
+     "text": "Now the picture at the start of the call is:\n\n```\n main's variables                swap's variables\n +--------+------+              +--------+------+\n | a 1000 | 1.5  | <----------- | x      | 1000 |\n | b 1008 | 99.9 | <----------- | y      | 1008 |\n +--------+------+              | tmp    |  ?   |\n                                +--------+------+\n```\n\nThe three lines of `swap`, step by step:\n\n| statement | meaning | `a` | `b` | `tmp` |\n|---|---|---|---|---|\n| (start) | | 1.5 | 99.9 | ? |\n| `double tmp = *x;` | tmp = the object at 1000 | 1.5 | 99.9 | 1.5 |\n| `*x = *y;` | object at 1000 = object at 1008 | **99.9** | 99.9 | 1.5 |\n| `*y = tmp;` | object at 1008 = tmp | 99.9 | **1.5** | 1.5 |\n\nNote that `tmp` is a plain `double`, not a pointer: it holds a value."
+    },
+    {
+     "type": "why",
+     "q": "C still passes by value. How can swap change a and b now?",
+     "a": "`x` gets a **copy** of the address 1000. But a copy of an address leads to the same house: `*x` is `main`'s `a`. Changing `x` itself (say `x = y;`) would still change nothing in `main`. Changing `*x` changes `a`."
+    },
+    {
+     "type": "md",
+     "text": "### The recipe\n\nTo let a function change a caller's variable of type `T`:\n\n1. Make the parameter a pointer: `T *p`.\n2. Inside the function, write `*p` every time you mean the caller's variable.\n3. Call it with the address: `f(&var)`.\n\n| function header | call | can it change `n` in the caller? |\n|---|---|---|\n| `void inc(int n)` | `inc(n)` | no (changes a copy) |\n| `void inc(int *n)` | `inc(&n)` | yes, with `*n = *n + 1;` |\n\nThis also explains Day 5: an array argument decays to a pointer to its first element, which is why a function could change the caller's array."
+    },
+    {
+     "type": "pitfall",
+     "text": "Mismatched calls. With `void swap(double *x, double *y)`, the call `swap(a, b)` is a compile **error**:\n\n```\ne1.c:12:10: error: incompatible type for argument 1 of 'swap'\ne1.c:3:19: note: expected 'double *' but argument is of type 'double'\n```\n\nThe other way round, writing `x = y;` instead of `*x = *y;` inside `swap` compiles but only moves the local pointers: the caller sees no change."
+    },
+    {
+     "type": "pitfall",
+     "text": "To add 1 to the int `p` points to, write `*p = *p + 1;` or `(*p)++;`. Do **not** write `*p++;`: the `++` applies to the pointer `p` itself and moves it (pointer arithmetic, Day 12), and gcc -Wall warns that the value is not used."
+    },
+    {
+     "type": "check",
+     "q": "Write the header and body of a function `inc` that adds one to its caller's `int`, and the call that adds one to `int count = 0;`.",
+     "a": "`void inc(int *n) { *n = *n + 1; }` and the call `inc(&count);`. After the call `count` is 1."
+    },
+    {
+     "type": "try",
+     "text": "Copy c/src/pointers/badswap.c and swap.c into a folder, compile both with gcc -std=c17 -Wall, and run them. Then change swap.c so main calls swap(a, b) without the & and read gcc's error. Then put the & back and change *x = *y; to x = y; to see that it compiles but no longer swaps."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- C passes arguments by value: a function gets copies and cannot change the caller's variables through them.\n- To change a caller's variable, pass its address (`&a`) to a pointer parameter (`T *x`) and use `*x` inside.\n- `swap`: `T tmp = *x; *x = *y; *y = tmp;` with `tmp` a plain `T`.\n- The pointer itself is still a copy: assigning to `x` changes nothing for the caller; assigning to `*x` does.\n- Add one through a pointer with `*p = *p + 1;` or `(*p)++`, never `*p++`."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c11-fc-01",
+   "topic": "c11-address",
+   "front": "What is a pointer?",
+   "back": "A value that is the address of an object. A pointer variable stores one; `T *p` can hold the address of a `T`."
+  },
+  {
+   "id": "c11-fc-02",
+   "topic": "c11-address",
+   "front": "What does `&x` give?",
+   "back": "The address of the object `x`. Its type is `T *` when `x` has type `T`."
+  },
+  {
+   "id": "c11-fc-03",
+   "topic": "c11-address",
+   "front": "Declare `p` as a pointer to `double` and make it point at `double d`.",
+   "back": "`double *p = &d;`"
+  },
+  {
+   "id": "c11-fc-04",
+   "topic": "c11-address",
+   "front": "What does `int *p, q;` declare?",
+   "back": "`p` is a pointer to `int`; `q` is a plain `int`. For two pointers write `int *p, *q;`."
+  },
+  {
+   "id": "c11-fc-05",
+   "topic": "c11-address",
+   "front": "How do you print a pointer `p` with printf?",
+   "back": "`printf(\"%p\\n\", (void *) p);` It prints a hexadecimal address that changes from run to run."
+  },
+  {
+   "id": "c11-fc-06",
+   "topic": "c11-address",
+   "front": "How many bytes is a pointer on our 64-bit Linux machines?",
+   "back": "8 (any pointer type). `sizeof(ptr)` prints 8."
+  },
+  {
+   "id": "c11-fc-07",
+   "topic": "c11-deref",
+   "front": "What does `*p` mean in an expression?",
+   "back": "Dereference: the object `p` points to. `x = *p;` reads it, `*p = 5;` writes it."
+  },
+  {
+   "id": "c11-fc-08",
+   "topic": "c11-deref",
+   "front": "`p = q;` versus `*p = *q;`",
+   "back": "`p = q;` copies the address, so both point at the same object. `*p = *q;` copies the value from `q`'s object into `p`'s object."
+  },
+  {
+   "id": "c11-fc-09",
+   "topic": "c11-deref",
+   "front": "What is `*&a`?",
+   "back": "Just `a`: the address of `a`, followed back."
+  },
+  {
+   "id": "c11-fc-10",
+   "topic": "c11-deref",
+   "front": "What is `NULL` and which header defines it?",
+   "back": "A pointer value meaning \"no object\", from `<stddef.h>`. A pointer holding it is a null pointer."
+  },
+  {
+   "id": "c11-fc-11",
+   "topic": "c11-deref",
+   "front": "What can you safely do with a null pointer?",
+   "back": "Only test it: `p == NULL`, `!p`, `p != NULL`, `if (p)`. Dereferencing it is undefined behaviour."
+  },
+  {
+   "id": "c11-fc-12",
+   "topic": "c11-deref",
+   "front": "What happens if you dereference `NULL` or an uninitialized pointer?",
+   "back": "Undefined behaviour. On Linux it often crashes with \"Segmentation fault\" (exit status 139), but nothing is guaranteed."
+  },
+  {
+   "id": "c11-fc-13",
+   "topic": "c11-swap",
+   "front": "Why can't `void swap(double x, double y)` swap the caller's variables?",
+   "back": "Pass by value: `x` and `y` are copies. Swapping them does nothing to the caller's `a` and `b`, and the copies vanish on return."
+  },
+  {
+   "id": "c11-fc-14",
+   "topic": "c11-swap",
+   "front": "Write a `swap` for two ints.",
+   "back": "`void swap(int *x, int *y) { int tmp = *x; *x = *y; *y = tmp; }` called as `swap(&a, &b);`"
+  },
+  {
+   "id": "c11-fc-15",
+   "topic": "c11-swap",
+   "front": "Three steps to let a function change a caller's `T` variable",
+   "back": "1. Parameter `T *p`. 2. Use `*p` inside. 3. Call with `&var`."
+  },
+  {
+   "id": "c11-fc-16",
+   "topic": "c11-swap",
+   "front": "Inside `void f(int *p)`, what is the difference between `p = &local;` and `*p = 9;`?",
+   "back": "`p = &local;` only changes `f`'s copy of the pointer: the caller sees nothing. `*p = 9;` changes the caller's int."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c11-q-01",
+   "topic": "c11-deref",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int a = 4;\n    int b = 8;\n    int c = 15;\n    int *p, *q, *r;\n    p = &b;\n    q = &c;\n    r = &b;\n\n    printf(\"A: %d %d %d\\n\", *p, *q, *r);\n\n    q = p;\n    p = &a;\n\n    printf(\"B: %d %d %d\\n\", *p, *q, *r);\n\n    *q = *p * 2;\n    *r = *r + 1;\n    *p = 0;\n\n    printf(\"C: %d %d %d\\n\", *p, *q, *r);\n    printf(\"D: %d %d %d\\n\", a, b, c);\n    return 0;\n}",
+   "answer": "A: 8 15 8\nB: 4 8 8\nC: 0 9 9\nD: 0 9 15",
+   "explain": "Start: p→b, q→c, r→b, so A is `8 15 8`. `q = p` makes q→b; `p = &a` makes p→a: B is `4 8 8`. `*q = *p * 2` sets b = 8; `*r = *r + 1` sets b = 9 (r also points at b); `*p = 0` sets a = 0. C is `0 9 9`, D is `0 9 15` (nothing pointed at c after `q = p`). Same style as 2016F Q3."
+  },
+  {
+   "id": "c11-q-02",
+   "topic": "c11-deref",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int m = 3;\n    int n = 5;\n    int *p = &m;\n    int *q = &n;\n    int prod = *p * *q;\n    *q = *q - *p;\n    p = q;\n    *p = *p * 10;\n    printf(\"%d %d %d\\n\", m, n, prod);\n    return 0;\n}",
+   "answer": "3 20 15",
+   "explain": "`prod = 3 * 5 = 15`. `*q = *q - *p` sets n = 2. `p = q` makes p point at n, so `*p = *p * 10` sets n = 20. m is never changed."
+  },
+  {
+   "id": "c11-q-03",
+   "topic": "c11-swap",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid f(int a, int *b) {\n    a = a + 1;\n    *b = *b + 1;\n}\n\nint main(void) {\n    int x = 1;\n    int y = 1;\n    f(x, &y);\n    f(x, &y);\n    printf(\"%d %d\\n\", x, y);\n    return 0;\n}",
+   "answer": "1 3",
+   "explain": "`a` is a copy of x, so x stays 1. `b` holds the address of y, so each call adds 1 to y: 1 → 2 → 3."
+  },
+  {
+   "id": "c11-q-04",
+   "topic": "c11-swap",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid g(int *p) {\n    int local = 50;\n    p = &local;\n    *p = 9;\n}\n\nint main(void) {\n    int x = 3;\n    g(&x);\n    printf(\"%d\\n\", x);\n    return 0;\n}",
+   "answer": "3",
+   "explain": "`p` is a copy of the address of x. `p = &local;` changes only that copy, so `*p = 9` writes into `local`, not x. (Note: pointing at `local` is fine here because it is used before g returns.)"
+  },
+  {
+   "id": "c11-q-05",
+   "topic": "c11-swap",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid swap(int *x, int *y) {\n    int tmp = *x;\n    *x = *y;\n    *y = tmp;\n}\n\nint main(void) {\n    int a = 1;\n    int b = 2;\n    int c = 3;\n    swap(&a, &b);\n    swap(&b, &c);\n    printf(\"%d %d %d\\n\", a, b, c);\n    return 0;\n}",
+   "answer": "2 3 1",
+   "explain": "After `swap(&a, &b)`: a = 2, b = 1, c = 3. After `swap(&b, &c)`: b = 3, c = 1."
+  },
+  {
+   "id": "c11-q-06",
+   "topic": "c11-swap",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid halve(double *d) {\n    *d = *d / 2;\n}\n\nint main(void) {\n    double v = 9.0;\n    double *p = &v;\n    halve(p);\n    halve(&v);\n    printf(\"%.2f\\n\", v);\n    return 0;\n}",
+   "answer": "2.25",
+   "explain": "`p` and `&v` are the same address, so both calls halve v: 9 → 4.5 → 2.25. `%.2f` prints two decimals."
+  },
+  {
+   "id": "c11-q-07",
+   "topic": "c11-deref",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stddef.h>\n\nint main(void) {\n    int k = 0;\n    int *p = NULL;\n    if (!p) {\n        puts(\"one\");\n    }\n    p = &k;\n    if (p) {\n        puts(\"two\");\n    }\n    if (*p) {\n        puts(\"three\");\n    }\n    return 0;\n}",
+   "answer": "one\ntwo",
+   "explain": "`!p` is true when p is NULL, so `one` prints. Then p points at k, so `if (p)` is true: `two`. `*p` is k, which is 0 (false), so `three` is not printed. Note the difference: `if (p)` tests the pointer, `if (*p)` tests the int."
+  },
+  {
+   "id": "c11-q-08",
+   "topic": "c11-address",
+   "type": "mcq",
+   "q": "After `int *p, q;`, what are the types of `p` and `q`?",
+   "options": [
+    "both `int *`",
+    "`p` is `int *`, `q` is `int`",
+    "both `int`",
+    "`p` is `int`, `q` is `int *`"
+   ],
+   "answer": 1,
+   "explain": "The `*` belongs to the name next to it. Write `int *p, *q;` for two pointers."
+  },
+  {
+   "id": "c11-q-09",
+   "topic": "c11-swap",
+   "type": "mcq",
+   "q": "Given `void swap(double *x, double *y)` and `double a = 1, b = 2;`, which call swaps `a` and `b`?",
+   "options": [
+    "`swap(a, b);`",
+    "`swap(*a, *b);`",
+    "`swap(&a, &b);`",
+    "`swap(&x, &y);`"
+   ],
+   "answer": 2,
+   "explain": "The parameters need addresses of doubles: `&a` and `&b`. `swap(a, b)` is a compile error (incompatible type for argument), and `*a` is an error because `a` is not a pointer."
+  },
+  {
+   "id": "c11-q-10",
+   "topic": "c11-address",
+   "type": "short",
+   "q": "Pretend addresses: `int x = 6;` is at 1000 and `int *p = &x;` is at 1008. Give the values of `x`, `&x`, `p`, `*p` and `&p`.",
+   "answer": "`x` = 6, `&x` = 1000, `p` = 1000, `*p` = 6, `&p` = 1008.",
+   "explain": "`p` holds the address of `x`. `*p` follows it to `x`. `&p` is where the pointer itself lives."
+  },
+  {
+   "id": "c11-q-11",
+   "topic": "c11-swap",
+   "type": "short",
+   "q": "Explain in one or two sentences why the notebook's `badswap` prints swapped values inside the function but not after it returns.",
+   "answer": "C passes arguments by value: `x` and `y` are copies of `a` and `b`, so swapping them does not change `a` and `b`, and the copies disappear when `swap` returns.",
+   "explain": "The fix is to pass `&a` and `&b` to `double *` parameters and swap `*x` and `*y`."
+  },
+  {
+   "id": "c11-q-12",
+   "topic": "c11-deref",
+   "type": "short",
+   "q": "What is wrong with `int *p; *p = 3;` and how do you fix it?",
+   "answer": "`p` is uninitialized, so it does not point at a valid `int`; writing `*p` is undefined behaviour. Make it point at an object first: `int n; int *p = &n; *p = 3;`.",
+   "explain": "gcc -Wall usually warns \"'p' is used uninitialized\". Giving a pointer `NULL` does not help either: dereferencing NULL is also undefined behaviour."
+  },
+  {
+   "id": "c11-q-13",
+   "topic": "c11-deref",
+   "type": "short",
+   "q": "Given `int n = 4; int *p;`, write one statement that makes `p` point at `n`, then one statement that sets `n` to 0 without naming `n`.",
+   "answer": "`p = &n;` then `*p = 0;`",
+   "explain": "Not `*p = &n;` (that stores an address into an int) and not `p = 0;` (that makes p a null pointer)."
+  }
+ ],
+ "write": [
+  {
+   "id": "c11-w-01",
+   "topic": "c11-swap",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write a function `minfirst` that gets pointers to two `int` variables and rearranges them so that the first holds the smaller value and the second the larger. Write a `main` that calls it on `a = 9`, `b = 4` and prints both, twice.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// makes *x the smaller and *y the larger of the two values\nvoid minfirst(int *x, int *y) {\n    if (*x > *y) {\n        int tmp = *x;\n        *x = *y;\n        *y = tmp;\n    }\n}\n\nint main(void) {\n    int a = 9;\n    int b = 4;\n    minfirst(&a, &b);\n    printf(\"a = %d, b = %d\\n\", a, b);\n    minfirst(&a, &b);\n    printf(\"a = %d, b = %d\\n\", a, b);\n    return 0;\n}",
+   "explain": "The caller's variables must change, so the parameters are `int *x, int *y` and `main` passes `&a, &b`. Inside, every use of the caller's values is `*x` or `*y`. The swap only happens when they are out of order; `tmp` is a plain `int`. The second call finds them already in order and changes nothing.\n\n```\n$ ./minfirst\na = 4, b = 9\na = 4, b = 9\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "header `void minfirst(int *x, int *y)`"
+    },
+    {
+     "marks": 1,
+     "item": "compares `*x > *y` (values, not the pointers)"
+    },
+    {
+     "marks": 1,
+     "item": "three-step swap through `*x` and `*y` with an `int tmp`"
+    },
+    {
+     "marks": 1,
+     "item": "call `minfirst(&a, &b)` and print `a`, `b`"
+    }
+   ],
+   "pitfalls": [
+    "Comparing `x > y` compares addresses, not values.",
+    "Calling `minfirst(a, b)`: compile error, the function needs addresses."
+   ]
+  },
+  {
+   "id": "c11-w-02",
+   "topic": "c11-swap",
+   "stage": "faded",
+   "marks": 3,
+   "prompt": "Complete `swap` so it exchanges the values of two `int` variables in its caller, and complete the call. The program must print `a = -2, b = 5`.",
+   "starter": "#include <stdio.h>\n\nvoid swap(____ x, ____ y) {\n    int tmp = ____;\n    ____ = ____;\n    ____ = tmp;\n}\n\nint main(void) {\n    int a = 5;\n    int b = -2;\n    swap(____, ____);\n    printf(\"a = %d, b = %d\\n\", a, b);\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\nvoid swap(int *x, int *y) {\n    int tmp = *x;\n    *x = *y;\n    *y = tmp;\n}\n\nint main(void) {\n    int a = 5;\n    int b = -2;\n    swap(&a, &b);\n    printf(\"a = %d, b = %d\\n\", a, b);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "parameters are `int *x, int *y`"
+    },
+    {
+     "marks": 1,
+     "item": "body `int tmp = *x; *x = *y; *y = tmp;`"
+    },
+    {
+     "marks": 1,
+     "item": "call `swap(&a, &b)`"
+    }
+   ],
+   "pitfalls": [
+    "`int tmp = x;` stores an address in an int (gcc warns).",
+    "Writing `x = y;` swaps only the local pointers."
+   ]
+  },
+  {
+   "id": "c11-w-03",
+   "topic": "c11-swap",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a function `rotate` that gets pointers to three `int` variables and moves each value one place to the right, with the last value moving to the front: if the caller has `x = 1, y = 2, z = 3`, after `rotate(&x, &y, &z)` they are `x = 3, y = 1, z = 2`. Use no arrays. Write a `main` that rotates `1 2 3` twice, printing the three values after each call.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// moves each value one place to the right: a gets c's old value,\n// b gets a's old value, c gets b's old value\nvoid rotate(int *a, int *b, int *c) {\n    int tmp = *c;\n    *c = *b;\n    *b = *a;\n    *a = tmp;\n}\n\nint main(void) {\n    int x = 1;\n    int y = 2;\n    int z = 3;\n    rotate(&x, &y, &z);\n    printf(\"%d %d %d\\n\", x, y, z);\n    rotate(&x, &y, &z);\n    printf(\"%d %d %d\\n\", x, y, z);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "header `void rotate(int *a, int *b, int *c)`"
+    },
+    {
+     "marks": 1,
+     "item": "saves one value in a plain `int tmp` before it is overwritten"
+    },
+    {
+     "marks": 1,
+     "item": "assignments in a safe order through `*a`, `*b`, `*c` (e.g. `*c = *b; *b = *a; *a = tmp;`)"
+    },
+    {
+     "marks": 1,
+     "item": "calls `rotate(&x, &y, &z)`"
+    },
+    {
+     "marks": 1,
+     "item": "prints `3 1 2` then `2 3 1`"
+    }
+   ],
+   "pitfalls": [
+    "Overwriting a value before saving it (e.g. `*b = *a;` first, then `*c = *b;` copies a's value twice).",
+    "Forgetting the `*`: `a = b;` only moves the local pointers."
+   ]
+  }
+ ]
+}
