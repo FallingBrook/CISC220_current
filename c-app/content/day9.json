@@ -1,0 +1,577 @@
+{
+ "day": 9,
+ "title": "Bitwise operations, part 1",
+ "goal": "Read and write binary and hex, use ~ & | ^ << >> on unsigned values, print the bits of a value, and test, set, clear and toggle single bits with masks.",
+ "topics": [
+  {
+   "id": "c9-operators",
+   "title": "Hex, and the operators ~ & | ^",
+   "notebook": "c/bitwise_ops.ipynb",
+   "priority": "high",
+   "examNote": "No question on Prof. Ma's list of past-final C questions uses bitwise operators, but `bitwise_ops` is a course notebook, so expect short tracing questions (work out `&`, `|`, `^`, `~`, `<<`, `>>` by hand) and small functions that test, set, clear or toggle bits. Practise working in binary and hex on paper.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Why bits?\n\nThe bitwise operators work on the individual **bits** (0s and 1s) inside an integer, all bits at once. The processor does them in one fast step. They are used for compact sets of on/off **flags**, for file permissions (remember `chmod 754` in Bash: each digit is 3 bits), network addresses, and many clever tricks.\n\nAs in Day 5, we write binary numbers with the **most significant bit** (the one worth the most) on the left, and we number the bits from the right: **bit 0** is worth 1, bit 1 is worth 2, ..., **bit 7** is worth 128. The notebook assumes negative numbers use **two's complement** (Day 5), as all current machines do."
+    },
+    {
+     "type": "md",
+     "text": "### Hexadecimal: a short way to write bits\n\nLong binary numbers are hard to read, and standard C17 has no way to write them in your code. Instead we use **hexadecimal** (**hex**, base 16). Its digits are `0`–`9` and then `A`=10, `B`=11, `C`=12, `D`=13, `E`=14, `F`=15. One hex digit is exactly **4 bits**, so you convert by groups of 4:\n\n| hex | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | A | B | C | D | E | F |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n| bits | 0000 | 0001 | 0010 | 0011 | 0100 | 0101 | 0110 | 0111 | 1000 | 1001 | 1010 | 1011 | 1100 | 1101 | 1110 | 1111 |\n\nExample: `0xCE` is `1100` `1110` = `11001110` = 12 × 16 + 14 = 206.\n\n- In C code, a hex number starts with `0x`: `0x2A` is 42. (Bash's `$((16#2A))` is the same idea.)\n- `printf` prints an `unsigned int` in hex with `%x` (lowercase digits) or `%X` (uppercase). Width works as with `%d`: `%02X` means at least 2 digits, padded with 0.\n- A `u` after a number, as in `5u` or `1u`, makes it an `unsigned int` constant."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int a = 0x2A;     // hex 2A = 2 * 16 + 10 = 42\n    unsigned int b = 255;\n    unsigned int c = 0xF0;\n\n    printf(\"%u %x %X\\n\", a, a, a);\n    printf(\"%u %x %X\\n\", b, b, b);\n    printf(\"%u %02x\\n\", c, 5u);\n    return 0;\n}",
+     "caption": "hex.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o hex hex.c\n$ ./hex\n42 2a 2A\n255 ff FF\n240 05"
+    },
+    {
+     "type": "check",
+     "q": "Write `0x5A` in binary and in decimal. Write `10010111` in hex.",
+     "a": "`0x5A` = `0101` `1010` = `01011010` = 5 × 16 + 10 = 90. `10010111` = `1001` `0111` = `0x97`."
+    },
+    {
+     "type": "md",
+     "text": "### Fixed-size types: `uint8_t`\n\nFor bit work we want to know exactly how many bits a variable has. The header `<stdint.h>` defines types with exact sizes: **`uint8_t`** is an unsigned integer of exactly 8 bits (0 to 255), `uint16_t` has 16 bits and `uint32_t` has 32. The `u` means unsigned. The notebook uses `uint8_t` so that every value fits in the 8 bits we draw by hand."
+    },
+    {
+     "type": "md",
+     "text": "### The four bitwise operators\n\nEach operator works on **each pair of matching bits** separately (bit 0 with bit 0, bit 1 with bit 1, ...). Here `x` = 18 and `y` = 206, the notebook's example:\n\n| operator | name | a result bit is 1 when ... | example |\n|---|---|---|---|\n| `~x` | NOT (complement) | the bit of x is 0 | `~00010010` = `11101101` |\n| `x & y` | AND | both bits are 1 | `00010010 & 11001110` = `00000010` |\n| `x \\| y` | OR | at least one bit is 1 | `00010010 \\| 11001110` = `11011110` |\n| `x ^ y` | XOR (exclusive or) | exactly one bit is 1 (they differ) | `00010010 ^ 11001110` = `11011100` |\n\nWork them by writing the numbers one above the other and going column by column:\n\n```\n  x      00010010   (18)\n  y      11001110  (206)\n-------------------\nx & y    00000010    (2)\nx | y    11011110  (222)\nx ^ y    11011100  (220)\n   ~x    11101101  (237)\n```"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\nint main(void) {\n    uint8_t x = 0x12;     // 00010010 = 18\n    uint8_t y = 0xCE;     // 11001110 = 206\n\n    uint8_t a = x & y;\n    uint8_t o = x | y;\n    uint8_t e = x ^ y;\n    uint8_t n = ~x;\n\n    printf(\"x & y = %3d = 0x%02X\\n\", a, a);\n    printf(\"x | y = %3d = 0x%02X\\n\", o, o);\n    printf(\"x ^ y = %3d = 0x%02X\\n\", e, e);\n    printf(\"~x    = %3d = 0x%02X\\n\", n, n);\n    return 0;\n}",
+     "caption": "ops.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o ops ops.c\n$ ./ops\nx & y =   2 = 0x02\nx | y = 222 = 0xDE\nx ^ y = 220 = 0xDC\n~x    = 237 = 0xED"
+    },
+    {
+     "type": "why",
+     "q": "Why does `%3d` work for a `uint8_t`?",
+     "a": "Before an arithmetic operation or a call to `printf`, C converts a small type such as `uint8_t` to `int` (this is called **integer promotion**). So the value arrives in `printf` as an `int`, and `%d` is the right conversion."
+    },
+    {
+     "type": "pitfall",
+     "text": "Integer promotion also means `~x` on a `uint8_t` is computed on a 32-bit `int`, so it has 32 bits, not 8. Store the result back into a `uint8_t` to keep only the low 8 bits:\n\n```c\nuint8_t x = 18;\nuint8_t y = ~x;           // the result is stored back into 8 bits\nprintf(\"%d\\n\", y);        // 237\nprintf(\"%d\\n\", ~x);       // -19: ~x here is an int: 32 bits, not 8\n```\n\n(Compiled and run, this prints `237` then `-19`.)"
+    },
+    {
+     "type": "md",
+     "text": "### `~x + 1` is `-x`\n\nIn two's complement you negate a number by flipping every bit and adding 1 (Day 5). With `~` that is one line, from the notebook's `negate.c`:\n\n```c\nint x = 99;\nint neg_x = ~x + 1;       // flip every bit, then add 1\nprintf(\"x = %d, -x = %d\\n\", x, neg_x);\n```\n\nIt prints `x = 99, -x = -99`. (It fails only for `INT_MIN`, the most negative `int`, whose negation does not fit.) Taking `~x` alone is the **ones' complement** of `x`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Do not mix up `&` with `&&`, or `|` with `||`. `&&` and `||` are **logical**: they treat each whole value as true (non-zero) or false (0) and give 1 or 0. `&` and `|` work bit by bit. With `a = 2` (`0010`) and `b = 4` (`0100`): `a & b` is 0 but `a && b` is 1; `a | b` is 6 but `a || b` is 1."
+    },
+    {
+     "type": "check",
+     "q": "Work out `0x3C & 0x0F`, `0x3C | 0x0F` and `0x3C ^ 0x0F` in binary and decimal.",
+     "a": "`0x3C` = `00111100`, `0x0F` = `00001111`. AND: `00001100` = 12. OR: `00111111` = 63. XOR: `00110011` = 51."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Hex digit = 4 bits; `0x` starts a hex constant; `%x`/`%X` print hex, `%02X` pads to 2 digits.\n- `uint8_t`, `uint16_t`, `uint32_t` (from `<stdint.h>`) are unsigned with exactly 8, 16, 32 bits.\n- `~` flips every bit; `&` gives 1 where both are 1; `|` where at least one is 1; `^` where they differ.\n- Small types are promoted to `int` before an operation: store `~x` back into a `uint8_t` to keep 8 bits.\n- `~x + 1 == -x` in two's complement. `&&`/`||` are logical (whole values), `&`/`|` are bitwise."
+    }
+   ]
+  },
+  {
+   "id": "c9-shifts",
+   "title": "Shifts, unsigned types, and printing bits",
+   "notebook": "c/bitwise_ops.ipynb",
+   "priority": "high",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Shifting left: `x << k`\n\n`x << k` moves every bit of `x` **k places to the left**. The k leftmost bits **fall off** and k zeros come in from the right. `x` itself does not change (just as `x + 1` does not change `x`).\n\nMoving every bit one place left doubles its worth, so as long as no 1 bit falls off, **`x << k` equals `x × 2^k`**. It is like appending zeros to a decimal number: 23 with two zeros appended is 23 × 10^2.\n\n```\nx       00010111   (23)\nx << 1  00101110   (46)\nx << 2  01011100   (92)\nx << 3  10111000  (184)\nx << 4  01110000  (112)   a 1 fell off the left: not 23 × 16 = 368\n```"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\nint main(void) {\n    uint8_t x = 23;          // 00010111\n    for (int k = 0; k <= 4; k++) {\n        uint8_t y = x << k;  // x itself does not change\n        printf(\"x << %d = %3d\\n\", k, y);\n    }\n    return 0;\n}",
+     "caption": "lshift.c (the notebook's lshift_unsigned.c with a loop)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o lshift lshift.c\n$ ./lshift\nx << 0 =  23\nx << 1 =  46\nx << 2 =  92\nx << 3 = 184\nx << 4 = 112"
+    },
+    {
+     "type": "md",
+     "text": "### Shifting right: `x >> k`\n\n`x >> k` moves every bit **k places to the right**. The k rightmost bits fall off. For an unsigned value, k zeros come in from the left (a **logical shift**). Removing the last k bits is like removing the last k digits of a decimal number: **for unsigned `x`, `x >> k` equals `x / 2^k`** with integer division (the remainder is thrown away)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\nint main(void) {\n    uint8_t x = 23;          // 00010111\n    for (int k = 0; k <= 4; k++) {\n        uint8_t y = x >> k;\n        printf(\"x >> %d = %3d   x / %2d = %3d\\n\", k, y, 1 << k, x / (1 << k));\n    }\n    return 0;\n}",
+     "caption": "rshift.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o rshift rshift.c\n$ ./rshift\nx >> 0 =  23   x /  1 =  23\nx >> 1 =  11   x /  2 =  11\nx >> 2 =   5   x /  4 =   5\nx >> 3 =   2   x /  8 =   2\nx >> 4 =   1   x / 16 =   1"
+    },
+    {
+     "type": "md",
+     "text": "### Rules, and why we use unsigned types for bit work\n\n- The shift count k must be **0 or more** and **less than the number of bits** in the (promoted) value: 0 to 31 for a 32-bit `unsigned int`. Otherwise the behaviour is **undefined** (anything may happen; the program has no fixed output).\n- **Unsigned** values: `<<` and `>>` are always well defined. Bits that fall off are simply lost.\n- **Signed** values: a left shift that overflows (moves a 1 into or past the sign bit) is **undefined behaviour**, and right-shifting a **negative** value gives a result that depends on the compiler.\n\nSo for bit work, use unsigned types (`unsigned int`, `uint8_t`, `uint32_t`) and unsigned constants such as `1u`. Day 10 looks at shifting signed values in detail."
+    },
+    {
+     "type": "md",
+     "text": "### Printing the bits of a value\n\nThe notebook prints bits with this function. To read it you need one new operator, the **conditional operator** `cond ? a : b`: its value is `a` if `cond` is true (non-zero) and `b` otherwise. So `(y > 0) ? '1' : '0'` is the character `'1'` when `y > 0`, else `'0'`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\n// prints the 8 bits of x, most significant bit first\nvoid printb(uint8_t x) {\n    char buf[9];\n    for (size_t i = 0; i < 8; i++) {\n        uint8_t y = x & (1 << i);             // keep only bit i of x\n        buf[7 - i] = (y > 0) ? '1' : '0';     // bit i goes at index 7 - i\n    }\n    buf[8] = '\\0';\n    printf(\"%s\\n\", buf);\n}\n\nint main(void) {\n    printb(18);\n    printb(206);\n    printb(18 & 206);\n    printb(23 << 2);\n    printb(23 >> 2);\n    return 0;\n}",
+     "caption": "printb.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o printb printb.c\n$ ./printb\n00010010\n11001110\n00000010\n01011100\n00000101"
+    },
+    {
+     "type": "md",
+     "text": "How it works, for each bit number `i` from 0 to 7:\n\n1. `1 << i` is a number with only bit `i` set: 1, 2, 4, ..., 128. Such a number is called a **mask**.\n2. `x & (1 << i)` keeps bit `i` of `x` and clears all the others. It is non-zero exactly when bit `i` of `x` is 1.\n3. Bit 0 must be printed **last** (rightmost), so bit `i` goes into `buf[7 - i]`.\n4. `buf[8] = '\\0'` ends the string, so `%s` can print it.\n\nA second common way to get bit `i` is to shift it down to position 0 and keep only that bit: **`(x >> i) & 1u`** is 1 or 0. Looping `i` from the top bit down prints the bits in order, with no buffer:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\n// prints the 32 bits of x, most significant first, a space after each byte\nvoid printb32(uint32_t x) {\n    for (int i = 31; i >= 0; i--) {\n        if ((x >> i) & 1u) {\n            printf(\"1\");\n        }\n        else {\n            printf(\"0\");\n        }\n        if (i % 8 == 0 && i > 0) {\n            printf(\" \");\n        }\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    printb32(1u);\n    printb32(0xCAFEu);\n    printb32(1u << 31);\n    return 0;\n}",
+     "caption": "printb32.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o printb32 printb32.c\n$ ./printb32\n00000000 00000000 00000000 00000001\n00000000 00000000 11001010 11111110\n10000000 00000000 00000000 00000000"
+    },
+    {
+     "type": "why",
+     "q": "Why is the loop counter in `printb32` an `int` and not a `size_t`?",
+     "a": "It counts **down** to 0 with `i >= 0`. A `size_t` is unsigned and can never be negative: after 0, `i--` wraps around to a huge value, so `i >= 0` is always true and the loop never ends."
+    },
+    {
+     "type": "try",
+     "text": "Copy `printb32` into a program and print `0xCAFEu << 4`, `0xCAFEu >> 4` and `~0xCAFEu`. Check each answer by hand with the hex table (a shift by 4 moves one whole hex digit)."
+    },
+    {
+     "type": "check",
+     "q": "For `unsigned int x = 200;`, what are `x >> 1`, `x >> 3` and `1u << 5`?",
+     "a": "`x >> 1` = 200 / 2 = 100. `x >> 3` = 200 / 8 = 25. `1u << 5` = 2^5 = 32."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `x << k`: bits move left, zeros come in on the right, the top bits fall off; equals `x × 2^k` if nothing falls off.\n- `x >> k` on unsigned `x`: bits move right, zeros come in on the left; equals `x / 2^k` (integer division).\n- k must be from 0 to (number of bits − 1), or the behaviour is undefined.\n- Use unsigned types and `1u` for bit work: signed overflow on `<<` is undefined, and `>>` of a negative value depends on the compiler.\n- `1u << i` is a mask for bit i; `x & (1u << i)` is non-zero when bit i is 1; `(x >> i) & 1u` is that bit as 0 or 1.\n- `cond ? a : b` gives `a` when `cond` is true, else `b`."
+    }
+   ]
+  },
+  {
+   "id": "c9-masks",
+   "title": "Masks: test, set, clear and toggle a bit",
+   "notebook": "c/bitwise_ops.ipynb",
+   "priority": "high",
+   "examNote": "Writing small functions such as `set_bit` or `count_ones` by hand is a typical exam-sized task: practise the four idioms until you can write them without looking.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Masks\n\nA **mask** is a value whose 1 bits mark the bits you want to work on. Each operator has a job, because of these rules for a single bit `b`:\n\n| rule | so, with a mask ... |\n|---|---|\n| `b & 0 = 0`, `b & 1 = b` | **AND keeps** the bits where the mask is 1 and clears the rest |\n| `b \\| 0 = b`, `b \\| 1 = 1` | **OR sets** the bits where the mask is 1 and keeps the rest |\n| `b ^ 0 = b`, `b ^ 1 = NOT b` | **XOR toggles** (flips) the bits where the mask is 1 and keeps the rest |\n\n### The four classic idioms\n\nWith `mask = 1u << k` (only bit k set):\n\n| goal | code |\n|---|---|\n| **test** bit k | `(x & (1u << k)) != 0`, or `(x >> k) & 1u` |\n| **set** bit k to 1 | `x = x \\| (1u << k);` |\n| **clear** bit k to 0 | `x = x & ~(1u << k);` |\n| **toggle** bit k | `x = x ^ (1u << k);` |\n\nTo **clear**, the mask must be the opposite: all 1s except a 0 at bit k. That is exactly `~(1u << k)`, and AND with it keeps every other bit."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\nvoid printb(uint8_t x) {\n    char buf[9];\n    for (size_t i = 0; i < 8; i++) {\n        uint8_t y = x & (1 << i);\n        buf[7 - i] = (y > 0) ? '1' : '0';\n    }\n    buf[8] = '\\0';\n    printf(\"%s\\n\", buf);\n}\n\nint main(void) {\n    uint8_t x = 0x12;                 // 00010010\n    printf(\"start      \");\n    printb(x);\n\n    x = x | (1u << 0);                // set bit 0\n    printf(\"set 0      \");\n    printb(x);\n\n    x = x & ~(1u << 4);               // clear bit 4\n    printf(\"clear 4    \");\n    printb(x);\n\n    x = x ^ (1u << 7);                // toggle bit 7\n    printf(\"toggle 7   \");\n    printb(x);\n\n    printf(\"bit 1 is %u, bit 2 is %u\\n\", (x >> 1) & 1u, (x >> 2) & 1u);\n    return 0;\n}",
+     "caption": "flags.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o flags flags.c\n$ ./flags\nstart      00010010\nset 0      00010011\nclear 4    00000011\ntoggle 7   10000011\nbit 1 is 1, bit 2 is 0"
+    },
+    {
+     "type": "md",
+     "text": "### Compound assignment\n\nLike `x += 2`, each bitwise operator has a short form: `x |= m` means `x = x | m`, and likewise `&=`, `^=`, `<<=`, `>>=`. So the idioms are often written `x |= 1u << k;`, `x &= ~(1u << k);`, `x ^= 1u << k;`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int x = 0x0F;    // 00001111\n    x |= 0x30;                // same as x = x | 0x30\n    printf(\"%02X\\n\", x);\n    x &= ~0x03u;              // clear the two lowest bits\n    printf(\"%02X\\n\", x);\n    x ^= 0xFF;                // flip the low 8 bits\n    printf(\"%02X\\n\", x);\n    x <<= 1;\n    printf(\"%02X\\n\", x);\n    x >>= 4;\n    printf(\"%02X\\n\", x);\n    return 0;\n}",
+     "caption": "compound.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o compound compound.c\n$ ./compound\n3F\n3C\nC3\n186\n18"
+    },
+    {
+     "type": "check",
+     "q": "Starting from `unsigned int x = 0xF0;`, what is `x` after `x = x & ~(1u << 5);` and then `x = x | 1u;`? Give hex and decimal.",
+     "a": "`0xF0` = `11110000`. Clearing bit 5 gives `11010000` = `0xD0`. Setting bit 0 gives `11010001` = `0xD1` = 209."
+    },
+    {
+     "type": "md",
+     "text": "### Tricks from the notebook\n\n**Odd or even.** Bit 0 is the only bit worth an odd amount, so `x & 1` is 1 for odd `x` and 0 for even `x`. (This is also correct for negative numbers in two's complement.)\n\n```c\nint is_odd(int x) {\n    return (x & 1) == 1;\n}\n```\n\n**Letter case.** In ASCII, `'A'` is 65 = `01000001` and `'a'` is 97 = `01100001`: an uppercase letter and its lowercase partner differ only in **bit 5** (worth 32). So for letters, `c | 32` makes lowercase (set bit 5) and `c ^ 32` swaps the case (toggle bit 5). It is only correct for letters: `'1' ^ 32` is `'\\x11'`, not a digit."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    char word[] = \"Hello\";\n    for (size_t i = 0; word[i] != '\\0'; i++) {\n        printf(\"%c\", word[i] | 32);    // set bit 5: lowercase\n    }\n    printf(\"\\n\");\n    for (size_t i = 0; word[i] != '\\0'; i++) {\n        printf(\"%c\", word[i] ^ 32);    // toggle bit 5: swap case\n    }\n    printf(\"\\n\");\n    printf(\"%d %d\\n\", 'A', 'a');\n    return 0;\n}",
+     "caption": "casebits.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o casebits casebits.c\n$ ./casebits\nhello\nhELLO\n65 97"
+    },
+    {
+     "type": "pitfall",
+     "text": "`==` is done **before** `&`, `|` and `^` (it has higher precedence). So `if (x & 1 == 0)` means `x & (1 == 0)`, which is `x & 0`, always 0: the test is never true. Always use parentheses: `if ((x & 1) == 0)`. `gcc -Wall` warns: *suggest parentheses around comparison in operand of '&'*."
+    },
+    {
+     "type": "try",
+     "text": "Run `./cdrill.sh start 9` and do the labs. `bitset.c` practises exactly the four idioms."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- AND with a mask keeps bits, OR sets them, XOR toggles them.\n- Test `(x >> k) & 1u`; set `x |= 1u << k`; clear `x &= ~(1u << k)`; toggle `x ^= 1u << k`.\n- `x & 1` tells odd (1) from even (0).\n- Letters differ from their other case only in bit 5: `c | 32` lowercases, `c ^ 32` swaps case (letters only).\n- Parenthesise bitwise tests: `(x & m) == 0`, because `==` binds tighter than `&`."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c9-fc-01",
+   "topic": "c9-operators",
+   "front": "What is one hex digit in bits? What is `0xB7` in binary?",
+   "back": "4 bits. `0xB7` = `1011` `0111` = `10110111` (183)."
+  },
+  {
+   "id": "c9-fc-02",
+   "topic": "c9-operators",
+   "front": "How do you print an unsigned int in hex with at least 2 uppercase digits?",
+   "back": "`printf(\"%02X\", x);` (`%x` gives lowercase digits)."
+  },
+  {
+   "id": "c9-fc-03",
+   "topic": "c9-operators",
+   "front": "`x & y`: when is a result bit 1?",
+   "back": "When both matching bits of x and y are 1."
+  },
+  {
+   "id": "c9-fc-04",
+   "topic": "c9-operators",
+   "front": "`x | y`: when is a result bit 1?",
+   "back": "When at least one of the matching bits is 1 (it is 0 only when both are 0)."
+  },
+  {
+   "id": "c9-fc-05",
+   "topic": "c9-operators",
+   "front": "`x ^ y`: when is a result bit 1?",
+   "back": "When the matching bits differ (exactly one is 1)."
+  },
+  {
+   "id": "c9-fc-06",
+   "topic": "c9-operators",
+   "front": "What does `~x` do, and how do you get `-x` from it?",
+   "back": "It flips every bit (ones' complement). In two's complement `-x == ~x + 1`."
+  },
+  {
+   "id": "c9-fc-07",
+   "topic": "c9-operators",
+   "front": "`uint8_t x = 18;` Why does `printf(\"%d\", ~x)` print -19 and not 237?",
+   "back": "`x` is promoted to a 32-bit `int` first, so `~x` has 32 bits. Store it in a `uint8_t` to keep only the low 8 bits (237)."
+  },
+  {
+   "id": "c9-fc-08",
+   "topic": "c9-operators",
+   "front": "`2 & 4` vs `2 && 4`?",
+   "back": "`2 & 4` is 0 (no common 1 bits). `2 && 4` is 1 (both are non-zero, i.e. true)."
+  },
+  {
+   "id": "c9-fc-09",
+   "topic": "c9-shifts",
+   "front": "`x << k` for unsigned x?",
+   "back": "Bits move k places left, zeros come in on the right, top bits are lost. Equals x × 2^k if no 1 bit falls off."
+  },
+  {
+   "id": "c9-fc-10",
+   "topic": "c9-shifts",
+   "front": "`x >> k` for unsigned x?",
+   "back": "Bits move k places right, zeros come in on the left. Equals x / 2^k (integer division)."
+  },
+  {
+   "id": "c9-fc-11",
+   "topic": "c9-shifts",
+   "front": "Which shift counts are allowed for a 32-bit value?",
+   "back": "0 to 31. A negative count or a count of 32 or more is undefined behaviour."
+  },
+  {
+   "id": "c9-fc-12",
+   "topic": "c9-shifts",
+   "front": "Why use unsigned types for bit work?",
+   "back": "Unsigned shifts are always well defined. With signed types, a left shift that overflows is undefined and right-shifting a negative value depends on the compiler."
+  },
+  {
+   "id": "c9-fc-13",
+   "topic": "c9-shifts",
+   "front": "Two ways to get bit i of x as a test.",
+   "back": "`x & (1u << i)` (non-zero if the bit is 1) or `(x >> i) & 1u` (exactly 0 or 1)."
+  },
+  {
+   "id": "c9-fc-14",
+   "topic": "c9-shifts",
+   "front": "What is `cond ? a : b`?",
+   "back": "The conditional operator: its value is `a` if `cond` is non-zero (true), otherwise `b`."
+  },
+  {
+   "id": "c9-fc-15",
+   "topic": "c9-masks",
+   "front": "Set, clear, toggle bit k of x.",
+   "back": "Set `x |= 1u << k;` clear `x &= ~(1u << k);` toggle `x ^= 1u << k;`"
+  },
+  {
+   "id": "c9-fc-16",
+   "topic": "c9-masks",
+   "front": "Why does clearing a bit use `~` in the mask?",
+   "back": "AND keeps bits where the mask is 1. `~(1u << k)` is all 1s except bit k, so AND clears only bit k."
+  },
+  {
+   "id": "c9-fc-17",
+   "topic": "c9-masks",
+   "front": "Odd or even with a bitwise operator?",
+   "back": "`x & 1` is 1 for odd, 0 for even (bit 0 is the only odd-worth bit)."
+  },
+  {
+   "id": "c9-fc-18",
+   "topic": "c9-masks",
+   "front": "Why does `c ^ 32` swap the case of a letter?",
+   "back": "In ASCII a letter and its other case differ only in bit 5 (worth 32); XOR with 32 flips that bit. Only valid for letters."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c9-q-01",
+   "topic": "c9-operators",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdint.h>\n#include <stdio.h>\n\nint main(void) {\n    uint8_t a = 0x3C;\n    uint8_t b = 0x0F;\n    printf(\"%d %d %d\\n\", a & b, a | b, a ^ b);\n    return 0;\n}",
+   "answer": "12 63 51",
+   "explain": "`0x3C` = `00111100`, `0x0F` = `00001111`. AND keeps the common 1s: `00001100` = 12. OR: `00111111` = 63. XOR, where they differ: `00110011` = 51."
+  },
+  {
+   "id": "c9-q-02",
+   "topic": "c9-operators",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"%x %X %02x\\n\", 255u, 171u, 9u);\n    printf(\"%d\\n\", 0x1F);\n    return 0;\n}",
+   "answer": "ff AB 09\n31",
+   "explain": "255 is `0xFF`, printed in lowercase by `%x`. 171 = 10 × 16 + 11 = `0xAB`, uppercase with `%X`. `%02x` pads 9 to two digits. `0x1F` = 16 + 15 = 31."
+  },
+  {
+   "id": "c9-q-03",
+   "topic": "c9-operators",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 5;\n    printf(\"%d %d\\n\", ~x, ~x + 1);\n    return 0;\n}",
+   "answer": "-6 -5",
+   "explain": "`~x` flips all 32 bits of 5. In two's complement `~x == -x - 1`, so `~5` is -6, and `~x + 1` is -5 (that is how you negate)."
+  },
+  {
+   "id": "c9-q-04",
+   "topic": "c9-operators",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"%d %d\\n\", 6 & 1, 6 && 1);\n    printf(\"%d %d\\n\", 5 & 2, 5 && 2);\n    return 0;\n}",
+   "answer": "0 1\n0 1",
+   "explain": "6 = `110` has bit 0 clear, so `6 & 1` is 0; `6 && 1` is 1 because both are non-zero. 5 = `101` and 2 = `010` share no 1 bits, so `5 & 2` is 0, but `5 && 2` is 1."
+  },
+  {
+   "id": "c9-q-05",
+   "topic": "c9-shifts",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdint.h>\n#include <stdio.h>\n\nint main(void) {\n    uint8_t x = 0xB4;\n    uint8_t y = x << 1;\n    printf(\"%d %d %d\\n\", x, y, x << 1);\n    return 0;\n}",
+   "answer": "180 104 360",
+   "explain": "`0xB4` = 180 = `10110100`. Stored in a `uint8_t`, `x << 1` keeps only 8 bits: `01101000` = 104 (the top 1 fell off). Passed straight to `printf`, `x << 1` is computed as an `int` (promotion), so nothing falls off: 360."
+  },
+  {
+   "id": "c9-q-06",
+   "topic": "c9-shifts",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int x = 200;\n    printf(\"%u %u %u\\n\", x >> 1, x >> 3, 1u << 5);\n    return 0;\n}",
+   "answer": "100 25 32",
+   "explain": "For unsigned values `x >> k` is `x / 2^k`: 200 / 2 = 100 and 200 / 8 = 25. `1u << 5` = 2^5 = 32."
+  },
+  {
+   "id": "c9-q-07",
+   "topic": "c9-shifts",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int x = 0x29;\n    for (int i = 0; i < 8; i++) {\n        if ((x >> i) & 1u) {\n            printf(\"%d\\n\", i);\n        }\n    }\n    return 0;\n}",
+   "answer": "0\n3\n5",
+   "explain": "`0x29` = `00101001`. The loop prints each `i` whose bit is 1: bits 0, 3 and 5."
+  },
+  {
+   "id": "c9-q-08",
+   "topic": "c9-masks",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int f = 0;\n    f |= 1u << 2;\n    f |= 1u << 0;\n    f ^= 1u << 2;\n    f |= 1u << 3;\n    printf(\"%u\\n\", f);\n    return 0;\n}",
+   "answer": "9",
+   "explain": "Set bit 2: `0100`. Set bit 0: `0101`. Toggle bit 2: `0001`. Set bit 3: `1001` = 9."
+  },
+  {
+   "id": "c9-q-09",
+   "topic": "c9-masks",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    char c = 'q';\n    printf(\"%c%c\\n\", c ^ 32, 'M' | 32);\n    return 0;\n}",
+   "answer": "Qm",
+   "explain": "`'q' ^ 32` toggles bit 5, giving `'Q'`. `'M' | 32` sets bit 5, giving `'m'`."
+  },
+  {
+   "id": "c9-q-10",
+   "topic": "c9-masks",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 4;\n    if (x & 1 == 0) {\n        printf(\"even\\n\");\n    }\n    else {\n        printf(\"odd\\n\");\n    }\n    return 0;\n}",
+   "answer": "odd",
+   "explain": "`==` binds tighter than `&`, so the test is `x & (1 == 0)` = `x & 0` = 0: false for every x. gcc -Wall warns \"suggest parentheses around comparison in operand of '&'\". Write `(x & 1) == 0`."
+  },
+  {
+   "id": "c9-q-11",
+   "topic": "c9-masks",
+   "type": "mcq",
+   "q": "Which expression gives `x` with bit `k` cleared to 0 and every other bit unchanged?",
+   "options": [
+    "`x & ~(1u << k)`",
+    "`x & (1u << k)`",
+    "`x ^ (1u << k)`",
+    "`x | ~(1u << k)`"
+   ],
+   "answer": 0,
+   "explain": "`~(1u << k)` is all 1s except bit k; AND keeps every bit where the mask is 1. `x & (1u << k)` keeps only bit k; XOR toggles (would set a 0 bit); `x | ~(...)` sets every other bit to 1."
+  },
+  {
+   "id": "c9-q-12",
+   "topic": "c9-shifts",
+   "type": "mcq",
+   "q": "Why does the notebook recommend unsigned types for shifting?",
+   "options": [
+    "Unsigned shifts are always well defined (for a valid count); signed left-shift overflow is undefined and right-shifting a negative value depends on the compiler",
+    "Unsigned shifts are faster",
+    "Signed integers cannot be shifted in C",
+    "Only unsigned types can be printed in binary"
+   ],
+   "answer": 0,
+   "explain": "For unsigned values zeros always come in and lost bits are simply discarded. For signed values the standard leaves overflow undefined and the result of `>>` on a negative value implementation-defined."
+  },
+  {
+   "id": "c9-q-13",
+   "topic": "c9-operators",
+   "type": "short",
+   "q": "Convert `0xA5` to binary and to decimal, and write 77 in 8-bit binary and in hex.",
+   "answer": "`0xA5` = `1010` `0101` = `10100101` = 10 × 16 + 5 = 165. 77 = 64 + 8 + 4 + 1 = `01001101` = `0x4D`.",
+   "explain": "Convert hex one digit at a time, 4 bits per digit. For decimal to hex, group the 8 bits into two groups of 4: `0100` = 4, `1101` = 13 = D."
+  },
+  {
+   "id": "c9-q-14",
+   "topic": "c9-shifts",
+   "type": "short",
+   "q": "In the notebook's `printb`, why is the bit written into `buf[7 - i]` and not `buf[i]`?",
+   "answer": "The loop goes from bit 0 (worth 1) to bit 7 (worth 128). Bit 0 must be printed last (rightmost, index 7) and bit 7 first (index 0), so bit i goes to index 7 − i.",
+   "explain": "Binary is written most significant bit first, but the loop finds the least significant bit first."
+  }
+ ],
+ "write": [
+  {
+   "id": "c9-w-01",
+   "topic": "c9-masks",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write four functions on `unsigned int` values: `test_bit(x, k)` returns 1 if bit k of x is 1 and 0 otherwise; `set_bit(x, k)`, `clear_bit(x, k)` and `toggle_bit(x, k)` return x with bit k set to 1, cleared to 0, or flipped. Assume 0 ≤ k ≤ 31. Write a `main` that tries them on `0x12`.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// returns 1 if bit k of x is 1, otherwise 0\nunsigned int test_bit(unsigned int x, int k) {\n    return (x >> k) & 1u;\n}\n\n// returns x with bit k set to 1\nunsigned int set_bit(unsigned int x, int k) {\n    return x | (1u << k);\n}\n\n// returns x with bit k cleared to 0\nunsigned int clear_bit(unsigned int x, int k) {\n    return x & ~(1u << k);\n}\n\n// returns x with bit k flipped\nunsigned int toggle_bit(unsigned int x, int k) {\n    return x ^ (1u << k);\n}\n\nint main(void) {\n    unsigned int x = 0x12;                            // 00010010 = 18\n    printf(\"%u %u\\n\", test_bit(x, 1), test_bit(x, 2));\n    printf(\"%u\\n\", set_bit(x, 0));\n    printf(\"%u\\n\", clear_bit(x, 4));\n    printf(\"%u\\n\", toggle_bit(x, 7));\n    printf(\"%u\\n\", x);\n    return 0;\n}",
+   "explain": "Each function builds the mask `1u << k` (only bit k is 1; `1u` keeps it unsigned so even k = 31 is well defined). `test_bit` shifts bit k down to position 0 and keeps it with `& 1u`. OR sets, AND with the flipped mask `~(1u << k)` clears, XOR toggles. The functions get a copy of x, so `x` in `main` is still 18 at the end. `0x12` is `00010010`:\n\n```\n$ ./bits\n1 0\n19\n2\n146\n18\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "test_bit: `(x >> k) & 1u` or `(x & (1u << k)) != 0`"
+    },
+    {
+     "marks": 1,
+     "item": "set_bit with `|` and the mask `1u << k`"
+    },
+    {
+     "marks": 1,
+     "item": "clear_bit with `& ~(1u << k)`"
+    },
+    {
+     "marks": 1,
+     "item": "toggle_bit with `^`; unsigned types throughout"
+    }
+   ],
+   "pitfalls": [
+    "Clearing with `x & (1u << k)`: that keeps ONLY bit k.",
+    "Writing `1 << 31` with a signed `1`: it overflows `int` (undefined). Use `1u`.",
+    "Using `&&` or `||` instead of `&` or `|`."
+   ]
+  },
+  {
+   "id": "c9-w-02",
+   "topic": "c9-shifts",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Complete `lowest_set_bit`: it returns the number of the lowest bit of `x` that is 1 (bit 0 is worth 1), or -1 if `x` is 0. For example `0x12` (`00010010`) gives 1, and `0x80000000u` gives 31.",
+   "starter": "#include <stdint.h>\n#include <stdio.h>\n\n// returns the index of the lowest bit of x that is 1, or -1 if x is 0\nint lowest_set_bit(uint32_t x) {\n    for (int k = 0; ____; k++) {\n        if ((x & ____) != 0) {\n            return ____;\n        }\n    }\n    return ____;\n}\n\nint main(void) {\n    printf(\"%d\\n\", lowest_set_bit(0x12));\n    printf(\"%d\\n\", lowest_set_bit(1));\n    printf(\"%d\\n\", lowest_set_bit(0x80000000u));\n    printf(\"%d\\n\", lowest_set_bit(0));\n    return 0;\n}",
+   "solution": "#include <stdint.h>\n#include <stdio.h>\n\n// returns the index of the lowest bit of x that is 1, or -1 if x is 0\nint lowest_set_bit(uint32_t x) {\n    for (int k = 0; k < 32; k++) {\n        if ((x & (1u << k)) != 0) {\n            return k;\n        }\n    }\n    return -1;\n}\n\nint main(void) {\n    printf(\"%d\\n\", lowest_set_bit(0x12));\n    printf(\"%d\\n\", lowest_set_bit(1));\n    printf(\"%d\\n\", lowest_set_bit(0x80000000u));\n    printf(\"%d\\n\", lowest_set_bit(0));\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "loop condition `k < 32` (every bit of a uint32_t, no shift by 32)"
+    },
+    {
+     "marks": 1,
+     "item": "mask `1u << k`"
+    },
+    {
+     "marks": 1,
+     "item": "returns k at the first 1 bit"
+    },
+    {
+     "marks": 1,
+     "item": "returns -1 after the loop"
+    }
+   ],
+   "pitfalls": [
+    "`k <= 32`: shifting by 32 is undefined.",
+    "Returning the mask (`1u << k`) instead of the bit number k.",
+    "Forgetting parentheses: `x & 1u << k != 0` parses as `x & ((1u << k) != 0)`."
+   ]
+  },
+  {
+   "id": "c9-w-03",
+   "topic": "c9-masks",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a function `uint8_t reverse_bits(uint8_t x)` that returns the 8 bits of x in reverse order: bit 0 of x becomes bit 7 of the result, bit 1 becomes bit 6, and so on. For example `00010110` (0x16) becomes `01101000` (104) and `11110000` becomes `00001111`. Use bitwise operators (no arrays, no strings).",
+   "starter": "",
+   "solution": "#include <stdint.h>\n#include <stdio.h>\n\n// returns x with its 8 bits in reverse order: bit 0 swaps with bit 7, bit 1 with bit 6, ...\nuint8_t reverse_bits(uint8_t x) {\n    uint8_t r = 0;\n    for (int i = 0; i < 8; i++) {\n        if ((x >> i) & 1u) {\n            r = r | (1u << (7 - i));\n        }\n    }\n    return r;\n}\n\nint main(void) {\n    printf(\"%d\\n\", reverse_bits(0x16));   // 00010110 -> 01101000\n    printf(\"%d\\n\", reverse_bits(1));      // 00000001 -> 10000000\n    printf(\"%d\\n\", reverse_bits(0xF0));   // 11110000 -> 00001111\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "result variable starts at 0"
+    },
+    {
+     "marks": 1,
+     "item": "loop over the 8 bit numbers 0 to 7"
+    },
+    {
+     "marks": 1,
+     "item": "tests bit i of x with a shift and/or mask"
+    },
+    {
+     "marks": 1,
+     "item": "sets bit 7 − i of the result with `|` and `1u << (7 - i)`"
+    },
+    {
+     "marks": 1,
+     "item": "returns the result; correct uint8_t types"
+    }
+   ],
+   "pitfalls": [
+    "Setting bit i of the result instead of bit 7 − i (gives x back).",
+    "Starting the result uninitialised: `|` needs it to start at 0.",
+    "Using `+` and forgetting that a bit may be added twice; `|` is safer."
+   ]
+  }
+ ]
+}
