@@ -1,0 +1,632 @@
+{
+ "day": 20,
+ "title": "A string data type, part 1",
+ "goal": "Design the notebook's struct qstr (length, capacity, data), create and destroy it with a small library (qstr_alloc, qstr_new, qstr_fromcstr, qstr_destroy), make a deep copy, and use the checked operations qstr_clear, qstr_get and qstr_set.",
+ "topics": [
+  {
+   "id": "c20-why",
+   "title": "Why a string type, and the struct that holds it",
+   "notebook": "c/string_implementation.ipynb",
+   "priority": "high",
+   "examNote": "Fall 2014 Q4 asked why `strcat` is dangerous (the destination array may be too small for the joined string) and for a safer way. A string type that **stores its own capacity** is the notebook's answer: its functions can check the room and make more when needed (growing comes on Day 21). Be ready to explain in two or three sentences what each member of `struct qstr` is for.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### What is wrong with plain C strings?\n\nSince Day 3 a string has been an array of `char` that ends with `'\\0'`. That works, but the notebook lists the weak spots:\n\n- **Finding the length is slow.** `strlen` walks the characters one by one until it finds `'\\0'`. For a string of *n* characters that is *n* steps. Computer scientists write this as **O(n)** (\"order n\": the time grows in proportion to the length).\n- **The array does not know its own size.** Nothing in `char s[10]` remembers the 10. That is why `strcat` and `strcpy` can write past the end (Day 16): they cannot check.\n- **Memory is your job.** If the string is on the heap (Day 18), you must `malloc` enough bytes and remember to `free` them.\n\nPython, Java and C++ have a real **string type**: a string *object* that knows its own length, so asking for the length is **O(1)** (one step, however long the string is). In Python and Java strings are **immutable** (they can never change; \"changing\" one really makes a new string). In C++ they are **mutable** (you can change characters and the length).\n\nC has no such type, but we can build one ourselves from a struct (Day 13) and a few functions. The notebook calls it `qstr`. Today you write the parts that **create**, **copy**, **read**, **change** and **destroy** a `qstr`; Day 21 adds the parts that make it grow."
+    },
+    {
+     "type": "md",
+     "text": "### Designing the struct, one member at a time\n\nA new type in C is a **struct** that holds the data, plus a set of **functions** that work on it. The notebook builds `struct qstr` in three steps.\n\n1. **`size_t length`**: the number of characters, *not* counting the final `'\\0'`. Storing it is what makes \"get the length\" one step: just read `s->length`.\n2. **`char *data`**: the characters themselves. Why a **pointer** and not an array member like `char data[100]`? A struct member array must have a size fixed when you compile, and a string's size is only known while the program runs. So the struct holds the **address** of an array that lives somewhere else (on the heap).\n3. **`size_t capacity`**: how many `char`s the array can hold. Functions that make the string longer compare against it to know when the array is full.\n\n```c\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n```\n\nThe rule that must always be true (an **invariant**): `capacity >= length + 1`. There must be room for every character **and** the `'\\0'` after them. The `qstr` functions always keep a `'\\0'` at `data[length]`, so `s->data` still works with `puts`, `printf(\"%s\")` and the rest of `<string.h>`."
+    },
+    {
+     "type": "md",
+     "text": "### Using the struct by hand\n\nThe struct already works, but without helper functions *you* must allocate everything and set every member. This is the notebook's first example, with the `NULL` checks from Day 18 added and two extra lines that print the members (`sprintf` is from Day 17: it is `printf` into an array):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n\nint main(void) {\n    struct qstr *s = malloc(sizeof(struct qstr));   // 1: the struct\n    if (!s) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    s->capacity = 8;\n    s->data = malloc(s->capacity);                  // 2: the array of chars\n    if (!s->data) {\n        free(s);\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    sprintf(s->data, \"CISC220\");                    // 3: the characters\n    s->length = 7;                                  // 4: you must set length yourself\n\n    printf(\"data = %s, length = %zu, capacity = %zu\\n\", s->data, s->length, s->capacity);\n    printf(\"sizeof(struct qstr) = %zu\\n\", sizeof(struct qstr));\n\n    free(s->data);                                  // array first...\n    free(s);                                        // ...then the struct\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o manual manual.c\n$ ./manual\ndata = CISC220, length = 7, capacity = 8\nsizeof(struct qstr) = 24"
+    },
+    {
+     "type": "md",
+     "text": "There are **two** heap blocks: the struct (24 bytes: three 8-byte members) and the array of 8 `char`s. The struct is always 24 bytes, whatever the string's length, because it holds only the array's **address**. Here is the memory after `s->length = 7;` (addresses made up):\n\n```\n  stack (main)             heap\n  +------+       +-----------------------+\ns | 2000 | ----> | length    7           |  block 1 @2000 (24 bytes)\n  +------+       | capacity  8           |\n                 | data      3000 -------+--+\n                 +-----------------------+  |\n                                            v\n        +---+---+---+---+---+---+---+----+\n  @3000 | C | I | S | C | 2 | 2 | 0 | \\0 |   block 2 (capacity 8)\n        +---+---+---+---+---+---+---+----+\n          0   1   2   3   4   5   6   7\n```\n\nRead the arrows like Day 18: `s` is a local pointer on the stack; `s->data` is a pointer *inside a heap object*. To free everything you must free **both** blocks, and the array first (`free(s->data)` needs `s` to still be valid). Lesson 2 explains why that order matters."
+    },
+    {
+     "type": "md",
+     "text": "### A `qstr` may contain `'\\0'` inside it\n\nBecause the length is stored, a `qstr` does not need `'\\0'` to know where it ends. The notebook allows a `qstr` to hold `'\\0'` characters **in the middle**. Then `strlen(s->data)` and `s->length` disagree: `strlen` stops at the first `'\\0'`, but the `qstr` still has all its characters. (`memcpy` from Day 14 copies a fixed number of bytes, so it copies past the inner `'\\0'`, unlike `strcpy`.)"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n\nint main(void) {\n    struct qstr *s = malloc(sizeof(struct qstr));\n    if (!s) {\n        return 1;\n    }\n    s->capacity = 6;\n    s->data = malloc(s->capacity);\n    if (!s->data) {\n        free(s);\n        return 1;\n    }\n    memcpy(s->data, \"AB\\0CD\", 6);   // 5 characters, then the final '\\0'\n    s->length = 5;\n\n    printf(\"s->length        = %zu\\n\", s->length);\n    printf(\"strlen(s->data)  = %zu\\n\", strlen(s->data));\n    for (size_t i = 0; i < s->length; i++) {\n        if (s->data[i] == '\\0') {\n            printf(\"[\\\\0]\");\n        } else {\n            printf(\"[%c]\", s->data[i]);\n        }\n    }\n    printf(\"\\n\");\n\n    free(s->data);\n    free(s);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o nulinside nulinside.c\n$ ./nulinside\ns->length        = 5\nstrlen(s->data)  = 2\n[A][B][\\0][C][D]"
+    },
+    {
+     "type": "md",
+     "text": "### Why `data` must point at heap memory\n\nThe notebook says the `data` array must **always** be dynamically allocated (made with `malloc`/`calloc`), so that the `qstr`:\n\n- always has a valid array, for as long as the `qstr` exists;\n- has an array that other functions can **re**allocate to make it bigger (Day 19's `realloc` only works on heap blocks);\n- has an array that can be released with `free`.\n\nIts second example breaks the rule on purpose. `badstring` points `data` at a **local** array:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n\nstruct qstr *badstring() {\n    struct qstr *s = malloc(sizeof(struct qstr));\n    \n    // set capacity and allocate array\n    s->capacity = 8;\n    char buffer[s->capacity];      // ohoh, automatic storage duration\n    s->data = &buffer[0];\n        \n    // write a string into the array and set length\n    sprintf(s->data, \"CISC220\");\n    s->length = 7;\n    \n    return s;\n}\n\nint main(void) {\n    struct qstr *str = badstring();\n    \n    // ohoh, attempt to print non-existant string\n    puts(str->data);\n    \n    // ohoh, attempt to free memory not allocated by malloc\n    free(str->data);\n    \n    // ok, free memory allocated by malloc, but program flow probably won't make it this far...\n    free(str);\n    \n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o badstring badstring.c\n$ ./badstring\nSegmentation fault"
+    },
+    {
+     "type": "md",
+     "text": "gcc gives **no warning** here, because `badstring` returns `s` (a heap pointer, which is fine), not the local array itself. The problem is hidden one level down:\n\n```\nwhile badstring runs:                    after badstring returns:\n  badstring's stack      heap             heap\n  +-------------+   +-------------+       +-------------+\n  | buffer[8]   |<--| data        |       | data  ------+---> (gone: that stack\n  | \"CISC220\"   |   | length 7    |       | length 7    |      space is reused)\n  +-------------+   +-------------+       +-------------+\n```\n\n`buffer` has automatic storage duration (Day 7), so it dies when `badstring` returns and `str->data` is a **dangling pointer**. `puts(str->data)` is undefined behaviour, and `free(str->data)` passes `free` an address that `malloc` never returned, which is also undefined. On our machine the program crashed; on another it might print garbage or abort with a message. Never rely on either."
+    },
+    {
+     "type": "why",
+     "q": "The struct stores `length`. Why is that better than calling `strlen(s->data)` whenever you need it?",
+     "a": "Reading `s->length` is one step (O(1)) however long the string is, while `strlen` must look at every character until `'\\0'` (O(n)). It also stays correct when the string contains `'\\0'` in the middle, where `strlen` would stop early."
+    },
+    {
+     "type": "check",
+     "q": "A `qstr` holds the 4 characters `\"Java\"`. What is the smallest `capacity` its array may have, and what is in `data[4]`?",
+     "a": "Capacity 5 (`length + 1`), and `data[4]` is `'\\0'`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Setting the members by hand is easy to get wrong: forget `s->length = 7;` and the struct says the string is empty (or holds garbage, since `malloc` does not clear memory). This is exactly why the notebook writes functions that set every member for you."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Plain C strings: `strlen` is O(n), the array does not know its capacity, and you manage the memory.\n- `struct qstr { size_t length; size_t capacity; char *data; };`: the length (without `'\\0'`), the size of the array, and a **pointer** to the array (a member array cannot have a run-time size).\n- Invariant: `capacity >= length + 1`, and `data[length]` is `'\\0'`, so `s->data` works with `<string.h>`.\n- A `qstr` may contain `'\\0'` in the middle; then `strlen(s->data)` is less than `s->length`.\n- A `qstr` uses **two** heap blocks: the struct and its `data` array. `data` must always point at heap memory, never at a local array (`badstring`)."
+    }
+   ]
+  },
+  {
+   "id": "c20-create",
+   "title": "A library: qstr.h, creating a qstr, and destroying it",
+   "notebook": "c/string_implementation.ipynb",
+   "priority": "high",
+   "examNote": "April 2022 Q3(b) wanted **six** `malloc` calls for an array of 5 strings: one for the array and one per string. The same counting applies here: every `qstr` is **two** allocations (struct + array), so it needs **two** `free`s, in the right order. Markers look for the `NULL` checks and for freeing the struct when the second allocation fails.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### The plan: a small library\n\nInstead of setting members by hand, the notebook writes a **library**: a header `qstr.h` with the struct and the function declarations, and a source file `qstr.c` with the definitions (Day 8: headers hold declarations, `.c` files hold definitions). Users `#include \"qstr.h\"` and compile with `qstr.c`.\n\nThree design choices to notice in the notebook's list of functions:\n\n- Every function name starts with **`qstr_`**. C has one shared space for function names, so a prefix makes a clash with a user's own `copy` or `clear` unlikely.\n- Functions take and return **`struct qstr *`** (pointers), and the library assumes every `qstr` is on the heap. (Day 21 explains the bigger reason: it lets a library hide its struct.)\n- Returning a pointer means a function can return **`NULL`** to say \"something went wrong\" (out of memory, a bad index).\n\nToday's functions:\n\n| function | what it does |\n|---|---|\n| `struct qstr *qstr_new(void)` | a new empty `qstr` |\n| `struct qstr *qstr_fromcstr(const char *s)` | a new `qstr` holding a copy of the C string `s` |\n| `struct qstr *qstr_copy(const struct qstr *s)` | a new `qstr` holding a copy of another `qstr` (lesson 3) |\n| `struct qstr *qstr_clear(struct qstr *s)` | makes `s` the empty string (lesson 3) |\n| `char *qstr_get(const struct qstr *s, size_t index)` | checked access to one character (lesson 3) |\n| `char *qstr_set(const struct qstr *s, size_t index, char c)` | checked change of one character (lesson 3) |\n| `void qstr_destroy(struct qstr *s)` | frees the array and the struct |\n\nDay 21 adds `qstr_assign`, `qstr_concat` and `qstr_remrange`, the functions that change the length."
+    },
+    {
+     "type": "md",
+     "text": "### The header `qstr.h`\n\nThis is the notebook's header cut down to today's functions (its comments shortened). It has an include guard (Day 8) and includes `<stddef.h>` because that is where `size_t` is defined."
+    },
+    {
+     "type": "code",
+     "code": "#ifndef QSTR_H\n#define QSTR_H\n\n// qstr.h (Day 20 part: the functions written today)\n\n#include <stddef.h>\n\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n\n// Returns a pointer to a newly allocated empty qstr, or NULL.\nstruct qstr *qstr_new(void);\n\n// Returns a newly allocated qstr holding a copy of the C string s\n// (an empty qstr if s is NULL), or NULL if allocation fails.\nstruct qstr *qstr_fromcstr(const char *s);\n\n// Returns a newly allocated qstr holding a copy of the qstr s\n// (an empty qstr if s is NULL), or NULL if allocation fails.\nstruct qstr *qstr_copy(const struct qstr *s);\n\n// Makes s the empty string. Returns s, or NULL if s is NULL.\nstruct qstr *qstr_clear(struct qstr *s);\n\n// Checked access: pointer to s->data[index], or NULL if s is NULL\n// or index is not in 0 <= index < s->length.\nchar *qstr_get(const struct qstr *s, size_t index);\n\n// Checked change: sets s->data[index] to c. Returns a pointer to that\n// character, or NULL (and changes nothing) if s is NULL or index is invalid.\nchar *qstr_set(const struct qstr *s, size_t index, char c);\n\n// Frees the data array and the struct. Does nothing if s is NULL.\nvoid qstr_destroy(struct qstr *s);\n\n#endif",
+     "caption": "qstr.h"
+    },
+    {
+     "type": "md",
+     "text": "Two small differences from the notebook, both to keep `gcc -Wall` quiet:\n\n- The notebook writes `qstr_new()` with empty parentheses. In C17 empty parentheses in a declaration mean \"arguments not stated\", not \"no arguments\"; `(void)` says *no arguments* exactly, as in `int main(void)`.\n- The notebook puts `static size_t QSTR_DEFAULT_CAPACITY = 8;` in the header. Every file that includes the header then gets its own copy, and `gcc -Wall` prints `warning: 'QSTR_DEFAULT_CAPACITY' defined but not used` for each file that does not use it (try it with the notebook's files). Only `qstr.c` needs it, so we put it there."
+    },
+    {
+     "type": "md",
+     "text": "### Step 1: one function that does both allocations\n\nEvery \"make a new `qstr`\" function must (1) allocate the struct, (2) allocate the array, (3) set `length` and `capacity`, (4) put the characters in, (5) return the pointer. Steps 1 and 2 are the same every time, so the notebook writes them once, in a helper `qstr_alloc` that makes an **empty** `qstr` whose array has a given capacity. It is in `qstr.c` only (not in the header): users are not meant to call it."
+    },
+    {
+     "type": "code",
+     "code": "// Allocates a new qstr of length 0 whose array has the given capacity.\n// Returns a pointer to it, or NULL if allocation fails.\nstruct qstr *qstr_alloc(size_t capacity) {\n    struct qstr *q = malloc(sizeof(struct qstr));\n    if (!q) {\n        fprintf(stderr, \"qstr allocation error\\n\");\n        return NULL;\n    }\n    if (capacity == 0) {                  // 1\n        capacity = 1;\n    }\n    char *buf = calloc(capacity, 1);      // 2\n    if (!buf) {\n        free(q);                          // 3\n        fprintf(stderr, \"qstr->data allocation error\\n\");\n        return NULL;\n    }\n    q->length = 0;\n    q->capacity = capacity;\n    q->data = buf;\n    return q;\n}",
+     "caption": "from qstr.c (the notebook's messages lack the final \\n; we added it)"
+    },
+    {
+     "type": "md",
+     "text": "The notebook's notes on the numbered lines:\n\n1. Asking `malloc`/`calloc` for 0 bytes is not portable (the result may be `NULL` or a pointer you must not use), so the capacity is at least 1, which is just enough room for `'\\0'`.\n2. `calloc` (Day 18) sets every byte to 0, and `0` is `'\\0'`. So `buf[0]` is already the terminator: the new `qstr` is a correct empty string with no extra line of code.\n3. If the struct was allocated but the array was not, **free the struct** before returning `NULL`. Otherwise nobody holds its address any more and it leaks (Day 18). Rule: when a later step fails, undo the earlier ones."
+    },
+    {
+     "type": "md",
+     "text": "Memory after `struct qstr *q = qstr_alloc(4);` returns (made-up addresses):\n\n```\n  stack            heap\n  +------+     +---------------+\nq | 2000 | --> | length    0   |  @2000\n  +------+     | capacity  4   |\n               | data   3000 --+--> @3000 [\\0][\\0][\\0][\\0]\n               +---------------+\n```"
+    },
+    {
+     "type": "md",
+     "text": "### Step 2: `qstr_new` and `qstr_fromcstr`\n\nWith the helper, the creating functions are short:"
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_new(void) {\n    return qstr_alloc(QSTR_DEFAULT_CAPACITY);\n}\n\nstruct qstr *qstr_fromcstr(const char *s) {\n    if (!s) {\n        return qstr_new();\n    }\n    size_t len = strlen(s);\n    struct qstr *q = qstr_alloc(len + 1); // + 1 for the '\\0'\n    if (q) {\n        q->length = len;\n        strcpy(q->data, s);\n    }\n    return q;\n}",
+     "caption": "from qstr.c"
+    },
+    {
+     "type": "md",
+     "text": "- `qstr_new` makes an empty `qstr` with room for 8 characters (7 plus `'\\0'`).\n- `qstr_fromcstr(\"CISC220\")` asks for `len + 1` = 8 bytes and copies the characters with `strcpy` (the notebook notes that `memcpy(q->data, s, len + 1)` would also work, and is likely faster, because the length is known).\n- `if (q)` means: only fill it in if the allocation worked. If it failed, `q` is `NULL` and the function passes that `NULL` on to the caller.\n\n**Spot the notebook's bug.** The header's comment promises *\"Returns an empty qstr if s is NULL\"*, but the notebook's `qstr_fromcstr` starts with `strlen(s)`. `strlen(NULL)` is undefined behaviour (usually a crash). The `if (!s)` test at the top, as above, keeps the promise."
+    },
+    {
+     "type": "md",
+     "text": "### Step 3: `qstr_destroy`\n\nA `qstr` is always on the heap, so it must be freed at the end of its lifetime, and that means **both** blocks:"
+    },
+    {
+     "type": "code",
+     "code": "void qstr_destroy(struct qstr *s) {\n    if (!s) {             // 1\n        return;\n    }\n    free(s->data);        // 2\n    s->length = 0;        // 3\n    s->capacity = 0;\n    s->data = NULL;\n    free(s);              // 4\n}",
+     "caption": "from qstr.c"
+    },
+    {
+     "type": "md",
+     "text": "1. `NULL` means there is nothing to free; return before `s->data` dereferences it. (So `qstr_destroy(NULL)` is safe, just like `free(NULL)`.)\n2. Free the **array first**. You need the struct to find it: `s->data` is read from the struct.\n3. Not required: zero the members so the object is clearly no longer a valid `qstr`.\n4. Free the struct last.\n\nHere is everything together. `make.c` uses only the library, never `malloc` or `free` itself:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n#include \"qstr.h\"\n\nvoid show(const char *name, const struct qstr *q) {\n    printf(\"%s: length = %zu, capacity = %zu, data = \\\"%s\\\"\\n\",\n           name, q->length, q->capacity, q->data);\n}\n\nint main(void) {\n    struct qstr *a = qstr_new();\n    struct qstr *b = qstr_fromcstr(\"CISC220\");\n    struct qstr *c = qstr_fromcstr(\"\");\n    if (!a || !b || !c) {\n        qstr_destroy(a);          // safe even if one of them is NULL\n        qstr_destroy(b);\n        qstr_destroy(c);\n        return 1;\n    }\n    show(\"a\", a);\n    show(\"b\", b);\n    show(\"c\", c);\n\n    qstr_destroy(a);\n    qstr_destroy(b);\n    qstr_destroy(c);\n    return 0;\n}",
+     "caption": "make.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o make make.c qstr.c\n$ ./make\na: length = 0, capacity = 8, data = \"\"\nb: length = 7, capacity = 8, data = \"CISC220\"\nc: length = 0, capacity = 1, data = \"\"\n$ valgrind ./make\n...\n==26247==   total heap usage: 7 allocs, 7 frees, 4,185 bytes allocated\n...\n==26247== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)"
+    },
+    {
+     "type": "md",
+     "text": "Seven allocations: two for each of the three `qstr`s, plus one that `printf` makes for its own output buffer. Seven frees: no leaks.\n\nNote `qstr_fromcstr(\"\")`: length 0, so it asks for capacity 1, the smallest legal array."
+    },
+    {
+     "type": "md",
+     "text": "### Who owns what\n\n**Owning** a heap block means being the one responsible for freeing it. The rules for `qstr`:\n\n- A function that returns a **new** `qstr` (`qstr_new`, `qstr_fromcstr`, `qstr_copy`) hands ownership to the **caller**. The caller must eventually call `qstr_destroy` on it, exactly once.\n- The `qstr` struct owns its `data` array. Users never `free(s->data)` themselves; `qstr_destroy` does it.\n- `qstr_fromcstr(s)` **copies** the characters, so the `qstr` does not own (or depend on) `s`. The C string can be a literal, `argv[1]`, or an array that later dies.\n\nGet the rules wrong and valgrind (Day 18) tells you. Calling `free(s)` instead of `qstr_destroy(s)` leaks the array:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o leak leak.c qstr.c\n$ valgrind --leak-check=full ./leak\n...\nvalgrind\n...\n==29999== 9 bytes in 1 blocks are definitely lost in loss record 1 of 1\n==29999==    at 0x484D953: calloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)\n==29999==    by 0x1092EA: qstr_alloc (qstr.c:23)\n==29999==    by 0x1093AB: qstr_fromcstr (qstr.c:44)\n==29999==    by 0x109243: main (leak.c:7)",
+     "caption": "leak.c: s = qstr_fromcstr(\"valgrind\"); puts(s->data); free(s);"
+    },
+    {
+     "type": "md",
+     "text": "The 9 lost bytes are the array (8 characters + `'\\0'`), allocated by `calloc` in `qstr_alloc`. Freeing in the **wrong order**, `free(s); free(s->data);`, is worse. gcc even warns `pointer 's' used after 'free'`, and valgrind reports:\n\n```\n==30005== Invalid read of size 8\n==30005==    at 0x109246: main (order.c:12)\n==30005==  Address 0x4a7b050 is 16 bytes inside a block of size 24 free'd\n```\n\n\"16 bytes inside a block of size 24\" is exactly the `data` member: it comes after `length` (bytes 0 to 7) and `capacity` (bytes 8 to 15). After `free(s)` the struct is gone, so reading `s->data` is a use-after-free."
+    },
+    {
+     "type": "check",
+     "q": "How many heap blocks does `struct qstr *a = qstr_fromcstr(\"hi\");` create, and how big is each?",
+     "a": "Two: the struct (`sizeof(struct qstr)`, 24 bytes on our machines) and the array of `len + 1` = 3 chars."
+    },
+    {
+     "type": "pitfall",
+     "text": "The notebook's own `last_char.c` makes `qstr_fromcstr(\"HELLO\")` and never calls `qstr_destroy`. The program ends right after, so the system takes the memory back anyway, but valgrind reports two lost blocks. In your own code: one `qstr_destroy` for every `qstr` you create."
+    },
+    {
+     "type": "try",
+     "text": "Make a folder with `qstr.h`, `qstr.c` and `make.c` from this lesson. Compile with `gcc -std=c17 -Wall -o make make.c qstr.c` and run `./make` and `valgrind ./make`. Then change one `qstr_destroy(b);` to `free(b);`, compile with `-g`, and run `valgrind --leak-check=full ./make` to see the lost array."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `qstr.h`: the struct and the declarations (include guard, `<stddef.h>` for `size_t`). `qstr.c`: the definitions. Compile: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.\n- Names start with `qstr_`; functions pass `struct qstr *`; `NULL` means failure.\n- `qstr_alloc(cap)`: `malloc` the struct, `calloc(cap, 1)` the array (all `'\\0'`, so already empty), capacity at least 1, and **free the struct if the array fails**.\n- `qstr_new()` = capacity 8. `qstr_fromcstr(s)` = capacity `strlen(s) + 1`, characters copied.\n- `qstr_destroy`: return if `NULL`; `free(s->data)` **then** `free(s)`.\n- Whoever receives a new `qstr` owns it and must destroy it exactly once; never `free(s->data)` yourself."
+    }
+   ]
+  },
+  {
+   "id": "c20-ops",
+   "title": "Copying a qstr, and the first operations: clear, get, set",
+   "notebook": "c/string_implementation.ipynb",
+   "priority": "high",
+   "examNote": "April 2022 Q4(c) asked for a function that returns an **independent copy** of a struct, so that changing the copy does not affect the original. When the struct holds a pointer (like `data`), copying the struct with `=` is **not** independent: both copies point at one array. You must allocate a new array and copy the characters. The blank writing item below is modeled on this question.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Two ways to copy, and only one is a real copy\n\nDay 13 showed that `*t = *s;` (or passing a struct by value) copies every member. For `struct qstr` the members are two numbers and a **pointer**. Copying the pointer copies the *address*, not the characters, so both structs share one array. This is called a **shallow copy**:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"cat\");\n    struct qstr *t = malloc(sizeof(struct qstr));\n    if (!s || !t) {\n        qstr_destroy(s);\n        free(t);\n        return 1;\n    }\n    *t = *s;              // copies the three members: length, capacity, data\n    t->data[0] = 'b';     // t->data and s->data hold the SAME address\n\n    printf(\"s: %s\\nt: %s\\n\", s->data, t->data);\n    printf(\"same array? %s\\n\", s->data == t->data ? \"yes\" : \"no\");\n\n    free(t);              // only the struct: the array belongs to s\n    qstr_destroy(s);\n    return 0;\n}",
+     "caption": "shallow.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o shallow shallow.c qstr.c\n$ ./shallow\ns: bat\nt: bat\nsame array? yes"
+    },
+    {
+     "type": "md",
+     "text": "```\n    s ---> +-------------+\n           | length 3    |\n           | capacity 4  |\n           | data  ------+----+\n           +-------------+    |\n                              v\n    t ---> +-------------+   [b][a][t][\\0]     one array, two owners?\n           | length 3    |    ^\n           | capacity 4  |    |\n           | data  ------+----+\n           +-------------+\n```\n\nChanging `t->data[0]` changed `s` too. Worse, if both were destroyed with `qstr_destroy`, the one array would be freed **twice** (a double free, Day 19: undefined behaviour). That is why `shallow.c` frees only `t`'s struct.\n\nA **deep copy** gives the new `qstr` its own array and copies the characters into it. That is what `qstr_copy` does:"
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_copy(const struct qstr *s) {\n    if (!s) {\n        return qstr_new();\n    }\n    struct qstr *q = qstr_alloc(s->capacity);\n    if (q) {\n        memcpy(q->data, s->data, s->length + 1);  // the notebook calls qstr_assign (Day 21)\n        q->length = s->length;\n    }\n    return q;\n}",
+     "caption": "from qstr.c"
+    },
+    {
+     "type": "md",
+     "text": "- `NULL` in, empty `qstr` out (as the header promises).\n- The new array gets the **same capacity** as the original.\n- `memcpy` copies `length + 1` bytes: every character **and** the final `'\\0'`. Not `strcpy`: it would stop at a `'\\0'` in the middle of the string (lesson 1).\n- The notebook's version calls `qstr_assign(q, s)` instead of the two lines in the `if`. `qstr_assign` (written on Day 21) copies one existing `qstr` into another; calling it avoids writing the copy twice. Until then, the `memcpy` lines do the same job."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o deep deep.c qstr.c\n$ ./deep\ns: cat\nt: bat\nsame array? no",
+     "caption": "deep.c: the same as shallow.c, but t = qstr_copy(s), and both are destroyed with qstr_destroy"
+    },
+    {
+     "type": "md",
+     "text": "```\n    s ---> [length 3 | capacity 4 | data -]---> [c][a][t][\\0]\n    t ---> [length 3 | capacity 4 | data -]---> [b][a][t][\\0]   its own array\n```\n\nNow there are four heap blocks, each owned once, so `qstr_destroy(s)` and `qstr_destroy(t)` are both correct."
+    },
+    {
+     "type": "md",
+     "text": "### `qstr_clear`, `qstr_get` and `qstr_set`\n\nThese three never change the capacity. The notebook says there is \"nothing particularly interesting\" in them: they only use `length` and `data`. They are short, but each one shows a habit worth copying."
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_clear(struct qstr *s) {\n    if (!s) {\n        return NULL;\n    }\n    s->data[0] = '\\0';\n    s->length = 0;\n    return s;\n}\n\nchar *qstr_get(const struct qstr *s, size_t index) {\n    if (!s || index >= s->length) {\n        return NULL;\n    }\n    return s->data + index;\n}\n\nchar *qstr_set(const struct qstr *s, size_t index, char c) {\n    char *res = qstr_get(s, index);\n    if (!res) {\n        return NULL;\n    }\n    s->data[index] = c;\n    return res;\n}",
+     "caption": "from qstr.c"
+    },
+    {
+     "type": "md",
+     "text": "- **`qstr_clear`** writes `'\\0'` at index 0 and sets the length to 0. It keeps the array and its capacity (nothing is freed); the old characters after index 0 are still in memory but are no longer part of the string.\n- **`qstr_get`** is **checked access**: unlike `s->data[i]`, it refuses a bad index. Valid indexes are `0 <= index < length` (the `'\\0'` at `data[length]` is not a character of the string). `index` is a `size_t`, which can never be negative, so one test `index >= s->length` covers every bad index. On success it returns a **pointer** to the character, `s->data + index` (pointer arithmetic, Day 12), so the caller can read it with `*p` or even write through it.\n- **`qstr_set`** reuses `qstr_get` for the checks, then stores the character. A bad index changes nothing and returns `NULL`.\n\nWhy can `qstr_set` change a character when its parameter is `const struct qstr *s`? The `const` protects the **struct's members**: `s->length = 0;` or `s->data = NULL;` would not compile. But `data` is a `char *`, not a `const char *`, so the characters it points at may still change. (`qstr_clear` changes `length`, so it cannot take a `const` pointer.)"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"hello\");\n    if (!s) {\n        return 1;\n    }\n    char *p = qstr_get(s, 1);\n    printf(\"index 1: %c\\n\", *p);\n\n    if (qstr_get(s, 5) == NULL) {\n        printf(\"index 5: no such character\\n\");\n    }\n\n    qstr_set(s, 0, 'j');\n    if (qstr_set(s, 99, '!') == NULL) {\n        printf(\"index 99: not changed\\n\");\n    }\n    *qstr_get(s, 4) = 'y';                 // a valid pointer can be written through\n    printf(\"%s (length %zu)\\n\", s->data, s->length);\n\n    qstr_clear(s);\n    printf(\"after clear: \\\"%s\\\" (length %zu, capacity %zu)\\n\",\n           s->data, s->length, s->capacity);\n    if (qstr_get(s, 0) == NULL) {\n        printf(\"index 0: no such character\\n\");\n    }\n\n    qstr_destroy(s);\n    return 0;\n}",
+     "caption": "getset.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o getset getset.c qstr.c\n$ ./getset\nindex 1: e\nindex 5: no such character\nindex 99: not changed\njelly (length 5)\nafter clear: \"\" (length 0, capacity 6)\nindex 0: no such character"
+    },
+    {
+     "type": "why",
+     "q": "Why does `qstr_get` return a `char *` and not just a `char`?",
+     "a": "A pointer has a special value, `NULL`, that means \"no such character\". Every `char` value (even `'\\0'`, which a `qstr` may contain) could be a real character, so a plain `char` result could not report an error. A pointer also lets the caller change the character through it (`*qstr_get(s, 4) = 'y';`)."
+    },
+    {
+     "type": "check",
+     "q": "After `struct qstr *s = qstr_fromcstr(\"exam\");`, what do `qstr_get(s, 3)` and `qstr_get(s, 4)` return?",
+     "a": "`qstr_get(s, 3)` returns a pointer to the `'m'` (`s->data + 3`). `qstr_get(s, 4)` returns `NULL`: index 4 is the `'\\0'`, not a character of the string (valid indexes are 0 to 3)."
+    },
+    {
+     "type": "pitfall",
+     "text": "`*qstr_get(s, i)` with a bad `i` dereferences `NULL`: undefined behaviour (usually a crash). Test the pointer first, unless you know the index is valid (for example inside `for (size_t i = 0; i < s->length; i++)`)."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `*t = *s` makes a **shallow copy**: both structs point at one array (changes show in both; destroying both is a double free).\n- `qstr_copy` makes a **deep copy**: a new struct **and** a new array (same capacity), then `memcpy` of `length + 1` bytes. Today with `memcpy`; the notebook calls `qstr_assign` (Day 21).\n- `qstr_clear`: `data[0] = '\\0'`, `length = 0`; capacity and array unchanged.\n- `qstr_get(s, i)`: `NULL` if `s` is `NULL` or `i >= s->length`, else `s->data + i`. `qstr_set` uses it and changes nothing on a bad index.\n- `const struct qstr *` protects the members, not the characters `data` points at."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c20-fc-01",
+   "topic": "c20-why",
+   "front": "Why is finding the length of a C string O(n), and how does `struct qstr` make it O(1)?",
+   "back": "`strlen` must look at every character until `'\\0'`. A `qstr` stores the length in its `length` member, so reading `s->length` is one step."
+  },
+  {
+   "id": "c20-fc-02",
+   "topic": "c20-why",
+   "front": "Write the notebook's `struct qstr`.",
+   "back": "```c\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n```"
+  },
+  {
+   "id": "c20-fc-03",
+   "topic": "c20-why",
+   "front": "Why is `data` a `char *` and not an array member like `char data[100]`?",
+   "back": "A struct member array must have a size fixed at compile time; a string's size is only known while the program runs. So the struct holds the address of a heap array."
+  },
+  {
+   "id": "c20-fc-04",
+   "topic": "c20-why",
+   "front": "What invariant links `capacity` and `length`?",
+   "back": "`capacity >= length + 1`: room for every character plus the `'\\0'`, which is kept at `data[length]`."
+  },
+  {
+   "id": "c20-fc-05",
+   "topic": "c20-why",
+   "front": "A `qstr` holds `'A' 'B' '\\0' 'C'` (length 4). What do `s->length` and `strlen(s->data)` give?",
+   "back": "4 and 2. `strlen` stops at the first `'\\0'`; a `qstr` may contain `'\\0'` in the middle."
+  },
+  {
+   "id": "c20-fc-06",
+   "topic": "c20-why",
+   "front": "Give the notebook's three reasons why `data` must point at dynamically allocated memory.",
+   "back": "So the `qstr` always has a valid array, the array can be reallocated (made bigger) by other functions, and it can be released with `free`."
+  },
+  {
+   "id": "c20-fc-07",
+   "topic": "c20-why",
+   "front": "What goes wrong in the notebook's `badstring`?",
+   "back": "`data` points at a local array, which dies when the function returns: `str->data` is dangling, so `puts` is undefined behaviour, and `free(str->data)` frees memory `malloc` never gave."
+  },
+  {
+   "id": "c20-fc-08",
+   "topic": "c20-create",
+   "front": "Why do all the library's functions start with `qstr_`?",
+   "back": "To make a name clash with the user's own functions unlikely: C has one shared space for function names."
+  },
+  {
+   "id": "c20-fc-09",
+   "topic": "c20-create",
+   "front": "What are the steps of `qstr_alloc(capacity)`?",
+   "back": "`malloc` the struct (NULL check); make capacity at least 1; `calloc(capacity, 1)` the array, and if that fails `free` the struct and return `NULL`; set length 0, capacity, data; return the pointer."
+  },
+  {
+   "id": "c20-fc-10",
+   "topic": "c20-create",
+   "front": "Why does `qstr_alloc` use `calloc` for the array?",
+   "back": "`calloc` sets every byte to 0, which is `'\\0'`, so the new `qstr` is already a valid empty string."
+  },
+  {
+   "id": "c20-fc-11",
+   "topic": "c20-create",
+   "front": "What capacity do `qstr_new()` and `qstr_fromcstr(\"CISC220\")` give?",
+   "back": "8 (the default) and 8 (`strlen` 7 plus 1). `qstr_fromcstr(\"\")` gives capacity 1."
+  },
+  {
+   "id": "c20-fc-12",
+   "topic": "c20-create",
+   "front": "In `qstr_destroy`, why must `free(s->data)` come before `free(s)`?",
+   "back": "`s->data` is read from the struct. After `free(s)` the struct is gone, so reading `s->data` is a use-after-free."
+  },
+  {
+   "id": "c20-fc-13",
+   "topic": "c20-create",
+   "front": "Who must destroy a `qstr` returned by `qstr_fromcstr`, and may the user call `free(s->data)`?",
+   "back": "The caller owns it and must call `qstr_destroy` exactly once. No: the `qstr` owns its array, and `qstr_destroy` frees it."
+  },
+  {
+   "id": "c20-fc-14",
+   "topic": "c20-ops",
+   "front": "Shallow copy versus deep copy of a `qstr`?",
+   "back": "Shallow (`*t = *s`): copies the members, so both point at the same array. Deep (`qstr_copy`): a new struct and a new array, with the characters copied."
+  },
+  {
+   "id": "c20-fc-15",
+   "topic": "c20-ops",
+   "front": "Why does `qstr_copy` use `memcpy(q->data, s->data, s->length + 1)` instead of `strcpy`?",
+   "back": "A `qstr` may contain `'\\0'` in the middle; `strcpy` would stop there. `length + 1` copies every character and the final `'\\0'`."
+  },
+  {
+   "id": "c20-fc-16",
+   "topic": "c20-ops",
+   "front": "What does `qstr_clear` change, and what does it keep?",
+   "back": "It sets `data[0] = '\\0'` and `length = 0`. It keeps the array and its capacity (nothing is freed)."
+  },
+  {
+   "id": "c20-fc-17",
+   "topic": "c20-ops",
+   "front": "When does `qstr_get(s, i)` return `NULL`, and what does it return otherwise?",
+   "back": "`NULL` if `s` is `NULL` or `i >= s->length`. Otherwise the pointer `s->data + i`."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c20-q-01",
+   "topic": "c20-create",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *a = qstr_fromcstr(\"Queens\");\n    struct qstr *b = qstr_new();\n    struct qstr *c = qstr_copy(a);\n    printf(\"%zu %zu\\n\", a->length, a->capacity);\n    printf(\"%zu %zu\\n\", b->length, b->capacity);\n    printf(\"%zu %zu\\n\", c->length, c->capacity);\n    qstr_destroy(a);\n    qstr_destroy(b);\n    qstr_destroy(c);\n    return 0;\n}",
+   "answer": "6 7\n0 8\n6 7",
+   "explain": "`qstr_fromcstr(\"Queens\")` has length 6 and capacity `6 + 1` = 7. `qstr_new()` is empty with the default capacity 8. `qstr_copy` gives the copy the **same capacity** as the original (7) and the same length."
+  },
+  {
+   "id": "c20-q-02",
+   "topic": "c20-ops",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"pots\");\n    struct qstr *t = qstr_copy(s);\n    qstr_set(t, 0, 't');\n    qstr_set(t, 3, 'p');\n    qstr_set(s, 4, '!');\n    printf(\"%s %s\\n\", s->data, t->data);\n    qstr_destroy(s);\n    qstr_destroy(t);\n    return 0;\n}",
+   "answer": "pots totp",
+   "explain": "`t` is a deep copy with its own array, so changing `t` (index 0 to `'t'`, index 3 to `'p'`: `\"totp\"`) leaves `s` alone. `qstr_set(s, 4, '!')` does nothing: index 4 is not less than the length 4, so it returns `NULL` and `s` stays `\"pots\"`."
+  },
+  {
+   "id": "c20-q-03",
+   "topic": "c20-ops",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"dog\");\n    struct qstr *t = malloc(sizeof(struct qstr));\n    *t = *s;\n    qstr_clear(t);\n    printf(\"s: length %zu, data \\\"%s\\\"\\n\", s->length, s->data);\n    printf(\"t: length %zu, data \\\"%s\\\"\\n\", t->length, t->data);\n    free(t);\n    qstr_destroy(s);\n    return 0;\n}",
+   "answer": "s: length 3, data \"\"\nt: length 0, data \"\"",
+   "explain": "`*t = *s` is a shallow copy: `t->data` and `s->data` are the same array. `qstr_clear(t)` writes `'\\0'` at index 0 of that shared array and sets **`t`'s** length to 0. `s->length` is still 3, but `s->data` now starts with `'\\0'`, so it prints as empty. The two structs no longer agree: that is why shallow copies are dangerous."
+  },
+  {
+   "id": "c20-q-04",
+   "topic": "c20-ops",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"abc\");\n    int ok = 0;\n    for (size_t i = 0; i < 6; i++) {\n        if (qstr_set(s, i, 'z' - i) != NULL) {\n            ok++;\n        }\n    }\n    printf(\"%d %s\\n\", ok, s->data);\n    qstr_destroy(s);\n    return 0;\n}",
+   "answer": "3 zyx",
+   "explain": "Indexes 0, 1, 2 are valid (length 3), so they become `'z' - 0`, `'z' - 1`, `'z' - 2`, that is `z`, `y`, `x`. For `i` = 3, 4, 5, `qstr_set` returns `NULL` and changes nothing, so `ok` is 3."
+  },
+  {
+   "id": "c20-q-05",
+   "topic": "c20-why",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include <string.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"tea time\");\n    qstr_set(s, 3, '\\0');\n    printf(\"%zu %zu\\n\", s->length, strlen(s->data));\n    puts(s->data);\n    printf(\"%c\\n\", *qstr_get(s, 4));\n    qstr_destroy(s);\n    return 0;\n}",
+   "answer": "8 3\ntea\nt",
+   "explain": "`qstr_set(s, 3, '\\0')` replaces the space with `'\\0'`. The `qstr`'s length is still 8, but `strlen` stops at index 3, and `puts` prints only `tea`. The character at index 4 is still there: `t` (from `time`)."
+  },
+  {
+   "id": "c20-q-06",
+   "topic": "c20-ops",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"abcdef\");\n    char *p = qstr_get(s, 2);\n    *p = 'X';\n    p[1] = 'Y';\n    qstr_clear(s);\n    printf(\"[%s] %zu %zu\\n\", s->data, s->length, s->capacity);\n    printf(\"%c\\n\", s->data[3]);\n    qstr_destroy(s);\n    return 0;\n}",
+   "answer": "[] 0 7\nY",
+   "explain": "`qstr_get(s, 2)` points at index 2, so `*p = 'X'` and `p[1] = 'Y'` make the data `abXYef`. `qstr_clear` writes `'\\0'` only at index 0 and sets the length to 0, keeping capacity 7. The old bytes are still in the array, so `s->data[3]` is still `'Y'` (reading it is allowed: it is inside the array; it is just no longer part of the string)."
+  },
+  {
+   "id": "c20-q-07",
+   "topic": "c20-why",
+   "type": "mcq",
+   "q": "On our 64-bit Linux machines, what is `sizeof(struct qstr)` for a `qstr` holding a string of 100 characters?",
+   "options": [
+    "24",
+    "101",
+    "124",
+    "125"
+   ],
+   "answer": 0,
+   "explain": "The struct holds two `size_t` and one pointer, 8 bytes each. The characters are in a separate heap array, so the string's length never changes the size of the struct."
+  },
+  {
+   "id": "c20-q-08",
+   "topic": "c20-create",
+   "type": "mcq",
+   "q": "On success, how many heap blocks does `qstr_fromcstr(\"abc\")` allocate, and what is the new `qstr`'s capacity?",
+   "options": [
+    "1 block, capacity 3",
+    "2 blocks, capacity 3",
+    "2 blocks, capacity 4",
+    "2 blocks, capacity 8"
+   ],
+   "answer": 2,
+   "explain": "`qstr_alloc` makes the struct (`malloc`) and the array (`calloc`): two blocks. The capacity is `strlen(\"abc\") + 1` = 4, room for the `'\\0'`. Only `qstr_new` uses the default 8."
+  },
+  {
+   "id": "c20-q-09",
+   "topic": "c20-create",
+   "type": "short",
+   "q": "In `qstr_alloc`, why does the code call `free(q)` when `calloc` fails, and why does it change a capacity of 0 into 1?",
+   "answer": "If the array cannot be allocated, the function returns `NULL`, and then nobody would hold the struct's address: it would leak. So it frees the struct first. A capacity of 0 would mean asking for 0 bytes, which is not portable; 1 byte is the smallest array that can hold the `'\\0'` of an empty string.",
+   "explain": "Rule from Day 18: when a later allocation fails, free the earlier ones before you give up."
+  },
+  {
+   "id": "c20-q-10",
+   "topic": "c20-create",
+   "type": "short",
+   "q": "A student writes `void destroy(struct qstr *s) { free(s); free(s->data); }`. What is wrong, and how do you fix it?",
+   "answer": "It frees the struct first, so `s->data` reads freed memory (a use-after-free, undefined behaviour). Free the array first: `free(s->data); free(s);`. Also test `if (!s) return;` first so `NULL` is safe.",
+   "explain": "gcc warns `pointer 's' used after 'free'`, and valgrind reports an invalid read 16 bytes inside the 24-byte struct block: exactly where `data` is stored."
+  },
+  {
+   "id": "c20-q-11",
+   "topic": "c20-why",
+   "type": "short",
+   "q": "The notebook's `badstring` sets `s->data = &buffer[0];` where `buffer` is a local `char` array, then returns `s`. Give two separate things that go wrong when `main` later calls `puts(str->data)` and `free(str->data)`.",
+   "answer": "`buffer` has automatic storage duration, so it no longer exists after `badstring` returns: `str->data` is a dangling pointer and `puts` reads dead memory (undefined behaviour). And `free(str->data)` passes `free` an address that did not come from `malloc`/`calloc`, which is also undefined behaviour (often a crash).",
+   "explain": "gcc does not warn, because the function returns the heap pointer `s`, not the local array directly. On our machine the program crashed."
+  },
+  {
+   "id": "c20-q-12",
+   "topic": "c20-create",
+   "type": "short",
+   "q": "The header comment of `qstr_fromcstr` says *Returns an empty qstr if s is NULL*, but the notebook's body begins `size_t len = strlen(s);`. What happens for `qstr_fromcstr(NULL)`, and what line fixes it?",
+   "answer": "`strlen(NULL)` dereferences a null pointer: undefined behaviour (usually a crash), so the promise is broken. Fix: start with `if (!s) { return qstr_new(); }`.",
+   "explain": "Checking parameters for `NULL` before using them is the same habit as in `qstr_clear`, `qstr_get` and `qstr_destroy`."
+  },
+  {
+   "id": "c20-q-13",
+   "topic": "c20-ops",
+   "type": "short",
+   "q": "`qstr_set` has the parameter `const struct qstr *s` but still writes `s->data[index] = c;`. Why does that compile, and which line would not compile with that parameter?",
+   "answer": "The `const` applies to the struct's members: `length`, `capacity` and the pointer `data` itself cannot be changed through `s`. The characters that `data` points at are plain `char`, so they can be changed. A line like `s->length = 0;` (as in `qstr_clear`) or `s->data = NULL;` would not compile.",
+   "explain": "That is why `qstr_clear`, which changes `length`, takes a plain `struct qstr *`."
+  }
+ ],
+ "write": [
+  {
+   "id": "c20-w-01",
+   "topic": "c20-create",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Add a new creating function to the library: `struct qstr *qstr_repeat(char c, size_t n)` returns a new `qstr` holding `n` copies of `c` (for example `qstr_repeat('=', 12)` is `\"============\"`), or `NULL` if memory runs out. It lives in `qstr.c`, so it may call `qstr_alloc`. Then write a `main` that makes `qstr_repeat('=', 12)` and `qstr_repeat('x', 0)`, prints each one's data, length and capacity, and destroys both.",
+   "starter": "",
+   "solution": "// add to qstr.c (and its declaration to qstr.h)\n\n// Returns a new qstr made of n copies of the character c, or NULL.\nstruct qstr *qstr_repeat(char c, size_t n) {\n    struct qstr *q = qstr_alloc(n + 1);   // n characters + '\\0'\n    if (!q) {\n        return NULL;\n    }\n    for (size_t i = 0; i < n; i++) {\n        q->data[i] = c;\n    }\n    q->data[n] = '\\0';                    // calloc already did this; be explicit\n    q->length = n;\n    return q;\n}\n\n#include <stdio.h>\n#include \"qstr.h\"\n\nstruct qstr *qstr_repeat(char c, size_t n);   // add this line to qstr.h\n\nint main(void) {\n    struct qstr *line = qstr_repeat('=', 12);\n    struct qstr *none = qstr_repeat('x', 0);\n    if (!line || !none) {\n        qstr_destroy(line);\n        qstr_destroy(none);\n        return 1;\n    }\n    printf(\"%s (length %zu, capacity %zu)\\n\", line->data, line->length, line->capacity);\n    printf(\"\\\"%s\\\" (length %zu, capacity %zu)\\n\", none->data, none->length, none->capacity);\n    qstr_destroy(line);\n    qstr_destroy(none);\n    return 0;\n}",
+   "explain": "Like `qstr_fromcstr`, the function lets `qstr_alloc` do both allocations and the `NULL` checks. It asks for `n + 1` bytes: `n` characters plus the `'\\0'`, so the invariant `capacity >= length + 1` holds. A loop stores `c` at indexes `0` to `n - 1`. `calloc` already made `data[n]` a `'\\0'`, but writing it is clearer and costs nothing. Then set `length` (`qstr_alloc` set it to 0). If `qstr_alloc` returns `NULL`, pass it on. For `n = 0` the loop runs zero times and the result is the empty string with capacity 1.\n\n`main` owns both new `qstr`s, so it destroys both. `qstr_destroy(NULL)` is safe, so the error path can destroy both without checking which one failed.\n\n```\n$ gcc -std=c17 -Wall -o w1 w1.c qstr.c\n$ ./w1\n============ (length 12, capacity 13)\n\"\" (length 0, capacity 1)\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`qstr_alloc(n + 1)` (room for the `'\\0'`)"
+    },
+    {
+     "marks": 1,
+     "item": "returns `NULL` if the allocation failed"
+    },
+    {
+     "marks": 1,
+     "item": "loop stores `c` at indexes 0 to n - 1 and `data[n]` is `'\\0'`"
+    },
+    {
+     "marks": 1,
+     "item": "sets `length` to `n` and returns the pointer"
+    },
+    {
+     "marks": 1,
+     "item": "main prints the members and calls `qstr_destroy` on both"
+    }
+   ],
+   "pitfalls": [
+    "`qstr_alloc(n)`: no room for the `'\\0'` (and capacity would be 0 for `n = 0` if it were not fixed up).",
+    "Forgetting `q->length = n;`: the struct still says length 0.",
+    "Using `free(line)` in main instead of `qstr_destroy(line)`: the array leaks."
+   ]
+  },
+  {
+   "id": "c20-w-02",
+   "topic": "c20-create",
+   "stage": "faded",
+   "marks": 6,
+   "prompt": "Fill in the blanks in `qstr_alloc` (make an empty `qstr` whose array has the given capacity) and `qstr_destroy` (free everything a `qstr` uses). The new array's bytes must all start as `'\\0'` without a loop, the capacity must be at least 1, nothing may leak if the second allocation fails, and `qstr_destroy(NULL)` must do nothing.",
+   "starter": "struct qstr *qstr_alloc(size_t capacity) {\n    struct qstr *q = malloc(____);\n    if (!q) {\n        fprintf(stderr, \"qstr allocation error\\n\");\n        return NULL;\n    }\n    if (capacity == 0) {\n        capacity = ____;\n    }\n    char *buf = ____;            // every byte must start as '\\0'\n    if (!buf) {\n        ____;\n        fprintf(stderr, \"qstr->data allocation error\\n\");\n        return NULL;\n    }\n    q->length = ____;\n    q->capacity = capacity;\n    q->data = buf;\n    return q;\n}\n\nvoid qstr_destroy(struct qstr *s) {\n    if (____) {\n        return;\n    }\n    ____;\n    ____;\n}",
+   "solution": "struct qstr *qstr_alloc(size_t capacity) {\n    struct qstr *q = malloc(sizeof(struct qstr));\n    if (!q) {\n        fprintf(stderr, \"qstr allocation error\\n\");\n        return NULL;\n    }\n    if (capacity == 0) {\n        capacity = 1;\n    }\n    char *buf = calloc(capacity, 1);            // every byte must start as '\\0'\n    if (!buf) {\n        free(q);\n        fprintf(stderr, \"qstr->data allocation error\\n\");\n        return NULL;\n    }\n    q->length = 0;\n    q->capacity = capacity;\n    q->data = buf;\n    return q;\n}\n\nvoid qstr_destroy(struct qstr *s) {\n    if (!s) {\n        return;\n    }\n    free(s->data);\n    free(s);\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`malloc(sizeof(struct qstr))`"
+    },
+    {
+     "marks": 1,
+     "item": "capacity 0 becomes 1"
+    },
+    {
+     "marks": 1,
+     "item": "`calloc(capacity, 1)` for the array (all bytes `'\\0'`)"
+    },
+    {
+     "marks": 1,
+     "item": "`free(q);` when the array cannot be allocated, and `length` set to 0"
+    },
+    {
+     "marks": 1,
+     "item": "`qstr_destroy` returns at once if `!s`"
+    },
+    {
+     "marks": 1,
+     "item": "`free(s->data);` **before** `free(s);`"
+    }
+   ],
+   "pitfalls": [
+    "`malloc(sizeof(struct qstr *))`: the size of a pointer (8), not of the struct (24).",
+    "`malloc(capacity)` for the array: its bytes are not cleared, so `data[0]` may not be `'\\0'`.",
+    "Returning `NULL` without `free(q)`: the struct leaks.",
+    "`free(s); free(s->data);`: use-after-free."
+   ]
+  },
+  {
+   "id": "c20-w-03",
+   "topic": "c20-ops",
+   "stage": "blank",
+   "marks": 6,
+   "examNote": "Modeled on April 2022 final Q4(c) (return an *independent copy* of a struct), with a struct that holds a heap pointer.",
+   "prompt": "Using the definition\n\n```c\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n```\n\nwrite the function `struct qstr *qstr_copy(const struct qstr *s)` **without calling any other `qstr_` function** (only `malloc`, `calloc`, `free` and `<string.h>` functions). It must return a pointer to a new `qstr` that is an **independent** copy of `*s`: changing the copy's characters must never change `s`. The copy has the same length, capacity and characters as `s` (remember that a `qstr` may contain `'\\0'` in the middle). If `s` is `NULL`, return a new empty `qstr` of capacity 8. Return `NULL` if memory runs out, without leaking. Then explain in one sentence why `struct qstr *t = malloc(sizeof(struct qstr)); *t = *s;` is **not** an independent copy.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n\n// Returns a new, independent copy of *s (an empty qstr of capacity 8\n// if s is NULL), or NULL if memory runs out.\nstruct qstr *qstr_copy(const struct qstr *s) {\n    struct qstr *q = malloc(sizeof(struct qstr));\n    if (!q) {\n        return NULL;\n    }\n    size_t cap = s ? s->capacity : 8;\n    q->data = calloc(cap, 1);\n    if (!q->data) {\n        free(q);\n        return NULL;\n    }\n    q->capacity = cap;\n    q->length = 0;\n    if (s) {\n        memcpy(q->data, s->data, s->length + 1);\n        q->length = s->length;\n    }\n    return q;\n}\n\n// *t = *s copies the pointer data, not the characters: t->data and s->data\n// would point at the same array, so changing one changes the other\n// (and destroying both would free that array twice).",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`malloc(sizeof(struct qstr))` for the new struct, with a `NULL` check"
+    },
+    {
+     "marks": 1,
+     "item": "a **new** array of the right capacity (`calloc(cap, 1)` or `malloc(cap)`), with a `NULL` check"
+    },
+    {
+     "marks": 1,
+     "item": "frees the new struct if the array cannot be allocated"
+    },
+    {
+     "marks": 1,
+     "item": "copies `length + 1` bytes with `memcpy` (not `strcpy`), and sets `length` and `capacity`"
+    },
+    {
+     "marks": 1,
+     "item": "`s == NULL` gives an empty `qstr` of capacity 8 (length 0, `data[0]` is `'\\0'`)"
+    },
+    {
+     "marks": 1,
+     "item": "explanation: `*t = *s` shares one array (shallow copy)"
+    }
+   ],
+   "pitfalls": [
+    "`q->data = s->data;`: a shallow copy, not independent.",
+    "`strcpy(q->data, s->data)`: stops at a `'\\0'` in the middle of the string.",
+    "Copying only `s->length` bytes into a `malloc`'d array: no `'\\0'` at the end.",
+    "Reading `s->capacity` before checking `s` for `NULL`."
+   ]
+  }
+ ]
+}
