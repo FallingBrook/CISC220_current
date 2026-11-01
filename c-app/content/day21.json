@@ -1,0 +1,641 @@
+{
+ "day": 21,
+ "title": "A string data type, part 2",
+ "goal": "Finish the qstr library: remove a range with memmove (qstr_remrange), grow the array safely with realloc (qstr_ensure_capacity) to write qstr_assign and qstr_concat, hide the struct as an opaque type, and build and test the whole library from several files.",
+ "topics": [
+  {
+   "id": "c21-remrange",
+   "title": "Removing a range of characters: qstr_remrange",
+   "notebook": "c/string_implementation.ipynb",
+   "priority": "high",
+   "examNote": "No past final asks for `qstr_remrange` itself, but tracing it is a typical handwritten question: given the length, `start` and `stop`, how many bytes move, where to, and what the string is afterwards. Always count the `'\\0'` in the bytes that move, and remember that the old characters after the new `'\\0'` are still in the array.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Where we are\n\nOn Day 20 you wrote the parts of the `qstr` library that **create**, **copy**, **read**, **change one character** and **destroy** a `qstr`. None of them changes the length (except `qstr_clear`). Today you write the three functions that do:\n\n| function | what it does |\n|---|---|\n| `struct qstr *qstr_remrange(struct qstr *s, size_t start, size_t stop)` | removes a range of characters (this lesson) |\n| `struct qstr *qstr_assign(struct qstr *lhs, const struct qstr *rhs)` | makes `lhs` a copy of `rhs`, growing it if needed (lesson 2) |\n| `struct qstr *qstr_concat(struct qstr *lhs, const struct qstr *rhs)` | appends `rhs` to `lhs`, growing it if needed (lesson 2) |\n\nThen lesson 3 hides the struct from users and puts the whole library together.\n\nRemoving characters makes a string **shorter**, so the array is always big enough: `qstr_remrange` never changes the capacity. That is why the notebook puts it with `qstr_clear`, `qstr_get` and `qstr_set`, the functions that \"do not alter the capacity\"."
+    },
+    {
+     "type": "md",
+     "text": "### The idea: slide the tail forward\n\n`qstr_remrange(s, start, stop)` removes the characters at indexes `start`, `start + 1`, ..., `stop - 1`: from `start` **up to but not including** `stop` (like Python's slice `s[start:stop]`). So it removes `stop - start` characters.\n\nThe notebook's example: the string `\"ABCDEFGH\"` (length 8). To remove `EFG` (indexes 4, 5, 6) call `qstr_remrange(s, 4, 7)`. Nothing is \"cut out\" of the array (arrays never change size). Instead, everything **after** the removed part slides forward to cover it: the `H` **and the `'\\0'` after it**.\n\n```\nbefore   index:  0   1   2   3   4   5   6   7   8\n               [A] [B] [C] [D] [E] [F] [G] [H] [\\0]      length 8\n                                \\_________/  \\_____/\n                                 removed     2 bytes move\n                              start=4       stop=7\n\nafter          [A] [B] [C] [D] [H] [\\0] [G] [H] [\\0]     length 5\n                                \\_____/\n                             moved here\n```\n\nThe `G` and `H` at indexes 6 and 7 are left over from before, but they are after the `'\\0'`, so they are no longer part of the string. Nobody needs to erase them."
+    },
+    {
+     "type": "md",
+     "text": "### The code\n\nThis is the notebook's function (from its `qstr.c`):"
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_remrange(struct qstr *s, size_t start, size_t stop) {\n    if (!s || start > stop || stop > s->length) {\n        return NULL;\n    }\n    size_t n_removed = stop - start;\n    size_t n_tomove = s->length - stop + 1;\n    memmove(s->data + start, s->data + stop, n_tomove);\n    s->length -= n_removed;\n    return s;\n}",
+     "caption": "from qstr.c"
+    },
+    {
+     "type": "md",
+     "text": "The checks and the numbered lines, as the notebook explains them:\n\n- **The range must be valid**: `0 <= start <= stop <= s->length`. Both are `size_t`, so they cannot be negative; two tests are enough: `start > stop` (backwards) and `stop > s->length` (past the end). A bad range returns `NULL` and changes nothing. `start == stop` is valid: it removes nothing.\n\n1. `n_removed = stop - start` is how many characters go.\n2. `n_tomove = s->length - stop + 1` is how many bytes slide forward: the characters from index `stop` to the end (`length - stop` of them) **plus 1 for the `'\\0'`**. Moving the `'\\0'` is what ends the shorter string in the right place. For the example: `8 - 7 + 1 = 2` bytes (`H` and `'\\0'`).\n3. `memmove(dest, src, count)` (Day 17) copies `count` bytes. The destination is where the removed part starts, `s->data + start`; the source is the first byte after it, `s->data + stop`. The two areas can **overlap** (remove the first character of `\"ABCDEFGH\"` and 8 bytes, the 7 other letters and the `'\\0'`, move one place left, partly over themselves), and `memcpy` is undefined behaviour when they overlap, so it must be `memmove`.\n\nFinally `s->length -= n_removed;` keeps `length` honest. The capacity stays the same."
+    },
+    {
+     "type": "md",
+     "text": "Here it is on the notebook's string. `dump` prints **every** byte of the array (all `capacity` of them), so you can see the leftovers:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n#include \"qstr.h\"\n\n// Prints every byte of the array (all capacity of them), '\\0' as \\0.\nvoid dump(const struct qstr *s) {\n    printf(\"length %zu: \", s->length);\n    for (size_t i = 0; i < s->capacity; i++) {\n        if (s->data[i] == '\\0') {\n            printf(\"[\\\\0]\");\n        } else {\n            printf(\"[%c]\", s->data[i]);\n        }\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"ABCDEFGH\");\n    if (!s) {\n        return 1;\n    }\n    dump(s);\n    qstr_remrange(s, 4, 7);       // remove \"EFG\" (indexes 4, 5, 6)\n    dump(s);\n    printf(\"%s\\n\", s->data);\n\n    if (qstr_remrange(s, 3, 9) == NULL) {\n        printf(\"3, 9: invalid, nothing removed\\n\");\n    }\n    qstr_remrange(s, 2, 2);       // empty range: removes nothing\n    qstr_remrange(s, 0, 1);       // remove the first character\n    dump(s);\n    printf(\"%s\\n\", s->data);\n\n    qstr_destroy(s);\n    return 0;\n}",
+     "caption": "remove.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o remove remove.c qstr.c\n$ ./remove\nlength 8: [A][B][C][D][E][F][G][H][\\0]\nlength 5: [A][B][C][D][H][\\0][G][H][\\0]\nABCDH\n3, 9: invalid, nothing removed\nlength 4: [B][C][D][H][\\0][\\0][G][H][\\0]\nBCDH"
+    },
+    {
+     "type": "md",
+     "text": "- `qstr_remrange(s, 3, 9)`: `stop` 9 is greater than the length 5, so it returns `NULL` and nothing changes.\n- `qstr_remrange(s, 2, 2)`: an empty range. `n_removed` is 0 and the `memmove` moves the tail onto itself: no change.\n- `qstr_remrange(s, 0, 1)`: removes the first character; `n_tomove = 5 - 1 + 1 = 5` bytes (`B C D H \\0`) move one place left.\n\nTwo special cases worth remembering:\n\n- `qstr_remrange(s, i, s->length)` removes **everything from `i` on**: `n_tomove` is 1, only the `'\\0'` moves, to index `i`. The notebook's demo (lesson 3) uses this to cut a string short.\n- `qstr_remrange(s, 0, s->length)` empties the string, like `qstr_clear`."
+    },
+    {
+     "type": "why",
+     "q": "Why is `n_tomove` equal to `s->length - stop + 1` and not `s->length - stop`?",
+     "a": "The characters after the removed range are at indexes `stop` to `length - 1`: that is `length - stop` of them. The extra 1 is the `'\\0'` at index `length`. If it did not move, the shorter string would have no terminator in the right place, and `s->data` would still show the old last characters (in the example `\"ABCDHGH\"`)."
+    },
+    {
+     "type": "check",
+     "q": "`s` is `\"computer\"` (length 8). After `qstr_remrange(s, 1, 4)`, what are `n_removed`, `n_tomove`, the string and its length?",
+     "a": "`n_removed = 3` (`o m p`), `n_tomove = 8 - 4 + 1 = 5` (`u t e r \\0`). The string is `\"cuter\"`, length 5. The capacity is unchanged (9)."
+    },
+    {
+     "type": "pitfall",
+     "text": "Removing inside a loop shifts the characters **under** your index. After `qstr_remrange(s, i, i + 1)` the next character is now at index `i`, not `i + 1`. If you also do `i++`, you skip it. Only move on when you did not remove (lab 3, `qdedup.c`)."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `qstr_remrange(s, start, stop)` removes indexes `start` to `stop - 1` (`stop - start` characters). Valid: `start <= stop <= s->length`; otherwise `NULL` and no change.\n- It slides the tail forward: `memmove(s->data + start, s->data + stop, s->length - stop + 1)`. The `+ 1` moves the `'\\0'` too.\n- `memmove`, not `memcpy`: the source and destination overlap.\n- Then `s->length -= stop - start;`. The capacity never changes; old characters after the new `'\\0'` stay in the array but are not part of the string.\n- `qstr_remrange(s, i, s->length)` truncates at `i`; `qstr_remrange(s, 0, s->length)` empties."
+    }
+   ]
+  },
+  {
+   "id": "c21-grow",
+   "title": "Growing a qstr: qstr_ensure_capacity, qstr_assign and qstr_concat",
+   "notebook": "c/string_implementation.ipynb",
+   "priority": "high",
+   "examNote": "April 2022 Q3(c) asked you to use `realloc` so that a heap string from Q3(b) can **safely** hold a 20-character string. *Safely* means: ask for 21 bytes (20 + `'\\0'`), put the result in a **temporary** pointer, and only overwrite the old pointer after checking for `NULL`. That is exactly what `qstr_ensure_capacity` does; the blank writing item below practises it.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### One helper for growing\n\n`qstr_assign` and `qstr_concat` can make a string **longer**, so the array of `lhs` may be too small for the result. Making it bigger means reallocating the array and pointing `data` at the new one. Both functions need that, so (as with `qstr_alloc` on Day 20) the notebook writes it once, in a helper that lives only in `qstr.c`:"
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_ensure_capacity(struct qstr *s, size_t capacity) {\n    if (s->capacity >= capacity) {\n        return s;\n    }\n    char *buf = realloc(s->data, capacity);\n    if (!buf) {\n        fprintf(stderr, \"qstr->data reallocation error\\n\");\n        return NULL;\n    }\n    s->data = buf;\n    s->capacity = capacity;\n    return s;\n}",
+     "caption": "from qstr.c (the notebook's message lacks the final \\n; we added it)"
+    },
+    {
+     "type": "md",
+     "text": "Read it with Day 19 in mind:\n\n- **Already big enough?** Return at once. It never **shrinks** the array, so it is called *ensure*: afterwards the capacity is **at least** the number asked for.\n- `realloc(s->data, capacity)` asks for a block of `capacity` bytes **in total**, keeping the old contents (the characters and the `'\\0'`). The new bytes after them are uninitialized, which is fine: they are past the `'\\0'`.\n- The result goes into a **temporary** pointer `buf`. If `realloc` fails, it returns `NULL` and the old array is untouched, so `s` is still a correct `qstr`: the function returns `NULL` and changes nothing. Writing `s->data = realloc(s->data, capacity);` would lose the only pointer to the old array (a leak) and break `s`.\n- On success the old address is no longer valid, so the struct is updated: `s->data = buf;` and `s->capacity = capacity;`.\n\nIt grows to **exactly** the capacity asked for (no doubling as in Day 19's growing array). That keeps the code simple and makes the capacities in today's outputs easy to predict."
+    },
+    {
+     "type": "md",
+     "text": "```\nqstr_ensure_capacity(s, 8) on a qstr holding \"CISC\" (capacity 5):\n\nbefore:  s->data ---> @3000 [C][I][S][C][\\0]                      capacity 5\nafter:   s->data ---> @4000 [C][I][S][C][\\0][?][?][?]             capacity 8\n                      (@3000 has been freed by realloc; it may also grow in place)\n```"
+    },
+    {
+     "type": "md",
+     "text": "### `qstr_assign`: copy one `qstr` into another\n\n`qstr_assign(lhs, rhs)` makes the **existing** `lhs` hold the same characters as `rhs`: a `strcpy` that grows the destination first. The notebook's text shows a short version:"
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_assign(struct qstr *lhs, const struct qstr *rhs) {\n    if (lhs == rhs) {                                   // 1\n        return lhs;\n    }\n    const size_t REQ_CAPACITY = rhs->length + 1;        // 2\n    qstr_ensure_capacity(lhs, REQ_CAPACITY);\n\n    // bug, qstr can contain \\0\n    // strcpy(lhs->data, rhs->data);\n    memcpy(lhs->data, rhs->data, rhs->length + 1);      // 3\n    lhs->length = rhs->length;\n    return lhs;\n}",
+     "caption": "the notebook's text version"
+    },
+    {
+     "type": "md",
+     "text": "1. If both pointers point at the **same** `qstr` there is nothing to do. (Without this test, `memcpy` would copy an area onto itself, and overlapping areas are undefined behaviour for `memcpy`.)\n2. The result needs `rhs->length + 1` bytes: the characters plus the `'\\0'`.\n3. `memcpy`, not `strcpy`: a `qstr` may contain `'\\0'` in the middle, and `strcpy` would stop at the first one (the commented-out line is the notebook's warning). `length + 1` bytes copies the final `'\\0'` too.\n\n**Spot the bug.** This version **ignores** what `qstr_ensure_capacity` returns. If `realloc` fails, the array is still small and `memcpy` writes past its end. It also crashes on `NULL` arguments. The notebook's `qstr.c` file fixes both, and that is the version to learn:"
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_assign(struct qstr *lhs, const struct qstr *rhs) {\n    if (!lhs) {\n        return NULL;\n    }\n    if (!rhs || lhs == rhs) {\n        return lhs;\n    }\n    const size_t REQ_CAPACITY = rhs->length + 1;\n    struct qstr *tmp = qstr_ensure_capacity(lhs, REQ_CAPACITY);\n    if (!tmp) {\n        return NULL;\n    }\n    memcpy(lhs->data, rhs->data, rhs->length + 1);\n    lhs->length = rhs->length;\n    return lhs;\n}",
+     "caption": "from qstr.c (the notebook's source file)"
+    },
+    {
+     "type": "md",
+     "text": "Now `qstr_assign(NULL, x)` returns `NULL`, `qstr_assign(x, NULL)` leaves `x` alone (as the header promises), and a failed reallocation returns `NULL` before anything is copied.\n\n**Back to `qstr_copy`.** On Day 20 you wrote `qstr_copy` with two lines, `memcpy(...)` and `q->length = s->length;`, because `qstr_assign` did not exist yet. The notebook's version swaps them for one call:"
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_copy(const struct qstr *s) {\n    if (!s) {\n        return qstr_new();\n    }\n    struct qstr *q = qstr_alloc(s->capacity);\n    if (q) {\n        qstr_assign(q, s);\n    }\n    return q;\n}",
+     "caption": "from qstr.c (the notebook's version)"
+    },
+    {
+     "type": "md",
+     "text": "`qstr_assign(q, s)` does the same two steps, so the copying code is written only once. It never needs to grow here: `q` was just made with `s->capacity`, which is already at least `s->length + 1`. From now on use this version; the result is identical."
+    },
+    {
+     "type": "md",
+     "text": "### `qstr_concat`: append one `qstr` to another\n\n`qstr_concat(lhs, rhs)` adds the characters of `rhs` to the end of `lhs`: a `strcat` that grows the destination first."
+    },
+    {
+     "type": "code",
+     "code": "struct qstr *qstr_concat(struct qstr *lhs, const struct qstr *rhs) {\n    if (!lhs) {\n        return NULL;\n    }\n    if (!rhs) {\n        return lhs;\n    }\n    const size_t REQ_CAPACITY = lhs->length + rhs->length + 1;\n    struct qstr *tmp = qstr_ensure_capacity(lhs, REQ_CAPACITY);\n    if (!tmp) {\n        return NULL;\n    }\n    memmove(lhs->data + lhs->length, rhs->data, rhs->length + 1);\n    lhs->length = lhs->length + rhs->length;\n    return lhs;\n}",
+     "caption": "from qstr.c"
+    },
+    {
+     "type": "md",
+     "text": "1. The result needs `lhs->length + rhs->length + 1` bytes: both strings and one `'\\0'`. If `qstr_ensure_capacity` fails, return `NULL` (`lhs` is unchanged).\n2. The destination is just after the last character of `lhs`, which is where its `'\\0'` is: `lhs->data + lhs->length`. The source is the start of `rhs`, `rhs->data`. `rhs->length + 1` bytes copies the characters of `rhs` **and its `'\\0'`**, which becomes the new end of `lhs`.\n\nThe notebook's comment asks: *must use memmove instead of memcpy here, can you see why?* Because `rhs` may be **`lhs` itself** (`qstr_concat(s, s)` doubles `s`). Then the source is `s->data[0]` to `s->data[length]` and the destination is `s->data[length]` to `s->data[2 * length]`: both contain `s->data[length]`, so the areas overlap. `memcpy` with overlapping areas is undefined behaviour; `memmove` is defined for every case.\n\nThe self case also explains the order of the code: `rhs->data` is read **after** `qstr_ensure_capacity`. If `realloc` moved the array, `lhs->data` (which is `rhs->data`, the same member of the same struct) already holds the new address."
+    },
+    {
+     "type": "md",
+     "text": "Watch the capacities. Every number is predictable because the array grows to exactly what is needed:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n#include \"qstr.h\"\n\nvoid show(const char *name, const struct qstr *q) {\n    printf(\"%-3s length %2zu, capacity %2zu: \\\"%s\\\"\\n\",\n           name, q->length, q->capacity, q->data);\n}\n\nint main(void) {\n    struct qstr *a = qstr_fromcstr(\"CISC\");\n    struct qstr *b = qstr_fromcstr(\"220\");\n    struct qstr *c = qstr_new();\n    if (!a || !b || !c) {\n        qstr_destroy(a);\n        qstr_destroy(b);\n        qstr_destroy(c);\n        return 1;\n    }\n    show(\"a\", a);\n    show(\"b\", b);\n\n    qstr_concat(a, b);      // needs 4 + 3 + 1 = 8 > 5: grows\n    show(\"a\", a);\n    qstr_concat(a, a);      // a onto itself: needs 7 + 7 + 1 = 15\n    show(\"a\", a);\n\n    qstr_assign(b, a);      // b needs 14 + 1 = 15 > 4: grows\n    show(\"b\", b);\n    qstr_assign(a, c);      // a becomes \"\" but keeps capacity 15\n    show(\"a\", a);\n\n    qstr_destroy(a);\n    qstr_destroy(b);\n    qstr_destroy(c);\n    return 0;\n}",
+     "caption": "grow.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o grow grow.c qstr.c\n$ ./grow\na   length  4, capacity  5: \"CISC\"\nb   length  3, capacity  4: \"220\"\na   length  7, capacity  8: \"CISC220\"\na   length 14, capacity 15: \"CISC220CISC220\"\nb   length 14, capacity 15: \"CISC220CISC220\"\na   length  0, capacity 15: \"\"\n$ valgrind ./grow\n...\n==32560==   total heap usage: 10 allocs, 10 frees, 4,223 bytes allocated\n...\n==32560== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)"
+    },
+    {
+     "type": "md",
+     "text": "- `qstr_concat(a, b)`: needs 4 + 3 + 1 = 8, more than 5, so the array grows to 8.\n- `qstr_concat(a, a)`: needs 7 + 7 + 1 = 15.\n- `qstr_assign(b, a)`: needs 14 + 1 = 15, more than 4: grows.\n- `qstr_assign(a, c)`: `c` is empty, needs 1. The capacity 15 is enough, and **ensure never shrinks**, so `a` keeps 15.\n\nvalgrind counts 10 allocations: 2 for each of the three `qstr`s, 3 `realloc`s (valgrind counts each successful `realloc` as one allocation and one free), and 1 for `printf`'s output buffer (Day 20). 10 frees: nothing leaks, even though the arrays moved."
+    },
+    {
+     "type": "check",
+     "q": "`s` holds `\"exam\"` with capacity 5 and `t` holds `\"week\"` with capacity 5. After `qstr_concat(s, t);` what are the length and capacity of `s`? And after a further `qstr_assign(t, s);`?",
+     "a": "`s`: length 8, capacity 9 (4 + 4 + 1). Then `t` needs 8 + 1 = 9 > 5, so `t` also becomes length 8, capacity 9, holding `\"examweek\"`."
+    },
+    {
+     "type": "why",
+     "q": "`qstr_ensure_capacity` returns `NULL` when `realloc` fails, but the `qstr` is still usable. Why is that true, and why would `s->data = realloc(s->data, capacity);` break it?",
+     "a": "When `realloc` fails it does not touch the old block, and the function changes `s` only after checking `buf`, so `s->data` still points at the old, valid array with the same length and capacity. With `s->data = realloc(...)`, a failure would store `NULL` in `s->data`: the old array leaks (nobody has its address any more) and the `qstr` no longer has an array."
+    },
+    {
+     "type": "pitfall",
+     "text": "Do not keep a copy of `s->data` in a local pointer across a call that may grow `s` (`qstr_concat`, `qstr_assign`). If `realloc` moves the array, your copy is a **dangling pointer** to freed memory. Read `s->data` again after the call."
+    },
+    {
+     "type": "try",
+     "text": "Add `qstr_ensure_capacity`, `qstr_assign` and `qstr_concat` to your Day 20 `qstr.c` (and the two public ones to `qstr.h`), then compile and run `grow.c` and `valgrind ./grow`. Then change the `memmove` in `qstr_concat` to `memcpy`: it may still *seem* to work, but it is undefined behaviour, so change it back."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `qstr_ensure_capacity(s, cap)`: nothing if `s->capacity >= cap`; else `buf = realloc(s->data, cap)`, return `NULL` (with `s` unchanged) if it fails, else `s->data = buf; s->capacity = cap;`. Grows to exactly `cap`, never shrinks.\n- `qstr_assign(lhs, rhs)`: `NULL` checks, nothing if `lhs == rhs`; ensure `rhs->length + 1`, **check the result**, `memcpy` `rhs->length + 1` bytes, set `lhs->length`.\n- `qstr_copy` (notebook version) = `qstr_alloc(s->capacity)` + `qstr_assign(q, s)`.\n- `qstr_concat(lhs, rhs)`: ensure `lhs->length + rhs->length + 1`, `memmove(lhs->data + lhs->length, rhs->data, rhs->length + 1)`, add the lengths. `memmove` because `rhs` may be `lhs`.\n- After anything that may grow `s`, old copies of `s->data` may dangle."
+    }
+   ]
+  },
+  {
+   "id": "c21-opaque",
+   "title": "Hiding the struct, and building the whole library",
+   "notebook": "c/string_implementation.ipynb",
+   "priority": "medium",
+   "examNote": "April 2022 Q4(a)/(b) asked for a struct definition and a `typedef` for it. An opaque type is usually given a typedef name in the header, `typedef struct qstr qstr;` (the course's stack does this on Day 23). Also be ready to explain in two sentences why a library passes its objects **by pointer**: users never need the struct's size, so the library's struct can change without users recompiling.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### C has no `private`\n\nIn Java you would make `length` a `private` field so that only the class's own methods can touch it. C has no such keyword: if a user can see the struct definition, they can read and write every member. The notebook's `last_char.c` does exactly that, and with our header it is allowed:\n\n```c\nstruct qstr *str = qstr_fromcstr(\"HELLO\");\nstr->data[str->length - 1] = 'o';      // the user changes data directly\nputs(str->data);                        // HELLo\n```\n\nThat is fine for our simple library (it is even the notebook's design: users may use `data` with `<string.h>`). But a user could also write `str->length = 100;` and break the invariant, and every program that uses the members depends on how the struct is laid out."
+    },
+    {
+     "type": "md",
+     "text": "### An opaque type\n\nC cannot hide **one** member, but it can hide **all** of them. The header only **declares** the struct (gives its tag, no members), and the **definition** moves into `qstr.c`:\n\n```c\n// in qstr.h: declared, not defined\nstruct qstr;\n\n// in qstr.c: the definition, which users never see\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n```\n\nA struct that has been declared but not defined is an **incomplete type** (Day 13's `tdbad.c` error). Users can still make and pass **pointers** to it, `struct qstr *`, because every object pointer has the same size; they just cannot look inside. A type used only through pointers, with its contents hidden, is called an **opaque type**. You will meet a famous one on Day 26: `FILE` in `<stdio.h>`, which you only ever use as a `FILE *`.\n\nUsers usually get only the header files and the **already compiled** library (the `.o` or library file, not the `.c`), so the details really are out of sight."
+    },
+    {
+     "type": "md",
+     "text": "With an opaque `qstr`, every line of `last_char.c` that uses `->` stops compiling:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o last_char last_char.c qstr.c\nlast_char.c: In function 'main':\nlast_char.c:9:8: error: invalid use of undefined type 'struct qstr'\n    9 |     str->data[str->length - 1] = 'o';\n      |        ^~\nlast_char.c:9:18: error: invalid use of undefined type 'struct qstr'\n    9 |     str->data[str->length - 1] = 'o';\n      |                  ^~\nlast_char.c:10:13: error: invalid use of undefined type 'struct qstr'\n   10 |     puts(str->data);\n      |             ^~",
+     "caption": "last_char.c with the opaque qstr.h"
+    },
+    {
+     "type": "md",
+     "text": "So, as the notebook says, the library must now **provide functions** for what users used to read from the members: one that returns the length and one that returns a pointer to the start of `data` (so the string can still go to `puts`, `printf` and `<string.h>`). The notebook does not name them; we call them `qstr_length` and `qstr_data`. They go in `qstr.c`, after the struct definition:"
+    },
+    {
+     "type": "code",
+     "code": "// in qstr.h\nstruct qstr;          // declared, not defined: an opaque type\n\n// Returns the length of s (0 if s is NULL).\nsize_t qstr_length(const struct qstr *s);\n\n// Returns a pointer to the first character of s (NULL if s is NULL).\nchar *qstr_data(const struct qstr *s);\n\n// in qstr.c\nsize_t qstr_length(const struct qstr *s) {\n    return s ? s->length : 0;\n}\n\nchar *qstr_data(const struct qstr *s) {\n    return s ? s->data : NULL;\n}",
+     "caption": "the opaque version's additions"
+    },
+    {
+     "type": "code",
+     "code": "// last_char2.c: the same job through the opaque interface\n\n#include <stdio.h>\n\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *str = qstr_fromcstr(\"HELLO\");\n    if (!str) {\n        return 1;\n    }\n    qstr_set(str, qstr_length(str) - 1, 'o');\n    puts(qstr_data(str));\n    printf(\"length %zu\\n\", qstr_length(str));\n    qstr_destroy(str);\n    return 0;\n}",
+     "caption": "last_char2.c: the same job through the interface"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o last_char2 last_char2.c qstr.c\n$ ./last_char2\nHELLo\nlength 5"
+    },
+    {
+     "type": "md",
+     "text": "`s ? s->length : 0` is the conditional operator (Day 9): if `s` is not `NULL` the length, else 0. Getting the length is still O(1): one function call that reads one member."
+    },
+    {
+     "type": "md",
+     "text": "### Why pass by pointer: binary compatibility\n\nEvery `qstr` function takes and returns `struct qstr *`, never a `struct qstr`. Compare two possible declarations:\n\n```c\nstruct qstr qstr_new(void);    // 1: returns the struct by value\nstruct qstr *qstr_new(void);   // 2: returns a pointer\n```\n\n- Version 1 copies a whole struct into the caller. The compiler must know the struct's **size** (and layout) when it compiles the **user's** code, so the struct cannot be opaque. If a new library version changes the struct, every user must **recompile**.\n- Version 2 returns an address, and an address has the same size whatever the struct contains. The user's compiled code never depends on the struct.\n\nThis is called **binary compatibility**: users can switch to a new version of the library by **relinking** their existing `.o` files (Day 8: linking joins `.o` files), without recompiling. We tried it: compile `last_char2.c` **once** with the opaque header, then change the library's struct (new member order and an extra member), recompile **only** `qstr.c`, and link again:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -c last_char2.c          # the user compiles once\n$ gcc -std=c17 -Wall -c qstr.c               # library version 1\n$ gcc -o lc last_char2.o qstr.o\n$ ./lc\nHELLo\nlength 5\n$ cd v2                                        # version 2: struct reordered, one member added\n$ gcc -std=c17 -Wall -c qstr.c\n$ cd ..\n$ gcc -o lc2 last_char2.o v2/qstr.o           # same last_char2.o, new library\n$ ./lc2\nHELLo\nlength 5"
+    },
+    {
+     "type": "md",
+     "text": "With the **non-opaque** header the same experiment is broken. A user's `len.c` printed `s->length` and `s->capacity`. We swapped the order of `length` and `capacity` in the library (header and `qstr.c`), recompiled only the library and relinked the old `len.o`. The old `len.o` still reads the first 8 bytes of the struct as `length`, but the library now stores `capacity` there. On our machine it printed:\n\n```\nlength 6, capacity 5        (correct: length 5, capacity 6)\n```\n\nThe two halves of the program disagree about what the struct looks like, which C does not allow (undefined behaviour); here it silently gave wrong numbers. Recompiling `len.c` with the new header fixed it. That recompiling is exactly what an opaque type makes unnecessary."
+    },
+    {
+     "type": "check",
+     "q": "With `struct qstr;` in the header (opaque), which of these compile in a user's file: `struct qstr *p = qstr_new();`, `struct qstr s;`, `sizeof(struct qstr)`, `p->length`, `qstr_length(p)`?",
+     "a": "Only the first and the last. `struct qstr s;` and `sizeof(struct qstr)` need the size (gcc: *storage size of 's' isn't known*, *invalid application of 'sizeof' to incomplete type*), and `p->length` needs the members (*invalid use of undefined type*). Pointers and function calls are fine."
+    },
+    {
+     "type": "md",
+     "text": "### The whole library, and compiling several files\n\nBack to the normal (non-opaque) `qstr.h`, now with all the declarations: Day 20's seven plus `qstr_assign`, `qstr_concat` and `qstr_remrange`. The two helpers `qstr_alloc` and `qstr_ensure_capacity` stay out of the header: they are for `qstr.c` only. Here are today's new declarations:"
+    },
+    {
+     "type": "code",
+     "code": "// Copies the length and characters of rhs into lhs, growing lhs if needed.\n// Returns lhs. lhs is unchanged if rhs is NULL.\n// Returns NULL if lhs is NULL or if memory runs out.\nstruct qstr *qstr_assign(struct qstr *lhs, const struct qstr *rhs);\n\n// Appends the characters of rhs (which may be lhs itself) to the end of\n// lhs, growing lhs if needed. Returns lhs. lhs is unchanged if rhs is NULL.\n// Returns NULL if lhs is NULL or if memory runs out.\nstruct qstr *qstr_concat(struct qstr *lhs, const struct qstr *rhs);\n\n// Removes the characters at indexes start, start + 1, ..., stop - 1.\n// Needs 0 <= start <= stop <= s->length. Returns s.\n// Returns NULL (and changes nothing) if s is NULL or the range is invalid.\nstruct qstr *qstr_remrange(struct qstr *s, size_t start, size_t stop);",
+     "caption": "added to qstr.h (before #endif)"
+    },
+    {
+     "type": "md",
+     "text": "In `qstr.c`, `qstr_alloc` and `qstr_ensure_capacity` must come **before** the functions that call them, because they are not declared in the header. The public functions can be in any order: `qstr.c` includes `qstr.h`, so all of them are declared at the top (that is how `qstr_copy` can call `qstr_assign`, which is defined further down).\n\nThe notebook's test program `qstr_demo.c` calls every function. It uses `tolower` and `toupper` from `<ctype.h>`: `tolower(c)` gives the lowercase version of a letter (`'C'` becomes `'c'`) and returns any other character unchanged; `toupper` does the opposite. Two changes from the notebook's file, both for `gcc -Wall`: `%lu` became `%zu` (the right format for `size_t`), and the second upper-case loop no longer stores the result in an unused variable `c` (gcc warned `unused variable 'c'`)."
+    },
+    {
+     "type": "code",
+     "code": "#include <ctype.h>\n#include <stdio.h>\n#include <string.h>\n\n#include \"qstr.h\"\n\nvoid print(const char *pre, const struct qstr *q) {\n    if (pre) {\n        printf(\"%s : length = %zu, capacity = %zu, data = %s\\n\",\n                pre, q->length, q->capacity, q->data);\n    }\n    else  {\n        printf(\"length = %zu, capacity = %zu, data = %s\\n\",\n                q->length, q->capacity, q->data);\n    }\n}\n\nint main(void) {\n    struct qstr *q = qstr_new();\n    print(\"q\", q);\n    qstr_destroy(q);\n\n    q = qstr_fromcstr(\"CISC220\");\n    print(\"q\", q);\n\n    struct qstr *q2 = qstr_copy(q);\n    print(\"q\", q);\n    print(\"q2\", q2);\n\n    qstr_clear(q2);\n    print(\"q\", q);\n    print(\"q2\", q2);\n\n    for (size_t i = 0; i < q->length; i++) {\n        char *c = qstr_get(q, i);\n        printf(\"char : %c\\n\", *c);\n    }\n    print(\"q\", q);\n\n    for (size_t i = 0; i < q->length; i++) {\n        char *c = qstr_set(q, i, tolower(*qstr_get(q, i)));\n        printf(\"char : %c\\n\", *c);\n    }\n    print(\"q\", q);\n\n    qstr_assign(q2, q);\n    print(\"q\", q);\n    print(\"q2\", q2);\n\n    for (size_t i = 0; i < q->length; i++) {\n        qstr_set(q, i, toupper(*qstr_get(q, i)));\n    }\n    print(\"q\", q);\n    print(\"q2\", q2);\n\n    qstr_concat(q2, q);\n    print(\"q\", q);\n    print(\"q2\", q2);\n\n    qstr_concat(q2, q2);\n    print(\"q2\", q2);\n\n    struct qstr *q3 = qstr_copy(q);\n    for (size_t i = 0; i <= q->length; i++) {\n        qstr_assign(q3, q);\n        qstr_remrange(q3, i, q3->length);\n        print(\"q3\", q3);\n    }\n\n    qstr_destroy(q);\n    qstr_destroy(q2);\n    qstr_destroy(q3);\n\n    return 0;\n}",
+     "caption": "qstr_demo.c"
+    },
+    {
+     "type": "md",
+     "text": "A program made of several `.c` files can be built in one command, or one file at a time (Day 8):"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o qstr_demo qstr_demo.c qstr.c       # all at once\n$ gcc -std=c17 -Wall -c qstr.c                              # or: compile each file...\n$ gcc -std=c17 -Wall -c qstr_demo.c\n$ gcc -o qstr_demo qstr_demo.o qstr.o                      # ...then link the .o files\n$ ./qstr_demo\nq : length = 0, capacity = 8, data = \nq : length = 7, capacity = 8, data = CISC220\nq : length = 7, capacity = 8, data = CISC220\nq2 : length = 7, capacity = 8, data = CISC220\nq : length = 7, capacity = 8, data = CISC220\nq2 : length = 0, capacity = 8, data = \nchar : C\nchar : I\nchar : S\nchar : C\nchar : 2\nchar : 2\nchar : 0\nq : length = 7, capacity = 8, data = CISC220\nchar : c\nchar : i\nchar : s\nchar : c\nchar : 2\nchar : 2\nchar : 0\nq : length = 7, capacity = 8, data = cisc220\nq : length = 7, capacity = 8, data = cisc220\nq2 : length = 7, capacity = 8, data = cisc220\nq : length = 7, capacity = 8, data = CISC220\nq2 : length = 7, capacity = 8, data = cisc220\nq : length = 7, capacity = 8, data = CISC220\nq2 : length = 14, capacity = 15, data = cisc220CISC220\nq2 : length = 28, capacity = 29, data = cisc220CISC220cisc220CISC220\nq3 : length = 0, capacity = 8, data = \nq3 : length = 1, capacity = 8, data = C\nq3 : length = 2, capacity = 8, data = CI\nq3 : length = 3, capacity = 8, data = CIS\nq3 : length = 4, capacity = 8, data = CISC\nq3 : length = 5, capacity = 8, data = CISC2\nq3 : length = 6, capacity = 8, data = CISC22\nq3 : length = 7, capacity = 8, data = CISC220\n$ valgrind ./qstr_demo\n...\n==2270==   total heap usage: 11 allocs, 11 frees, 4,268 bytes allocated\n...\n==2270== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)"
+    },
+    {
+     "type": "md",
+     "text": "Things to check in the output:\n\n- `q2` is a copy of `q` with the same capacity 8. After `qstr_clear(q2)`, `q` is unchanged: a deep copy.\n- `qstr_assign(q2, q)` needs 8 bytes, and `q2` has 8: no growth. Changing `q` to upper case afterwards does not change `q2`.\n- `qstr_concat(q2, q)`: 7 + 7 + 1 = 15. `qstr_concat(q2, q2)` (self!): 14 + 14 + 1 = 29.\n- The last loop: for each `i` from 0 to 7, `q3` is reset to `\"CISC220\"` with `qstr_assign` and then cut at `i` with `qstr_remrange(q3, i, q3->length)`. The capacity stays 8.\n- valgrind: 11 allocations = 4 `qstr`s (the first `q`, the second `q`, `q2`, `q3`) times 2, plus 2 `realloc`s in the two concats, plus `printf`'s buffer. All freed.\n\n**Which files to recompile?** If you change only `qstr.c`, recompile `qstr.c` and relink; `qstr_demo.o` is still good. If you change `qstr.h` (the struct, a declaration), recompile **every** `.c` file that includes it. With the one-command form gcc recompiles everything every time, which is fine for two files."
+    },
+    {
+     "type": "pitfall",
+     "text": "Never `#include \"qstr.c\"` in your program (Day 8). Include the **header** and give `qstr.c` to gcc. And do not forget it: `gcc -o qstr_demo qstr_demo.c` alone fails at link time with `undefined reference to 'qstr_new'` (and every other `qstr_` function)."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- C has no `private`. To hide members, declare `struct qstr;` in the header and define it in `qstr.c`: an **opaque type** (an incomplete type to users), like `FILE`.\n- Users of an opaque type can use `struct qstr *` and call functions, but not `->`, `sizeof(struct qstr)` or `struct qstr s;`. The library must add functions such as `qstr_length` and `qstr_data`.\n- Passing objects **by pointer** gives **binary compatibility**: the struct can change and users only **relink**. Returning a struct by value needs its size in the user's code, so users must recompile.\n- Build: `gcc -std=c17 -Wall -o prog prog.c qstr.c`, or `-c` each file and link the `.o` files. Change `qstr.c`: recompile it and relink. Change `qstr.h`: recompile every file that includes it.\n- Helpers used only inside `qstr.c` (`qstr_alloc`, `qstr_ensure_capacity`) are not in the header and must be defined before they are used."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c21-fc-01",
+   "topic": "c21-remrange",
+   "front": "Which characters does `qstr_remrange(s, start, stop)` remove, and when is the range valid?",
+   "back": "Indexes `start` to `stop - 1` (`stop - start` characters). Valid when `start <= stop <= s->length`; otherwise it returns `NULL` and changes nothing."
+  },
+  {
+   "id": "c21-fc-02",
+   "topic": "c21-remrange",
+   "front": "How many bytes does `qstr_remrange` move, and why the `+ 1`?",
+   "back": "`s->length - stop + 1`: the characters from index `stop` to the end, plus the `'\\0'`, so the shorter string ends in the right place."
+  },
+  {
+   "id": "c21-fc-03",
+   "topic": "c21-remrange",
+   "front": "Write the `memmove` call in `qstr_remrange`.",
+   "back": "`memmove(s->data + start, s->data + stop, s->length - stop + 1);` then `s->length -= stop - start;`"
+  },
+  {
+   "id": "c21-fc-04",
+   "topic": "c21-remrange",
+   "front": "Why `memmove` and not `memcpy` in `qstr_remrange`?",
+   "back": "The source (`data + stop` onwards) and destination (`data + start` onwards) can overlap, and `memcpy` is undefined behaviour for overlapping areas."
+  },
+  {
+   "id": "c21-fc-05",
+   "topic": "c21-remrange",
+   "front": "Does `qstr_remrange` change the capacity? What happens to the old characters after the new end?",
+   "back": "No, the capacity stays the same. The old characters remain in the array after the new `'\\0'`, but they are not part of the string."
+  },
+  {
+   "id": "c21-fc-06",
+   "topic": "c21-grow",
+   "front": "What does `qstr_ensure_capacity(s, cap)` do?",
+   "back": "If `s->capacity >= cap` nothing. Otherwise `buf = realloc(s->data, cap)`; on failure return `NULL` (s unchanged); on success `s->data = buf; s->capacity = cap;`. Returns `s`."
+  },
+  {
+   "id": "c21-fc-07",
+   "topic": "c21-grow",
+   "front": "Why does `qstr_ensure_capacity` put the result of `realloc` in `buf` first?",
+   "back": "If `realloc` fails it returns `NULL` and leaves the old block alone. Assigning straight to `s->data` would lose the only pointer to the old array (a leak) and leave the `qstr` without an array."
+  },
+  {
+   "id": "c21-fc-08",
+   "topic": "c21-grow",
+   "front": "Does `qstr_ensure_capacity` ever make the array smaller?",
+   "back": "No. It only grows (to exactly the capacity asked for). `qstr_assign(a, empty)` keeps `a`'s large capacity."
+  },
+  {
+   "id": "c21-fc-09",
+   "topic": "c21-grow",
+   "front": "What capacity does `qstr_assign(lhs, rhs)` need, and how does it copy?",
+   "back": "`rhs->length + 1`. It copies with `memcpy(lhs->data, rhs->data, rhs->length + 1)` (not `strcpy`, which stops at an inner `'\\0'`) and sets `lhs->length = rhs->length`."
+  },
+  {
+   "id": "c21-fc-10",
+   "topic": "c21-grow",
+   "front": "Why does `qstr_assign` return at once when `lhs == rhs`?",
+   "back": "There is nothing to do, and `memcpy` of an area onto itself is an overlapping copy (undefined behaviour)."
+  },
+  {
+   "id": "c21-fc-11",
+   "topic": "c21-grow",
+   "front": "What capacity does `qstr_concat(lhs, rhs)` need, and what is the copy?",
+   "back": "`lhs->length + rhs->length + 1`. `memmove(lhs->data + lhs->length, rhs->data, rhs->length + 1);` then `lhs->length += rhs->length`."
+  },
+  {
+   "id": "c21-fc-12",
+   "topic": "c21-grow",
+   "front": "Why must `qstr_concat` use `memmove`?",
+   "back": "`rhs` may be `lhs` itself (`qstr_concat(s, s)`). Then source `data[0..length]` and destination `data[length..2*length]` share `data[length]`: they overlap."
+  },
+  {
+   "id": "c21-fc-13",
+   "topic": "c21-grow",
+   "front": "How does the notebook's `qstr_copy` use `qstr_assign`?",
+   "back": "`q = qstr_alloc(s->capacity);` then, if `q` is not `NULL`, `qstr_assign(q, s);`. No growth is needed because `q` already has `s`'s capacity."
+  },
+  {
+   "id": "c21-fc-14",
+   "topic": "c21-opaque",
+   "front": "What is an opaque type, and how do you make `struct qstr` one?",
+   "back": "A type users can only handle through pointers, its members hidden. Put only `struct qstr;` in `qstr.h` and the full definition in `qstr.c`. `FILE` is a standard example."
+  },
+  {
+   "id": "c21-fc-15",
+   "topic": "c21-opaque",
+   "front": "With an opaque `struct qstr`, what can a user's file not do?",
+   "back": "Use `->` on it, take `sizeof(struct qstr)`, or declare a `struct qstr` variable (incomplete type). It can declare `struct qstr *` and call the library's functions."
+  },
+  {
+   "id": "c21-fc-16",
+   "topic": "c21-opaque",
+   "front": "What is binary compatibility, and why does passing by pointer give it?",
+   "back": "Users can move to a new library version by relinking, without recompiling. A pointer has the same size whatever the struct holds, so the user's compiled code never depends on the struct's size or layout."
+  },
+  {
+   "id": "c21-fc-17",
+   "topic": "c21-opaque",
+   "front": "Two ways to build `qstr_demo` from `qstr_demo.c` and `qstr.c`?",
+   "back": "`gcc -std=c17 -Wall -o qstr_demo qstr_demo.c qstr.c`, or `gcc -std=c17 -Wall -c qstr.c`, `gcc -std=c17 -Wall -c qstr_demo.c`, `gcc -o qstr_demo qstr_demo.o qstr.o`."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c21-q-01",
+   "topic": "c21-remrange",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's complete `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"programming\");\n    qstr_remrange(s, 3, 7);\n    printf(\"%s %zu %zu\\n\", s->data, s->length, s->capacity);\n    qstr_remrange(s, s->length - 2, s->length);\n    printf(\"%s %zu\\n\", s->data, s->length);\n    if (qstr_remrange(s, 2, 6) == NULL) {\n        printf(\"NULL\\n\");\n    }\n    printf(\"%s\\n\", s->data);\n    qstr_destroy(s);\n    return 0;\n}",
+   "answer": "proming 7 12\npromi 5\nNULL\npromi",
+   "explain": "`\"programming\"` has length 11 and capacity 12. `qstr_remrange(s, 3, 7)` removes indexes 3 to 6 (`g r a m`), leaving `pro` + `ming` = `\"proming\"`, length 7; the capacity does not change. `qstr_remrange(s, s->length - 2, s->length)` is `qstr_remrange(s, 5, 7)`: it removes the last two characters: `\"promi\"`. Then `stop` 6 is greater than the length 5, so the call returns `NULL` and nothing changes."
+  },
+  {
+   "id": "c21-q-02",
+   "topic": "c21-remrange",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's complete `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"ABCDEFGH\");\n    qstr_remrange(s, 4, 7);\n    printf(\"%s\\n\", s->data);\n    printf(\"%s\\n\", s->data + 6);\n    printf(\"%zu\\n\", s->length);\n    qstr_destroy(s);\n    return 0;\n}",
+   "answer": "ABCDH\nGH\n5",
+   "explain": "After removing `EFG`, the array is `A B C D H \\0 G H \\0`: only 2 bytes (`H` and `'\\0'`) moved to indexes 4 and 5. Indexes 6 to 8 still hold the old `G`, `H` and the old `'\\0'`, so `s->data + 6` is the C string `\"GH\"`. Those bytes are inside the array and were set, so reading them is fine; they are just not part of the `qstr`, whose length is 5."
+  },
+  {
+   "id": "c21-q-03",
+   "topic": "c21-grow",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's complete `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *a = qstr_fromcstr(\"hi\");\n    struct qstr *b = qstr_new();\n    qstr_concat(b, a);\n    printf(\"b: %s %zu %zu\\n\", b->data, b->length, b->capacity);\n    qstr_concat(a, b);\n    printf(\"a: %s %zu %zu\\n\", a->data, a->length, a->capacity);\n    qstr_concat(a, a);\n    printf(\"a: %s %zu %zu\\n\", a->data, a->length, a->capacity);\n    qstr_assign(b, a);\n    printf(\"b: %s %zu %zu\\n\", b->data, b->length, b->capacity);\n    qstr_destroy(a);\n    qstr_destroy(b);\n    return 0;\n}",
+   "answer": "b: hi 2 8\na: hihi 4 5\na: hihihihi 8 9\nb: hihihihi 8 9",
+   "explain": "`b` starts with capacity 8, enough for `\"hi\"` (needs 3): no growth. `a` has capacity 3; `qstr_concat(a, b)` needs 2 + 2 + 1 = 5. `qstr_concat(a, a)` needs 4 + 4 + 1 = 9. `qstr_assign(b, a)` needs 8 + 1 = 9 > 8, so `b` grows to 9."
+  },
+  {
+   "id": "c21-q-04",
+   "topic": "c21-grow",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's complete `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *a = qstr_fromcstr(\"a long string\");\n    struct qstr *b = qstr_fromcstr(\"ok\");\n    qstr_assign(a, b);\n    struct qstr *c = qstr_copy(a);\n    printf(\"%s %zu %zu\\n\", a->data, a->length, a->capacity);\n    printf(\"%s %zu %zu\\n\", c->data, c->length, c->capacity);\n    qstr_set(c, 0, 'O');\n    qstr_assign(b, NULL);\n    printf(\"%s %s %s\\n\", a->data, b->data, c->data);\n    qstr_destroy(a);\n    qstr_destroy(b);\n    qstr_destroy(c);\n    return 0;\n}",
+   "answer": "ok 2 14\nok 2 14\nok ok Ok",
+   "explain": "`a` starts as `\"a long string\"` (length 13, capacity 14). `qstr_assign(a, b)` needs only 3 bytes; the capacity never shrinks, so `a` is `\"ok\"` with capacity 14. `qstr_copy(a)` gives the copy the same capacity, 14. Changing the copy `c` does not change `a`. `qstr_assign(b, NULL)` leaves `b` unchanged."
+  },
+  {
+   "id": "c21-q-05",
+   "topic": "c21-grow",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's complete `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"tic\");\n    struct qstr *dash = qstr_fromcstr(\"-\");\n    qstr_concat(qstr_concat(qstr_concat(s, dash), s), NULL);\n    printf(\"%s %zu %zu\\n\", s->data, s->length, s->capacity);\n    qstr_clear(s);\n    qstr_concat(s, dash);\n    printf(\"%s %zu %zu\\n\", s->data, s->length, s->capacity);\n    qstr_destroy(s);\n    qstr_destroy(dash);\n    return 0;\n}",
+   "answer": "tic-tic- 8 9\n- 1 9",
+   "explain": "`qstr_concat` returns `lhs`, so the calls can be nested. Innermost: `s` becomes `\"tic-\"` (capacity 3 + 1 + 1 = 5). Then `qstr_concat(s, s)`: `\"tic-tic-\"`, capacity 4 + 4 + 1 = 9. Then `qstr_concat(s, NULL)` leaves `s` alone. `qstr_clear` empties `s` but keeps capacity 9, so appending `\"-\"` needs no growth."
+  },
+  {
+   "id": "c21-q-06",
+   "topic": "c21-remrange",
+   "type": "output",
+   "q": "What does this program print?\n\n(It is compiled with today's complete `qstr.c`: `gcc -std=c17 -Wall -o prog prog.c qstr.c`.)",
+   "code": "#include <stdio.h>\n#include \"qstr.h\"\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"abcdef\");\n    for (size_t i = 0; i < s->length; i++) {\n        qstr_remrange(s, i, i + 1);\n    }\n    printf(\"%s %zu\\n\", s->data, s->length);\n    qstr_destroy(s);\n    return 0;\n}",
+   "answer": "bdf 3",
+   "explain": "Each removal shifts the rest left, and `i` still goes up by 1, so every other character is skipped. `i = 0` removes `a` (`\"bcdef\"`), `i = 1` removes `c` (`\"bdef\"`), `i = 2` removes `e` (`\"bdf\"`). Now `i = 3` is not less than the length 3, so the loop ends."
+  },
+  {
+   "id": "c21-q-07",
+   "topic": "c21-remrange",
+   "type": "mcq",
+   "q": "A `qstr` has length 10. How many bytes does `qstr_remrange(s, 2, 4)` pass to `memmove`?",
+   "options": [
+    "2",
+    "6",
+    "7",
+    "8"
+   ],
+   "answer": 2,
+   "explain": "`n_tomove = s->length - stop + 1 = 10 - 4 + 1 = 7`: the 6 characters at indexes 4 to 9 and the `'\\0'` at index 10. (2 is the number of characters removed.)"
+  },
+  {
+   "id": "c21-q-08",
+   "topic": "c21-grow",
+   "type": "mcq",
+   "q": "Why does `qstr_concat` use `memmove(lhs->data + lhs->length, rhs->data, rhs->length + 1)` instead of `memcpy`?",
+   "options": [
+    "`memcpy` cannot copy a `'\\0'`",
+    "`rhs` may be the same `qstr` as `lhs`, and then the source and destination overlap",
+    "`memcpy` does not work on memory from `realloc`",
+    "`memmove` also grows the array"
+   ],
+   "answer": 1,
+   "explain": "For `qstr_concat(s, s)` the source is `data[0]` to `data[length]` and the destination starts at `data[length]`: they share a byte. `memcpy` is undefined for overlapping areas; `memmove` handles them. `memcpy` copies any bytes, `'\\0'` included, and neither function allocates memory."
+  },
+  {
+   "id": "c21-q-09",
+   "topic": "c21-grow",
+   "type": "short",
+   "q": "The notebook's text version of `qstr_assign` calls `qstr_ensure_capacity(lhs, REQ_CAPACITY);` on a line of its own and then does the `memcpy`. What can go wrong, and how does the notebook's `qstr.c` fix it?",
+   "answer": "It ignores the return value. If `realloc` fails, `qstr_ensure_capacity` returns `NULL` and the array keeps its old, smaller size, but `memcpy` still copies `rhs->length + 1` bytes into it: a write past the end of the array (undefined behaviour). The fixed version stores the result, `struct qstr *tmp = qstr_ensure_capacity(lhs, REQ_CAPACITY);`, and returns `NULL` if `tmp` is `NULL`, before copying anything.",
+   "explain": "Every call that can fail must be checked. The fixed version also returns `NULL` for `lhs == NULL` and leaves `lhs` alone for `rhs == NULL`, as the header promises."
+  },
+  {
+   "id": "c21-q-10",
+   "topic": "c21-grow",
+   "type": "short",
+   "q": "A student writes this inside `qstr_concat`, before growing: `char *src = rhs->data;` and later, after `qstr_ensure_capacity`, `memmove(lhs->data + lhs->length, src, rhs->length + 1);`. Why is this wrong for `qstr_concat(s, s)`?",
+   "answer": "When `rhs` is `lhs`, `src` holds the address of the old array. If `qstr_ensure_capacity` reallocates and `realloc` moves the block, the old array is freed, so `src` is a dangling pointer and `memmove` reads freed memory (undefined behaviour). Reading `rhs->data` after the growth, as the notebook does, gets the new address.",
+   "explain": "After any call that may `realloc`, every saved copy of the old pointer is invalid. Only the pointer stored back in the struct is updated."
+  },
+  {
+   "id": "c21-q-11",
+   "topic": "c21-opaque",
+   "type": "short",
+   "q": "You make `struct qstr` opaque. What exactly changes in `qstr.h` and `qstr.c`, what happens to a user's line `printf(\"%zu\\n\", s->length);`, and what must the library add?",
+   "answer": "`qstr.h` keeps only the declaration `struct qstr;` and the function declarations; the definition with the three members moves into `qstr.c`. The user's line no longer compiles (gcc: `invalid use of undefined type 'struct qstr'`), because the user's file does not know the members. The library must add functions such as `size_t qstr_length(const struct qstr *s)` and `char *qstr_data(const struct qstr *s)`, and the user writes `qstr_length(s)`.",
+   "explain": "Users can still declare `struct qstr *` pointers and call every `qstr_` function; only the members (and the size) are hidden."
+  },
+  {
+   "id": "c21-q-12",
+   "topic": "c21-opaque",
+   "type": "short",
+   "q": "Library version 2 adds a member to `struct qstr`. Explain why users of `struct qstr *qstr_new(void);` only need to relink, while users of `struct qstr qstr_new(void);` must recompile.",
+   "answer": "Returning a pointer: the user's compiled code only handles an address, whose size is fixed by the language, and (with an opaque type) never touches the members, so nothing in it depends on the struct. Relinking with the new library is enough: this is binary compatibility. Returning by value: the user's code reserves space for the returned struct and copies it, using the struct's size from the header it was compiled with. A new member changes the size, so old compiled code would be wrong until it is recompiled with the new header.",
+   "explain": "That is why libraries of user-defined types (like `FILE *` in `<stdio.h>`) pass their objects by pointer."
+  },
+  {
+   "id": "c21-q-13",
+   "topic": "c21-opaque",
+   "type": "short",
+   "q": "Your program is `wc.c` plus the library `qstr.c` / `qstr.h`. Write the commands to compile each file separately and link them into `wc`. Then say which commands you must run again after (a) fixing a bug inside `qstr_concat` in `qstr.c`, (b) adding a member to the struct in `qstr.h`.",
+   "answer": "`gcc -std=c17 -Wall -c qstr.c`, `gcc -std=c17 -Wall -c wc.c`, `gcc -o wc wc.o qstr.o`. (a) Only `gcc -std=c17 -Wall -c qstr.c` and the link command; `wc.o` is unchanged. (b) All three: both `.c` files include `qstr.h`, so both must be recompiled, then linked.",
+   "explain": "`-c` makes a `.o` file for one source file; linking joins the `.o` files (Day 8). A header change affects every file that includes it."
+  }
+ ],
+ "write": [
+  {
+   "id": "c21-w-01",
+   "topic": "c21-grow",
+   "stage": "worked",
+   "marks": 6,
+   "prompt": "Add a function to `qstr.c`: `struct qstr *qstr_insert(struct qstr *s, size_t index, const char *cs)` inserts the C string `cs` into `s` so that its first character ends up at `index` (`0 <= index <= s->length`; `index == s->length` appends). For example inserting `\"220\"` into `\"CISC\"` at index 4 gives `\"CISC220\"`, and inserting `\" \"` into `\">> CISC220\"` at index 7 gives `\">> CISC 220\"`. It returns `s`, or `NULL` without changing `s` if `s` or `cs` is `NULL`, the index is invalid, or memory runs out. It may call `qstr_ensure_capacity`. Then write a `main` that tests the front, the middle, the end and a bad index.",
+   "starter": "",
+   "solution": "// add to qstr.c, after qstr_ensure_capacity (and the declaration to qstr.h)\n\n// Inserts the C string cs into s so that its first character ends up at\n// index index (0 <= index <= s->length; index == s->length appends).\n// cs must not point into s->data. Returns s, or NULL (s unchanged) if\n// s or cs is NULL, index is invalid, or memory runs out.\nstruct qstr *qstr_insert(struct qstr *s, size_t index, const char *cs) {\n    if (!s || !cs || index > s->length) {\n        return NULL;\n    }\n    size_t n = strlen(cs);\n    if (!qstr_ensure_capacity(s, s->length + n + 1)) {\n        return NULL;\n    }\n    // shift the tail (from index up to and including the '\\0') right by n\n    memmove(s->data + index + n, s->data + index, s->length - index + 1);\n    // copy the new characters into the gap (no '\\0' from cs)\n    memcpy(s->data + index, cs, n);\n    s->length += n;\n    return s;\n}\n\n// w1.c\n#include <stdio.h>\n#include \"qstr.h\"\n\nstruct qstr *qstr_insert(struct qstr *s, size_t index, const char *cs);   // add to qstr.h\n\nint main(void) {\n    struct qstr *s = qstr_fromcstr(\"CISC\");\n    if (!s) {\n        return 1;\n    }\n    qstr_insert(s, 4, \"220\");      // at the end\n    printf(\"%s (length %zu, capacity %zu)\\n\", s->data, s->length, s->capacity);\n    qstr_insert(s, 0, \">> \");      // at the front\n    printf(\"%s (length %zu, capacity %zu)\\n\", s->data, s->length, s->capacity);\n    qstr_insert(s, 7, \" \");        // in the middle\n    printf(\"%s (length %zu, capacity %zu)\\n\", s->data, s->length, s->capacity);\n    if (qstr_insert(s, 99, \"x\") == NULL) {\n        printf(\"index 99: not inserted\\n\");\n    }\n    qstr_destroy(s);\n    return 0;\n}",
+   "explain": "It is `qstr_remrange` run backwards, plus growing.\n\n1. **Check** the arguments: `index > s->length` is the only bad index (`size_t` is never negative). Return before changing anything.\n2. **Grow**: the result needs `s->length + n + 1` bytes. If `qstr_ensure_capacity` fails, return `NULL`; `s` is unchanged.\n3. **Open a gap**: slide the tail (from `index` to the end, **with** the `'\\0'`: `s->length - index + 1` bytes) `n` places to the right. Source and destination overlap, so `memmove`.\n4. **Fill the gap** with the `n` characters of `cs`. They do not overlap the array (that is why `cs` must not point into `s->data`: after a `realloc` it could dangle), so `memcpy` is fine, and it copies only `n` bytes, not `cs`'s `'\\0'`, which would end the string early.\n5. Add `n` to the length.\n\n```\n$ gcc -std=c17 -Wall -o w1 w1.c qstr.c\n$ ./w1\nCISC220 (length 7, capacity 8)\n>> CISC220 (length 10, capacity 11)\n>> CISC 220 (length 11, capacity 12)\nindex 99: not inserted\n```\n\nvalgrind reports no errors and no leaks.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "returns `NULL` for `NULL` arguments and `index > s->length`, before changing anything"
+    },
+    {
+     "marks": 1,
+     "item": "grows to `s->length + strlen(cs) + 1` and returns `NULL` if that fails"
+    },
+    {
+     "marks": 1,
+     "item": "`memmove` of the tail **including the `'\\0'`** (`s->length - index + 1` bytes) to `s->data + index + n`"
+    },
+    {
+     "marks": 1,
+     "item": "copies exactly `n` characters of `cs` to `s->data + index`"
+    },
+    {
+     "marks": 1,
+     "item": "updates `s->length` and returns `s`"
+    },
+    {
+     "marks": 1,
+     "item": "main tests front, middle, end and a bad index, and destroys the `qstr`"
+    }
+   ],
+   "pitfalls": [
+    "Moving the tail with `memcpy`: the areas overlap (undefined behaviour).",
+    "Forgetting the `+ 1` for the `'\\0'` when moving the tail: the string has no terminator in the right place.",
+    "Copying `n + 1` bytes of `cs`: its `'\\0'` lands in the middle and ends the C string early (the `qstr` length would still be right).",
+    "Copying the characters in before growing: they may be written past the end of the old array."
+   ]
+  },
+  {
+   "id": "c21-w-02",
+   "topic": "c21-grow",
+   "stage": "faded",
+   "marks": 6,
+   "prompt": "Fill in the blanks. `qstr_ensure_capacity` makes sure the array of `s` can hold at least `capacity` chars, using `realloc` safely: if `realloc` fails, `s` must be completely unchanged. `qstr_concat` appends `rhs` to `lhs`, growing `lhs` to exactly the size needed; it must also work for `qstr_concat(s, s)`.",
+   "starter": "struct qstr *qstr_ensure_capacity(struct qstr *s, size_t capacity) {\n    if (____) {\n        return s;\n    }\n    char *buf = ____;\n    if (!buf) {\n        fprintf(stderr, \"qstr->data reallocation error\\n\");\n        return ____;\n    }\n    ____;\n    ____;\n    return s;\n}\n\nstruct qstr *qstr_concat(struct qstr *lhs, const struct qstr *rhs) {\n    if (!lhs) {\n        return NULL;\n    }\n    if (!rhs) {\n        return ____;\n    }\n    const size_t REQ_CAPACITY = ____;\n    struct qstr *tmp = qstr_ensure_capacity(lhs, REQ_CAPACITY);\n    if (!tmp) {\n        return NULL;\n    }\n    ____(lhs->data + ____, rhs->data, ____);\n    lhs->length = ____;\n    return lhs;\n}",
+   "solution": "struct qstr *qstr_ensure_capacity(struct qstr *s, size_t capacity) {\n    if (s->capacity >= capacity) {\n        return s;\n    }\n    char *buf = realloc(s->data, capacity);\n    if (!buf) {\n        fprintf(stderr, \"qstr->data reallocation error\\n\");\n        return NULL;\n    }\n    s->data = buf;\n    s->capacity = capacity;\n    return s;\n}\n\nstruct qstr *qstr_concat(struct qstr *lhs, const struct qstr *rhs) {\n    if (!lhs) {\n        return NULL;\n    }\n    if (!rhs) {\n        return lhs;\n    }\n    const size_t REQ_CAPACITY = lhs->length + rhs->length + 1;\n    struct qstr *tmp = qstr_ensure_capacity(lhs, REQ_CAPACITY);\n    if (!tmp) {\n        return NULL;\n    }\n    memmove(lhs->data + lhs->length, rhs->data, rhs->length + 1);\n    lhs->length = lhs->length + rhs->length;\n    return lhs;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`s->capacity >= capacity` returns at once (never shrinks)"
+    },
+    {
+     "marks": 1,
+     "item": "`realloc(s->data, capacity)` into `buf`, and `return NULL;` on failure"
+    },
+    {
+     "marks": 1,
+     "item": "`s->data = buf;` and `s->capacity = capacity;` only after the check"
+    },
+    {
+     "marks": 1,
+     "item": "`return lhs;` for `rhs == NULL`, and `REQ_CAPACITY = lhs->length + rhs->length + 1`"
+    },
+    {
+     "marks": 1,
+     "item": "`memmove` (not `memcpy`) to `lhs->data + lhs->length`, `rhs->length + 1` bytes"
+    },
+    {
+     "marks": 1,
+     "item": "`lhs->length = lhs->length + rhs->length;`"
+    }
+   ],
+   "pitfalls": [
+    "`s->data = realloc(s->data, capacity);`: on failure the old array leaks and `s->data` is `NULL`.",
+    "`realloc(s->data, capacity - s->capacity)`: `realloc` takes the new **total** size, not the extra bytes.",
+    "Forgetting the `+ 1` in `REQ_CAPACITY` or in the copy count: no room for, or no copy of, the `'\\0'`.",
+    "`memcpy` in `qstr_concat`: undefined behaviour for `qstr_concat(s, s)`.",
+    "Setting `lhs->length` before the `memmove`: the destination `lhs->data + lhs->length` is then wrong."
+   ]
+  },
+  {
+   "id": "c21-w-03",
+   "topic": "c21-grow",
+   "stage": "blank",
+   "marks": 6,
+   "examNote": "Modeled on April 2022 final Q3(c) (use `realloc` so that a heap string can **safely** hold a longer string), inside the `qstr` struct.",
+   "prompt": "Using the definition\n\n```c\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n```\n\nwrite `struct qstr *qstr_append_cstr(struct qstr *s, const char *cs)`, which appends the C string `cs` to the end of the `qstr` `s`, **without calling any other `qstr_` function** (use `realloc` yourself, and `<string.h>` functions). If the array is too small, grow it with `realloc` to exactly the size needed. The function returns `s`. It returns `NULL` if `s` or `cs` is `NULL`, or if `realloc` fails; in that case `s` must be **unchanged and still usable** (same array, length and capacity). Remember the invariant: afterwards `data[length]` is `'\\0'`. For example, if `s` holds `\"abc\"` with capacity 4, appending `\"defgh\"` gives `\"abcdefgh\"` with capacity 9.",
+   "starter": "",
+   "solution": "#include <stdlib.h>\n#include <string.h>\n\nstruct qstr {\n    size_t length;\n    size_t capacity;\n    char *data;\n};\n\n// Appends the C string cs to the end of s, growing the array if needed.\n// Returns s; returns NULL if s or cs is NULL or if realloc fails\n// (then s is unchanged and still valid).\nstruct qstr *qstr_append_cstr(struct qstr *s, const char *cs) {\n    if (!s || !cs) {\n        return NULL;\n    }\n    size_t n = strlen(cs);\n    size_t need = s->length + n + 1;\n    if (s->capacity < need) {\n        char *tmp = realloc(s->data, need);\n        if (!tmp) {\n            return NULL;            // s->data is still the old, valid array\n        }\n        s->data = tmp;\n        s->capacity = need;\n    }\n    memcpy(s->data + s->length, cs, n + 1);   // the characters and the '\\0'\n    s->length += n;\n    return s;\n}\n\n// Test (w3.c): s starts empty with capacity 4; appending \"abc\", \"\", \"defgh\", \"i\" prints\n// abc (length 3, capacity 4)\n// abc (length 3, capacity 4)\n// abcdefgh (length 8, capacity 9)\n// abcdefghi (length 9, capacity 10)",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`NULL` checks for `s` and `cs`"
+    },
+    {
+     "marks": 1,
+     "item": "needed size `s->length + strlen(cs) + 1`, and `realloc` only when `s->capacity` is smaller"
+    },
+    {
+     "marks": 1,
+     "item": "result of `realloc` in a temporary pointer, `return NULL` if it is `NULL` (old array untouched)"
+    },
+    {
+     "marks": 1,
+     "item": "`s->data` and `s->capacity` updated only after a successful `realloc`"
+    },
+    {
+     "marks": 1,
+     "item": "copies the characters **and** the `'\\0'` to `s->data + s->length`"
+    },
+    {
+     "marks": 1,
+     "item": "adds `strlen(cs)` to `s->length` and returns `s`"
+    }
+   ],
+   "pitfalls": [
+    "`s->data = realloc(s->data, need);`: on failure the old array is lost (a leak) and `s` has no array.",
+    "`realloc(s->data, strlen(cs))`: the new **total** size is needed, plus 1 for the `'\\0'`.",
+    "`strcat(s->data, cs)`: stops at the first `'\\0'` inside the `qstr` (a `qstr` may contain one), so the text lands in the wrong place; copy to `s->data + s->length`.",
+    "Forgetting to update `s->capacity`: later calls would grow again or think the array is smaller than it is.",
+    "Calling `strlen(cs)` before checking `cs` for `NULL`."
+   ]
+  }
+ ]
+}
