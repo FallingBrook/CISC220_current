@@ -1,0 +1,664 @@
+{
+ "day": 14,
+ "title": "Arrays in depth",
+ "goal": "Use sizeof to find an array's length (and know why it fails on a parameter), initialise and copy arrays, work with two-dimensional arrays, and write the standard array algorithms: linear search, reverse, minimum index and selection sort.",
+ "topics": [
+  {
+   "id": "c14-size-init",
+   "title": "Array size, initialisation and copying",
+   "notebook": "c/arrays.ipynb",
+   "priority": "high",
+   "examNote": "Short answers about arrays are common: why `sizeof` cannot find an array parameter's length, why `x = y;` fails for arrays, and how a function that gets no length knows where to stop (April 2022 Q2 used an array that ends with `-1`).",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### What you already know\n\nDay 3: `int a[5];`, indexes 0 to 4, no bounds checking, initialiser lists, VLAs. Day 5: an array argument **decays** to a pointer to its first element, so `int a[]`, `int *a` and `int a[static 8]` are the same parameter. Day 12: `arr + i` and `*(arr + i)`.\n\nToday fills in the rest of the arrays notebook, then adds two things it leaves out: two-dimensional arrays and the standard array algorithms."
+    },
+    {
+     "type": "md",
+     "text": "### `sizeof` an array versus `sizeof` a pointer\n\n`sizeof` gives the number of **bytes** an object uses. For a real array, that is *all* of its elements: `int x[100];` uses 100 × 4 = 400 bytes. So, **in the function where the array is declared**, you can compute its length (number of elements):\n\n```c\nsize_t len = sizeof(x) / sizeof(x[0]);   // total bytes / bytes per element\n```\n\n`sizeof(x[0])` is better than `sizeof(int)`: it stays right if you later change the element type.\n\nInside a function that *received* the array, the parameter is really a pointer (Day 5), so `sizeof` gives the size of a pointer: 8 bytes on our machines, whatever the array's length. gcc even warns you:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid f(int arr[]) {\n    printf(\"in f: sizeof(arr) = %zu\\n\", sizeof(arr));\n}\n\nint main(void) {\n    int x[100];\n    double d[5] = {1.5};\n    printf(\"sizeof(x)    = %zu\\n\", sizeof(x));\n    printf(\"sizeof(x[0]) = %zu\\n\", sizeof(x[0]));\n    printf(\"length of x  = %zu\\n\", sizeof(x) / sizeof(x[0]));\n    printf(\"length of d  = %zu\\n\", sizeof(d) / sizeof(d[0]));\n    f(x);\n    return 0;\n}",
+     "caption": "sizes.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o sizes sizes.c\nsizes.c: In function 'f':\nsizes.c:4:47: warning: 'sizeof' on array function parameter 'arr' will return size of 'int *' [-Wsizeof-array-argument]\n    4 |     printf(\"in f: sizeof(arr) = %zu\\n\", sizeof(arr));\n      |                                               ^\nsizes.c:3:12: note: declared here\n    3 | void f(int arr[]) {\n      |        ~~~~^~~~~\n$ ./sizes\nsizeof(x)    = 400\nsizeof(x[0]) = 4\nlength of x  = 100\nlength of d  = 5\nin f: sizeof(arr) = 8",
+     "caption": "The warning names the problem: `sizeof` on the parameter gives the size of `int *`. 8 is not 100 × 4."
+    },
+    {
+     "type": "why",
+     "q": "Why can't the compiler just tell `f` how long the array is?",
+     "a": "Because only an address is passed (8 bytes), not the array. The same `f` can be called with arrays of 3 elements or 3 million; nothing about the length travels with the address. So the length must travel separately."
+    },
+    {
+     "type": "md",
+     "text": "### Passing the length\n\nThe notebook gives two ways for a function to know where an array ends:\n\n1. **Pass the length** as another parameter, usually `size_t len` (or `int n`). Compute it with `sizeof` in the caller, where the array is real.\n2. **End the array with a special value** (a *sentinel*) that cannot be real data. C strings do this with `'\\0'`. April 2022 Q2 used an array of positive values whose last value is `-1`.\n\nThe notebook's `param.c` uses the first way. Its parameter is `const int arr[]`: `const` promises that `max` only *reads* the array. If it tried `arr[0] = 0;`, the compiler would give an error."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint max(const int arr[], size_t len) {\n    int hi = arr[0];\n    for (size_t i = 1; i < len; i++) {\n        if (arr[i] > hi) {\n            hi = arr[i];\n        }\n    }\n    return hi;\n}\n\nint main(void) {\n    int x[] = { -5, 5, 99, -13, 8 };\n    size_t n = sizeof(x) / sizeof(x[0]);    // works here: x is a real array\n    printf(\"max = %d\\n\", max(x, n));\n    printf(\"max of the first two = %d\\n\", max(x, 2));\n    return 0;\n}",
+     "caption": "param.c (the notebook's example, with the length computed by sizeof)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o param param.c\n$ ./param\nmax = 99\nmax of the first two = 5"
+    },
+    {
+     "type": "md",
+     "text": "Passing a smaller length is fine: `max(x, 2)` looks only at `x[0]` and `x[1]`. Passing a length that is too **big** is undefined behaviour (the loop reads past the end).\n\nOn the exam you will also see the length written *before* the array, so it can be used in the array's type: `int minidx(int n, int arr[n])` (Quiz 2, 2023) or `void f(int n, char *s[static n])` (April 2022). For a parameter, `int arr[n]` is still just a pointer; the `n` documents the length for the reader."
+    },
+    {
+     "type": "md",
+     "text": "### Initialisation details\n\nDay 3 covered `int x[] = {4, 8, 15};` (capacity counted) and short lists. The full rules:\n\n- With an initialiser list, **every** element you do not mention is set to 0. So `int b[6] = {0};` is the usual way to make an all-zero array.\n- Without any initialiser, an ordinary local array is **not** initialised (garbage). A `static` or global array starts all 0 (Day 7).\n- A **designator** `[index] = value` sets a chosen element. The next plain value goes to the following index.\n- With `[]` and designators, the capacity is the largest index used + 1.\n- Too many values (`int x[3] = {1, 2, 3, 4};`) earns a warning (*excess elements*). Never do it.\n- A VLA cannot have an initialiser list (Day 3)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid show(char name, const int a[], size_t n) {\n    printf(\"%c:\", name);\n    for (size_t i = 0; i < n; i++) {\n        printf(\" %d\", a[i]);\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    int a[6] = {1, 2};              // short list: the rest are 0\n    int b[6] = {0};                 // the usual way to zero a whole array\n    int c[6] = {[2] = 5, [4] = 9};  // designators: give the index\n    int d[] = {[3] = 7};            // capacity 4, from the largest index\n    show('a', a, 6);\n    show('b', b, 6);\n    show('c', c, 6);\n    show('d', d, sizeof(d) / sizeof(d[0]));\n    return 0;\n}",
+     "caption": "init.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o init init.c\n$ ./init\na: 1 2 0 0 0 0\nb: 0 0 0 0 0 0\nc: 0 0 5 0 9 0\nd: 0 0 0 7"
+    },
+    {
+     "type": "pitfall",
+     "text": "The arrays notebook's `init3.c` says that with too few initialisers \"the remaining elements of the array are left uninitialized\". The C standard says they are set to **0** (as `a` shows above). Also look closely at `init3.c` itself: `int x[] = {3};` has capacity **1**, so its loop that reads `x[1]` and `x[2]` goes past the end. That is undefined behaviour, so whatever it prints means nothing."
+    },
+    {
+     "type": "md",
+     "text": "### `const` arrays\n\nA `const` array's elements can be given values only in the initialiser. Any later assignment is a compile error:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    const int days[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};\n    days[1] = 29;\n    printf(\"%d\\n\", days[1]);\n    return 0;\n}",
+     "caption": "constarr.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o constarr constarr.c\nconstarr.c: In function 'main':\nconstarr.c:5:13: error: assignment of read-only location 'days[1]'\n    5 |     days[1] = 29;\n      |             ^"
+    },
+    {
+     "type": "md",
+     "text": "### Copying an array\n\nAn array variable cannot be assigned to: `x = y;` is a compile error, even when both arrays have the same type and length (and so is `str1 = str2;` for strings):"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o badassign badassign.c\nbadassign.c: In function 'main':\nbadassign.c:4:7: error: assignment to expression with array type\n    4 |     x = y;\n      |       ^\nbadassign.c:2:9: warning: variable 'x' set but not used [-Wunused-but-set-variable]\n    2 |     int x[] = {1, 2, 3};\n      |         ^",
+     "caption": "bad assignment (badassign.c has `int x[] = {1, 2, 3}; int y[] = {10, 11, 12}; x = y;`)"
+    },
+    {
+     "type": "md",
+     "text": "Copy instead, one of two ways:\n\n1. **A loop**, element by element: `for (int i = 0; i < n; i++) { dst[i] = src[i]; }`\n2. **`memcpy(dest, src, count)`** from `<string.h>`. It copies `count` **bytes** from where `src` points to where `dest` points. For `n` elements write `n * sizeof(element)`. Because array names act as pointers (Day 12), you can copy a *part* of an array by passing `src + 2` or `dst + 1`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    int src[5] = {10, 20, 30, 40, 50};\n    int dst[5];\n    int part[3] = {0};\n\n    // 1. copy element by element\n    for (int i = 0; i < 5; i++) {\n        dst[i] = src[i];\n    }\n    dst[0] = 99;                 // dst is a separate array: src is unchanged\n\n    // 2. memcpy copies bytes: count = number of elements * sizeof one element\n    memcpy(part, src + 2, 3 * sizeof(int));   // src[2], src[3], src[4]\n\n    printf(\"src:  %d %d %d %d %d\\n\", src[0], src[1], src[2], src[3], src[4]);\n    printf(\"dst:  %d %d %d %d %d\\n\", dst[0], dst[1], dst[2], dst[3], dst[4]);\n    printf(\"part: %d %d %d\\n\", part[0], part[1], part[2]);\n    return 0;\n}",
+     "caption": "copy.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o copy copy.c\n$ ./copy\nsrc:  10 20 30 40 50\ndst:  99 20 30 40 50\npart: 30 40 50"
+    },
+    {
+     "type": "pitfall",
+     "text": "The notebook's `memcpy1.c` and `memcpy2.c` do not `#include <string.h>`. With `-Wall` gcc warns `implicit declaration of function 'memcpy'` and suggests the include. Always include `<string.h>` for `memcpy`. And remember the count is in **bytes**: `memcpy(dst, src, 3)` copies 3 bytes, less than one `int`."
+    },
+    {
+     "type": "check",
+     "q": "`int v[] = {2, [5] = 1, 4};` What is the capacity of `v`, and what are its elements?",
+     "a": "Capacity 7: `2 0 0 0 0 1 4`. `[5] = 1` sets index 5, the next value `4` goes to index 6, and the unmentioned elements are 0."
+    },
+    {
+     "type": "check",
+     "q": "`double d[8];` is declared in `main`. What is `sizeof(d) / sizeof(d[0])`? What does the same expression give inside `void g(double d[])`?",
+     "a": "In `main`: 64 / 8 = **8**, the length. Inside `g`: `sizeof(d)` is the pointer size, 8, so 8 / 8 = 1 (and gcc warns). Wrong, by accident a whole number."
+    },
+    {
+     "type": "try",
+     "text": "Compile the notebook's `wrong_size.c` idea yourself: write `void f(int arr[])` that prints `sizeof(arr) / sizeof(int)`, call it with `int x[100];`, and read gcc's warning. Then fix the program by adding a `size_t len` parameter and passing `sizeof(x) / sizeof(x[0])` from `main`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `sizeof(arr) / sizeof(arr[0])` is the length, but **only where the array is declared**. On a parameter, `sizeof` gives the pointer size (8); gcc warns.\n- Tell a function where the array ends: pass the length (`size_t len`, or `int n` before `int a[n]`), or end the array with a sentinel value (`'\\0'`, `-1`).\n- `const int a[]` in a parameter: the function only reads the array.\n- With an initialiser list, unmentioned elements are 0; `= {0}` zeroes everything. `[i] = v` designators pick an index. No initialiser: garbage (unless static).\n- Arrays cannot be assigned. Copy with a loop, or `memcpy(dst, src, n * sizeof(dst[0]))` from `<string.h>` (count is in bytes)."
+    }
+   ]
+  },
+  {
+   "id": "c14-2d",
+   "title": "Two-dimensional arrays",
+   "notebook": "c/arrays.ipynb",
+   "priority": "medium",
+   "examNote": "The course notebook does not cover two-dimensional arrays, so expect them only in small reading or tracing questions. The rules here are standard C17, checked with gcc.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### An array of arrays\n\nA **two-dimensional (2D) array** is an array whose elements are themselves arrays. Think of a table with rows and columns:\n\n```c\nint m[2][3];   // 2 rows, each row is an array of 3 ints\n```\n\nRead the declaration from the name (Day 8): `m` is an array of 2 elements, each of which is an array of 3 `int`s. `m[i]` is row `i` (a whole `int[3]`), and `m[i][j]` is the `int` in row `i`, column `j`. Both indexes start at 0.\n\nInitialise with one inner list per row. Visit every element with **nested loops**: the outer loop picks a row, the inner loop walks along it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int m[2][3] = {\n        {1, 2, 3},      // row 0\n        {4, 5, 6}       // row 1\n    };\n\n    m[1][2] = 60;       // row 1, column 2\n\n    for (int i = 0; i < 2; i++) {          // each row\n        for (int j = 0; j < 3; j++) {      // each column in that row\n            printf(\"%4d\", m[i][j]);\n        }\n        printf(\"\\n\");\n    }\n\n    printf(\"sizeof(m)       = %zu\\n\", sizeof(m));\n    printf(\"sizeof(m[0])    = %zu\\n\", sizeof(m[0]));\n    printf(\"sizeof(m[0][0]) = %zu\\n\", sizeof(m[0][0]));\n    printf(\"rows = %zu, columns = %zu\\n\",\n           sizeof(m) / sizeof(m[0]), sizeof(m[0]) / sizeof(m[0][0]));\n    return 0;\n}",
+     "caption": "grid.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o grid grid.c\n$ ./grid\n   1   2   3\n   4   5  60\nsizeof(m)       = 24\nsizeof(m[0])    = 12\nsizeof(m[0][0]) = 4\nrows = 2, columns = 3"
+    },
+    {
+     "type": "md",
+     "text": "`sizeof(m)` is the whole table (6 × 4 = 24 bytes) and `sizeof(m[0])` is one row (3 × 4 = 12 bytes). So, where `m` is declared, rows = `sizeof(m) / sizeof(m[0])` and columns = `sizeof(m[0]) / sizeof(m[0][0])`."
+    },
+    {
+     "type": "md",
+     "text": "### Row-major layout\n\nMemory is one long row of bytes (Day 12), so the table must be laid out in a line. C stores the rows **one after another**: all of row 0, then all of row 1. This is called **row-major order**. The program below measures how far each element is from the start, in bytes (it uses `char *` pointers so that subtracting them counts bytes):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int m[2][3] = { {1, 2, 3}, {4, 5, 6} };\n    char *start = (char *) &m[0][0];\n\n    for (int i = 0; i < 2; i++) {\n        for (int j = 0; j < 3; j++) {\n            char *here = (char *) &m[i][j];\n            printf(\"m[%d][%d] = %d is %td bytes from the start\\n\",\n                   i, j, m[i][j], here - start);\n        }\n    }\n    return 0;\n}",
+     "caption": "layout.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o layout layout.c\n$ ./layout\nm[0][0] = 1 is 0 bytes from the start\nm[0][1] = 2 is 4 bytes from the start\nm[0][2] = 3 is 8 bytes from the start\nm[1][0] = 4 is 12 bytes from the start\nm[1][1] = 5 is 16 bytes from the start\nm[1][2] = 6 is 20 bytes from the start"
+    },
+    {
+     "type": "md",
+     "text": "So in `T m[R][C]`, element `m[i][j]` comes after `i` whole rows plus `j` elements:\n\n```\noffset of m[i][j] = (i * C + j) * sizeof(T) bytes\n```\n\n```\nbytes:   0    4    8   12   16   20\n       [ 1 ][ 2 ][ 3 ][ 4 ][ 5 ][ 6 ]\n       m[0][0]   m[0][2]   m[1][1]\n       |---- row 0 ---||---- row 1 ---|\n```\n\nNotice the formula uses `C` (the number of columns) but **not** `R`. That fact explains the next rule."
+    },
+    {
+     "type": "md",
+     "text": "### Passing a 2D array to a function\n\nThe array decays to a pointer to its first element, and the first element is a whole **row**. To find `m[i][j]` the function must know how long a row is (the `C` in the formula). So every size except the first must be given:\n\n- **Fixed columns**: `int row_sum(int m[][3], int row)`. The first size may be left empty, the `3` may not.\n- **Any size** (a C99/C17 variable-length parameter): put the sizes first, then use them, `void print_matrix(int rows, int cols, int m[rows][cols])`. This is the same idea as `int minidx(int n, int arr[n])`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// rows and cols come first, so they can be used in the type of m\nvoid print_matrix(int rows, int cols, int m[rows][cols]) {\n    for (int i = 0; i < rows; i++) {\n        for (int j = 0; j < cols; j++) {\n            printf(\"%4d\", m[i][j]);\n        }\n        printf(\"\\n\");\n    }\n}\n\n// fixed number of columns: only the first size may be left out\nint row_sum(int m[][3], int row) {\n    int sum = 0;\n    for (int j = 0; j < 3; j++) {\n        sum += m[row][j];\n    }\n    return sum;\n}\n\nint main(void) {\n    int a[2][3] = { {1, 2, 3}, {4, 5, 6} };\n    int b[3][2] = { {7, 8}, {9, 10}, {11, 12} };\n\n    print_matrix(2, 3, a);\n    print_matrix(3, 2, b);\n    printf(\"sum of row 1 of a = %d\\n\", row_sum(a, 1));\n    return 0;\n}",
+     "caption": "pass2d.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o pass2d pass2d.c\n$ ./pass2d\n   1   2   3\n   4   5   6\n   7   8\n   9  10\n  11  12\nsum of row 1 of a = 15"
+    },
+    {
+     "type": "md",
+     "text": "Leaving out the column count is an error, and passing an array with the wrong row length gets a warning:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -c nocols.c\nnocols.c:1:12: error: array type has incomplete element type 'int[]'\n    1 | void f(int m[][]) {\n      |            ^\nnocols.c:1:12: note: declaration of 'm' as multidimensional array must have bounds for all dimensions except the first",
+     "caption": "nocols.c: `void f(int m[][]) { }`"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o wrongshape wrongshape.c\nwrongshape.c: In function 'main':\nwrongshape.c:6:20: warning: passing argument 1 of 'row_sum' from incompatible pointer type [-Wincompatible-pointer-types]\n    6 |     return row_sum(b, 0);\n      |                    ^\n      |                    |\n      |                    int (*)[2]\nwrongshape.c:1:17: note: expected 'int (*)[3]' but argument is of type 'int (*)[2]'\n    1 | int row_sum(int m[][3], int row) {\n      |             ~~~~^~~~~~",
+     "caption": "wrongshape.c: a 3 by 2 array passed where rows of 3 are expected. `int (*)[3]` is gcc's way of writing \"pointer to an array of 3 ints\"."
+    },
+    {
+     "type": "md",
+     "text": "### A 2D array of `char`: several strings\n\nEach row of a 2D `char` array can hold one string. `char names[3][8]` holds 3 strings of up to 7 characters (plus `'\\0'`). `names[i]` is row `i`, a `char` array, so it can be printed with `%s` or passed to `strlen`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char names[3][8] = {\"ann\", \"bob\", \"cyrus\"};   // 3 strings, room for 7 chars + '\\0' each\n\n    names[1][0] = 'r';                 // bob -> rob\n    for (int i = 0; i < 3; i++) {\n        printf(\"%s has length %zu\\n\", names[i], strlen(names[i]));\n    }\n    printf(\"sizeof(names) = %zu\\n\", sizeof(names));\n    return 0;\n}",
+     "caption": "names.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o names names.c\n$ ./names\nann has length 3\nrob has length 3\ncyrus has length 5\nsizeof(names) = 24"
+    },
+    {
+     "type": "md",
+     "text": "This is **not** the same as `char *argv[]`, which is an array of *pointers* to strings stored elsewhere (you will meet arrays of pointers again with dynamic memory). `argv[i][j]` looks the same but means \"character `j` of the string `argv[i]` points at\"."
+    },
+    {
+     "type": "check",
+     "q": "`int t[4][5];` starts at address 1000 and `sizeof(int)` is 4. What is the address of `t[2][1]`?",
+     "a": "Offset = (2 × 5 + 1) × 4 = 44 bytes, so 1044. Two whole rows of 5 come first, then one more element."
+    },
+    {
+     "type": "check",
+     "q": "`double g[3][7];` What are `sizeof(g)`, `sizeof(g[0])` and `sizeof(g[0][0])`?",
+     "a": "168, 56 and 8: the whole table (21 doubles), one row (7 doubles), one double."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `T m[R][C];` is R rows of C elements; `m[i][j]` is row `i`, column `j`. Initialise row by row: `{ {1, 2, 3}, {4, 5, 6} }`; missing values are 0.\n- Nested loops: outer over rows (`i`), inner over columns (`j`).\n- Row-major: row 0, then row 1, ... `m[i][j]` is `(i * C + j)` elements from the start.\n- Parameters: every size but the first is required: `int m[][3]`, or `int rows, int cols, int m[rows][cols]` with the sizes first.\n- `char names[3][8]` holds 3 strings; `names[i]` is one of them."
+    }
+   ]
+  },
+  {
+   "id": "c14-algos",
+   "title": "Array algorithms: search, reverse, minimum index, selection sort",
+   "notebook": "c/arrays.ipynb",
+   "priority": "high",
+   "examNote": "Quiz 2 (2023) Q4 described selection sort (`for j = 0 .. n-1: idx = minidx(j); swap arr[j] and arr[idx]`) and asked for it in Bash; expect it in C. April 2022 Q2 (maximum index of an array ending in `-1`) and Q6(b)(c) (`shortest_to_front`, then a sort that calls it) are the same ideas. Fall 2016 Q4 asked whether lines are in order and which pair is the first out of order.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "A handful of loops come up again and again on exams. Learn each as a **pattern** you can write without thinking.\n\n### Linear search\n\nLook at each element in turn; **return as soon as** you find the target. Only after the loop has seen every element do you know it is not there, so the \"not found\" result (here `-1`) comes **after** the loop.\n\n### Reverse in place\n\n*In place* means inside the same array, with no second array. Keep two indexes, `i` at the front and `j` at the back; swap `a[i]` and `a[j]`, then move both inwards. Stop when they meet (`i < j` fails). Swapping uses a temporary variable, exactly like Day 11's `swap`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// linear search: index of the first element equal to target, or -1\nint find(int n, const int a[n], int target) {\n    for (int i = 0; i < n; i++) {\n        if (a[i] == target) {\n            return i;          // found: stop at once\n        }\n    }\n    return -1;                 // looked at every element: not there\n}\n\n// reverse a in place: swap the two ends, move both inwards\nvoid reverse(int n, int a[n]) {\n    int i = 0;\n    int j = n - 1;\n    while (i < j) {\n        int tmp = a[i];\n        a[i] = a[j];\n        a[j] = tmp;\n        i++;\n        j--;\n    }\n}\n\nvoid print(int n, const int a[n]) {\n    for (int i = 0; i < n; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    int a[] = {4, 8, 15, 16, 23, 42};\n    int n = sizeof(a) / sizeof(a[0]);\n\n    printf(\"15 is at index %d\\n\", find(n, a, 15));\n    printf(\"99 is at index %d\\n\", find(n, a, 99));\n    reverse(n, a);\n    print(n, a);\n    reverse(5, a);       // only the first 5 elements\n    print(n, a);\n    return 0;\n}",
+     "caption": "algos.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o algos algos.c\n$ ./algos\n15 is at index 2\n99 is at index -1\n42 23 16 15 8 4 \n8 15 16 23 42 4 "
+    },
+    {
+     "type": "md",
+     "text": "`n` is computed with `sizeof` in `main`, where `a` is a real array, then passed in. `reverse(5, a)` reverses only the first five elements: a function sees only as much of the array as the length you give it. Day 12's `a + j` works too: `reverse(3, a + 2)` would reverse `a[2]`, `a[3]`, `a[4]`."
+    },
+    {
+     "type": "pitfall",
+     "text": "A common wrong reverse is `for (int i = 0; i < n; i++) { swap a[i] and a[n - 1 - i] }`. It swaps every pair **twice** (once from each end), so the array ends up unchanged. Stop at the middle: `i < j`, or `i < n / 2`."
+    },
+    {
+     "type": "md",
+     "text": "### Index of the minimum (or maximum)\n\nKeep the **index** of the best element seen so far, starting with the first one; compare each later element with `a[idx]`, and move `idx` when you find something smaller. Using `<` keeps the **first** minimum when there are ties; `<=` would keep the last.\n\nQuiz 2 (2023) used a version that starts at index `start` instead of 0: `minidx(j)` is the index of the smallest element from index `j` to the end. For `[0, 3, 1, 4, 2]`, `minidx(1)` is 2 and `minidx(3)` is 4.\n\n### Selection sort\n\nSelection sort puts the array in increasing order:\n\n```\nfor j = 0, 1, ..., n-2:\n    idx = minidx(j)            index of the smallest element from j to the end\n    swap a[j] and a[idx]\n```\n\nAfter pass `j`, the elements at indexes `0` to `j` are the `j + 1` smallest, in order, and never move again. The last pass is `j = n - 2`: when one element is left it is already in place (going to `n - 1` as in the quiz also works; the last pass just swaps an element with itself)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// index of the smallest element of a[start], a[start + 1], ..., a[n - 1]\nint minidx(int n, const int a[n], int start) {\n    int idx = start;\n    for (int i = start + 1; i < n; i++) {\n        if (a[i] < a[idx]) {\n            idx = i;\n        }\n    }\n    return idx;\n}\n\nvoid print(int n, const int a[n]) {\n    for (int i = 0; i < n; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\n\");\n}\n\n// selection sort: put the smallest remaining element at index j, for j = 0, 1, ...\nvoid sort(int n, int a[n]) {\n    for (int j = 0; j < n - 1; j++) {\n        int idx = minidx(n, a, j);\n        int tmp = a[j];\n        a[j] = a[idx];\n        a[idx] = tmp;\n        printf(\"j = %d, idx = %d: \", j, idx);\n        print(n, a);\n    }\n}\n\nint main(void) {\n    int a[] = {0, 3, 1, 4, 2};      // the array from Quiz 2 (2023)\n    printf(\"minidx from 1 = %d\\n\", minidx(5, a, 1));\n    printf(\"minidx from 3 = %d\\n\", minidx(5, a, 3));\n    sort(5, a);\n    return 0;\n}",
+     "caption": "ssort.c (prints the array after each pass)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o ssort ssort.c\n$ ./ssort\nminidx from 1 = 2\nminidx from 3 = 4\nj = 0, idx = 0: 0 3 1 4 2 \nj = 1, idx = 2: 0 1 3 4 2 \nj = 2, idx = 4: 0 1 2 4 3 \nj = 3, idx = 4: 0 1 2 3 4 "
+    },
+    {
+     "type": "why",
+     "q": "Why swap instead of just copying the minimum to `a[j]`?",
+     "a": "Copying would overwrite `a[j]`, and that value would be lost from the array. Swapping moves `a[j]` into the hole where the minimum was, so the array still holds exactly the same values, only reordered."
+    },
+    {
+     "type": "md",
+     "text": "### Checking order: the first pair out of order\n\nAn array is in increasing order exactly when every **neighbouring pair** is in order: `a[i] <= a[i + 1]` for `i` from 0 to `n - 2`. Note the loop bound `i < n - 1`: `a[i + 1]` must still be inside the array. To report the *first* pair that is out of order, return `i` as soon as `a[i] > a[i + 1]`; return a \"not found\" value after the loop. (Fall 2016 Q4 did this with the lines of a file.)\n\n### Arrays that end with a sentinel\n\nApril 2022 Q2 gave a function no length at all: the array held positive values and its last value was `-1`. The loop simply runs `for (size_t i = 1; arr[i] != -1; i++)`. The same patterns (search, minimum index, count) work; only the loop condition changes. If the `-1` were missing, the loop would run past the end of the array: undefined behaviour."
+    },
+    {
+     "type": "check",
+     "q": "Selection sort on `{6, 2, 8, 1, 5}`: what is the array after pass 0 and after pass 1?",
+     "a": "Pass 0: the smallest from index 0 is 1 at index 3; swap with `a[0]`: `{1, 2, 8, 6, 5}`. Pass 1: the smallest from index 1 is 2, already at index 1 (swap with itself): `{1, 2, 8, 6, 5}`."
+    },
+    {
+     "type": "check",
+     "q": "Write the loop header that checks every neighbouring pair `a[i]`, `a[i + 1]` of an `int` array of length `n` (n >= 1).",
+     "a": "`for (int i = 0; i < n - 1; i++)`. With `i < n`, the last pass would read `a[n]`, past the end."
+    },
+    {
+     "type": "try",
+     "text": "Copy `ssort.c`, change it to sort into **decreasing** order (find the index of the maximum instead), and run it on `{0, 3, 1, 4, 2}`. Then run `./cdrill.sh start 14` for today's labs."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Linear search: `return i` inside the loop when found; `return -1` after the loop.\n- Reverse in place: `i` from the front, `j` from the back, swap while `i < j`. Looping over all `n` swaps twice and changes nothing.\n- Minimum index: start `idx` at the first index, compare `a[i] < a[idx]`, update `idx`. `<` keeps the first tie.\n- Selection sort: for `j = 0 .. n-2`, `idx = minidx(j)`, swap `a[j]` and `a[idx]`. After pass `j`, `a[0..j]` is final.\n- In-order check: compare neighbours with `i < n - 1`. Sentinel arrays: loop `while (arr[i] != -1)`."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c14-fc-01",
+   "topic": "c14-size-init",
+   "front": "In the function where `int x[50];` is declared, how do you compute its length?",
+   "back": "`sizeof(x) / sizeof(x[0])`: 200 bytes / 4 bytes = 50 elements."
+  },
+  {
+   "id": "c14-fc-02",
+   "topic": "c14-size-init",
+   "front": "What does `sizeof(arr)` give inside `void f(int arr[])`?",
+   "back": "The size of a pointer (8 on our machines), because the parameter is really `int *arr`. gcc warns: `'sizeof' on array function parameter 'arr' will return size of 'int *'`."
+  },
+  {
+   "id": "c14-fc-03",
+   "topic": "c14-size-init",
+   "front": "Two ways for a function to know where an array ends?",
+   "back": "Pass the length as another parameter (`size_t len`), or end the array with a special sentinel value (`'\\0'` for strings, `-1` in April 2022 Q2)."
+  },
+  {
+   "id": "c14-fc-04",
+   "topic": "c14-size-init",
+   "front": "What does `int a[5] = {7};` contain?",
+   "back": "`7 0 0 0 0`. Elements not in the initialiser list are set to 0."
+  },
+  {
+   "id": "c14-fc-05",
+   "topic": "c14-size-init",
+   "front": "What does `int c[5] = {[3] = 9};` contain?",
+   "back": "`0 0 0 9 0`. The designator `[3] =` picks index 3; the rest are 0."
+  },
+  {
+   "id": "c14-fc-06",
+   "topic": "c14-size-init",
+   "front": "What do the elements of a local `int a[5];` with no initialiser hold?",
+   "back": "Nothing in particular (garbage). Only `static` and global arrays start at 0."
+  },
+  {
+   "id": "c14-fc-07",
+   "topic": "c14-size-init",
+   "front": "Why does `x = y;` not compile when `x` and `y` are `int[3]` arrays?",
+   "back": "Array variables cannot be assigned to (`error: assignment to expression with array type`). Copy element by element, or use `memcpy`."
+  },
+  {
+   "id": "c14-fc-08",
+   "topic": "c14-size-init",
+   "front": "Copy 4 `double`s from `src` into `dst` with `memcpy`.",
+   "back": "`memcpy(dst, src, 4 * sizeof(double));` with `#include <string.h>`. The count is in bytes."
+  },
+  {
+   "id": "c14-fc-09",
+   "topic": "c14-size-init",
+   "front": "What does `const` mean in `int max(const int arr[], size_t len)`?",
+   "back": "`max` promises only to read the array; assigning to `arr[i]` inside it is a compile error."
+  },
+  {
+   "id": "c14-fc-10",
+   "topic": "c14-2d",
+   "front": "In `int m[3][4];`, what are `m[1]` and `m[1][2]`?",
+   "back": "`m[1]` is row 1, an array of 4 ints. `m[1][2]` is the int in row 1, column 2."
+  },
+  {
+   "id": "c14-fc-11",
+   "topic": "c14-2d",
+   "front": "What is row-major order?",
+   "back": "A 2D array is stored row after row: all of row 0, then row 1, ... In `T m[R][C]`, `m[i][j]` is `i * C + j` elements from the start."
+  },
+  {
+   "id": "c14-fc-12",
+   "topic": "c14-2d",
+   "front": "Which sizes must a 2D array parameter give?",
+   "back": "Every size except the first: `int m[][3]` is fine, `int m[][]` is an error. Or use `int rows, int cols, int m[rows][cols]` with the sizes first."
+  },
+  {
+   "id": "c14-fc-13",
+   "topic": "c14-2d",
+   "front": "`int m[2][3]`: what are `sizeof(m)` and `sizeof(m[0])`?",
+   "back": "24 (all 6 ints) and 12 (one row of 3 ints)."
+  },
+  {
+   "id": "c14-fc-14",
+   "topic": "c14-algos",
+   "front": "Linear search pattern: where do the `return i` and the `return -1` go?",
+   "back": "`return i` inside the loop, as soon as `a[i] == target`. `return -1` after the loop, once every element has been checked."
+  },
+  {
+   "id": "c14-fc-15",
+   "topic": "c14-algos",
+   "front": "How do you reverse an array in place?",
+   "back": "`i = 0`, `j = n - 1`; while `i < j`: swap `a[i]` and `a[j]`, `i++`, `j--`."
+  },
+  {
+   "id": "c14-fc-16",
+   "topic": "c14-algos",
+   "front": "Selection sort in one line?",
+   "back": "For `j = 0, 1, ..., n - 2`: find `idx`, the index of the smallest element from `j` to the end, and swap `a[j]` with `a[idx]`."
+  },
+  {
+   "id": "c14-fc-17",
+   "topic": "c14-algos",
+   "front": "Loop bound for comparing neighbouring pairs `a[i]` and `a[i + 1]`?",
+   "back": "`i < n - 1`, so that `a[i + 1]` is still inside the array."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c14-q-01",
+   "topic": "c14-size-init",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid f(double *p) {\n    printf(\"%zu\\n\", sizeof(p));\n}\n\nint main(void) {\n    double a[10] = {0};\n    printf(\"%zu\\n\", sizeof(a));\n    printf(\"%zu\\n\", sizeof(a) / sizeof(a[0]));\n    printf(\"%zu\\n\", sizeof(a[3]));\n    f(a);\n    return 0;\n}",
+   "answer": "80\n10\n8\n8",
+   "explain": "`a` is 10 doubles of 8 bytes: 80 bytes, length 80 / 8 = 10. `a[3]` is one double: 8. In `f`, `p` is a pointer, so `sizeof(p)` is 8 too, a coincidence: it is the pointer's size, not the element's."
+  },
+  {
+   "id": "c14-q-02",
+   "topic": "c14-size-init",
+   "type": "mcq",
+   "q": "`void f(int arr[]) { size_t len = sizeof(arr) / sizeof(int); }` is called as `f(x)` with `int x[100];`. On our machines `len` is:",
+   "options": [
+    "100",
+    "2",
+    "400",
+    "It does not compile"
+   ],
+   "answer": 1,
+   "explain": "The parameter is really `int *arr`, so `sizeof(arr)` is the pointer size, 8, and 8 / 4 = 2. It compiles (with a `-Wsizeof-array-argument` warning). This is the notebook's `wrong_size.c`."
+  },
+  {
+   "id": "c14-q-03",
+   "topic": "c14-size-init",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int a[5] = {[1] = 4, 6};\n    int b[] = {1, [4] = 2};\n    for (int i = 0; i < 5; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\n\");\n    printf(\"%zu\\n\", sizeof(b) / sizeof(b[0]));\n    return 0;\n}",
+   "answer": "0 4 6 0 0 \n5",
+   "explain": "In `a`, `[1] = 4` sets index 1 and the next plain value `6` goes to index 2; the others are 0. In `b`, `1` is index 0 and `[4] = 2` is index 4, so the capacity is 5."
+  },
+  {
+   "id": "c14-q-04",
+   "topic": "c14-size-init",
+   "type": "short",
+   "q": "The notebook's `init3.c` declares `int x[] = {3};` and then prints `x[0]`, `x[1]` and `x[2]` in a loop. What is the capacity of `x`, and what is wrong with the loop?",
+   "answer": "The capacity is 1 (counted from the list). Reading `x[1]` and `x[2]` goes past the end of the array: undefined behaviour, so the printed values mean nothing.",
+   "explain": "With empty brackets the compiler counts the initialisers. (Had it been `int x[3] = {3};`, the output would be 3, 0, 0, because unmentioned elements are set to 0.)"
+  },
+  {
+   "id": "c14-q-05",
+   "topic": "c14-size-init",
+   "type": "short",
+   "q": "`double x[10];` and `double y[4];` are declared. Write one statement that copies `x[2]`, `x[3]`, `x[4]`, `x[5]` into `y[0]` to `y[3]` using `memcpy`. Which header do you need?",
+   "answer": "`memcpy(y, x + 2, 4 * sizeof(double));` (or `memcpy(&y[0], &x[2], 4 * sizeof(double));`) with `#include <string.h>`.",
+   "explain": "`memcpy(dest, src, count)`: destination first, count in bytes. `x + 2` points at `x[2]` (Day 12). This is the notebook's `memcpy2.c` idea."
+  },
+  {
+   "id": "c14-q-06",
+   "topic": "c14-2d",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int m[3][2] = { {1, 2}, {3, 4}, {5, 6} };\n    m[0][1] = m[2][0] + m[1][1];\n    printf(\"%d %d\\n\", m[0][1], m[1][0]);\n    printf(\"%zu %zu\\n\", sizeof(m), sizeof(m[1]));\n    for (int j = 0; j < 2; j++) {\n        for (int i = 0; i < 3; i++) {\n            printf(\"%d \", m[i][j]);\n        }\n        printf(\"\\n\");\n    }\n    return 0;\n}",
+   "answer": "9 3\n24 8\n1 3 5 \n9 4 6 ",
+   "explain": "`m[2][0]` is 5 and `m[1][1]` is 4, so `m[0][1]` becomes 9. `m[1][0]` is 3. `sizeof(m)` is 6 ints = 24, one row is 2 ints = 8. The loops have the column `j` outside, so each printed line is one **column**: 1 3 5, then 9 4 6."
+  },
+  {
+   "id": "c14-q-07",
+   "topic": "c14-2d",
+   "type": "mcq",
+   "q": "Which of these function headers does NOT compile?",
+   "options": [
+    "void f(int m[][4], int rows)",
+    "void f(int rows, int cols, int m[rows][cols])",
+    "void f(int m[][], int rows, int cols)",
+    "void f(int m[3][4])"
+   ],
+   "answer": 2,
+   "explain": "Every size except the first must be known, because finding `m[i][j]` needs the row length: `i * C + j`. gcc: `declaration of 'm' as multidimensional array must have bounds for all dimensions except the first`."
+  },
+  {
+   "id": "c14-q-08",
+   "topic": "c14-2d",
+   "type": "short",
+   "q": "`short s[6][10];` starts at address 2000 and `sizeof(short)` is 2. What is the address of `s[3][4]`? Show the calculation.",
+   "answer": "2000 + (3 × 10 + 4) × 2 = 2000 + 68 = 2068.",
+   "explain": "Row-major: three whole rows of 10 come before row 3, then 4 more elements. Multiply by the element size to get bytes."
+  },
+  {
+   "id": "c14-q-09",
+   "topic": "c14-2d",
+   "type": "output",
+   "q": "What does this program print? (It compiles with one `-Wall` warning, `missing braces around initializer`, for `k`.)",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int m[2][3] = { {1}, {4, 5} };\n    int k[2][3] = {1, 2, 3, 4};\n    for (int i = 0; i < 2; i++) {\n        printf(\"%d %d %d | %d %d %d\\n\",\n               m[i][0], m[i][1], m[i][2], k[i][0], k[i][1], k[i][2]);\n    }\n    return 0;\n}",
+   "answer": "1 0 0 | 1 2 3\n4 5 0 | 4 0 0",
+   "explain": "In `m`, each inner list is one row; missing values are 0, so row 0 is `1 0 0` and row 1 is `4 5 0`. In `k` there are no inner braces, so the values fill the elements in row-major order: `1 2 3` for row 0, `4` then zeros for row 1."
+  },
+  {
+   "id": "c14-q-10",
+   "topic": "c14-algos",
+   "type": "output",
+   "q": "This is selection sort, stopped after three passes. What does it print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int a[] = {6, 2, 8, 1, 5};\n    int n = 5;\n    for (int j = 0; j < 3; j++) {\n        int idx = j;\n        for (int i = j + 1; i < n; i++) {\n            if (a[i] < a[idx]) {\n                idx = i;\n            }\n        }\n        int tmp = a[j];\n        a[j] = a[idx];\n        a[idx] = tmp;\n        printf(\"%d:\", idx);\n        for (int i = 0; i < n; i++) {\n            printf(\" %d\", a[i]);\n        }\n        printf(\"\\n\");\n    }\n    return 0;\n}",
+   "answer": "3: 1 2 8 6 5\n1: 1 2 8 6 5\n4: 1 2 5 6 8",
+   "explain": "Pass 0: smallest is 1 at index 3, swap with `a[0]`. Pass 1: from index 1 the smallest is 2, already at index 1 (swap with itself). Pass 2: from index 2 the values are 8, 6, 5; the smallest is 5 at index 4, swapped with the 8."
+  },
+  {
+   "id": "c14-q-11",
+   "topic": "c14-algos",
+   "type": "output",
+   "q": "Modeled on April 2022 Q2. The array ends with `-1`, and the functions get no length. What does this program print?",
+   "code": "#include <stdio.h>\n\n// arr holds non-negative values followed by -1 (at least one value before it)\nint maxidx(const int *arr) {\n    int index = 0;\n    int hi = arr[index];\n    for (int i = 1; arr[i] != -1; i++) {\n        if (arr[i] > hi) {\n            index = i;\n            hi = arr[i];\n        }\n    }\n    return index;\n}\n\nint maxidx2(const int *arr) {\n    int index = 0;\n    for (int i = 1; arr[i] != -1; i++) {\n        if (arr[i] >= arr[index]) {\n            index = i;\n        }\n    }\n    return index;\n}\n\nint main(void) {\n    int a[] = {3, 9, 2, 9, 7, -1, 50};\n    printf(\"%d %d\\n\", maxidx(a), maxidx2(a));\n    printf(\"%d\\n\", maxidx(a + 2));\n    return 0;\n}",
+   "answer": "1 3\n1",
+   "explain": "`maxidx` replaces the index only when it finds something strictly bigger, so of the two 9s it keeps the first (index 1). `maxidx2` uses `>=`, so it moves to the last 9 (index 3). Both stop at the `-1`, so the 50 after it is never seen. `maxidx(a + 2)` sees the array `2, 9, 7, -1`: the maximum 9 is at index 1 **of that subarray**."
+  },
+  {
+   "id": "c14-q-12",
+   "topic": "c14-algos",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid reverse(int n, int a[n]) {\n    for (int i = 0; i < n; i++) {\n        int tmp = a[i];\n        a[i] = a[n - 1 - i];\n        a[n - 1 - i] = tmp;\n    }\n}\n\nint main(void) {\n    int a[] = {1, 2, 3, 4};\n    reverse(4, a);\n    printf(\"%d %d %d %d\\n\", a[0], a[1], a[2], a[3]);\n    reverse(2, a + 1);\n    printf(\"%d %d %d %d\\n\", a[0], a[1], a[2], a[3]);\n    return 0;\n}",
+   "answer": "1 2 3 4\n1 2 3 4",
+   "explain": "The loop runs `i` over all `n` indexes, so each pair is swapped twice: once when `i` is at the front, again when `i` reaches the back. The array ends up unchanged both times. The fix is to stop at the middle (`i < n / 2`, or two indexes with `i < j`)."
+  },
+  {
+   "id": "c14-q-13",
+   "topic": "c14-algos",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint find(int n, const int a[n], int target) {\n    for (int i = 0; i < n; i++) {\n        if (a[i] == target) {\n            return i;\n        }\n    }\n    return -1;\n}\n\nint main(void) {\n    int a[] = {7, 3, 7, 0, 3};\n    int n = sizeof(a) / sizeof(a[0]);\n    printf(\"%d %d %d\\n\", find(n, a, 3), find(n, a, 0), find(n, a, 4));\n    printf(\"%d\\n\", find(2, a + 3, 3));\n    return 0;\n}",
+   "answer": "1 3 -1\n1",
+   "explain": "`find` returns the **first** index whose element equals the target: 3 is first at index 1, 0 at index 3, and 4 is not there (-1). `find(2, a + 3, 3)` searches the two elements `0, 3` that start at `a[3]`; 3 is at index 1 of that part."
+  },
+  {
+   "id": "c14-q-14",
+   "topic": "c14-algos",
+   "type": "short",
+   "q": "A function `int maxidx(const int *arr)` gets an array of positive values that ends with `-1`, but no length. How does it know where to stop, and what happens if a caller passes an array without the `-1`?",
+   "answer": "Its loop runs while `arr[i] != -1`: the `-1` is a sentinel that marks the end. Without it, the loop keeps reading past the end of the array: undefined behaviour (garbage result or a crash).",
+   "explain": "This is the second option in the notebook (a special value marks the end), the same idea as `'\\0'` for strings. It only works because `-1` can never be real data here (all values are positive)."
+  }
+ ],
+ "write": [
+  {
+   "id": "c14-w-01",
+   "topic": "c14-algos",
+   "stage": "worked",
+   "marks": 6,
+   "prompt": "Modeled on April 2022 Q6(b)(c) and Quiz 2 (2023) Q4, with `int`s instead of strings.\n\n(a) Write `void smallest_to_front(int n, int a[n])` that finds the smallest element of `a` (the first one if there is a tie) and **swaps** it with the element at the front, `a[0]`.\n\n(b) Write `void sort(int n, int a[n])` that sorts `a` into increasing order. To move elements it must only call `smallest_to_front` (no other assignments to elements of `a`). Hint: call it `n - 1` times.\n\nAdd a `main` that sorts `{29, 4, 17, 4, 11, 2}` and prints it.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// Swaps the smallest element of a[0], ..., a[n-1] with a[0] (n >= 1).\nvoid smallest_to_front(int n, int a[n]) {\n    int idx = 0;                       // index of the smallest so far\n    for (int i = 1; i < n; i++) {\n        if (a[i] < a[idx]) {\n            idx = i;\n        }\n    }\n    int tmp = a[0];                    // swap a[0] and a[idx]\n    a[0] = a[idx];\n    a[idx] = tmp;\n}\n\n// Selection sort: the part that starts at a + j has n - j elements.\nvoid sort(int n, int a[n]) {\n    for (int j = 0; j < n - 1; j++) {\n        smallest_to_front(n - j, a + j);\n    }\n}\n\nint main(void) {\n    int a[] = {29, 4, 17, 4, 11, 2};\n    int n = sizeof(a) / sizeof(a[0]);\n    sort(n, a);\n    for (int i = 0; i < n; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+   "explain": "**(a)** is the minimum-index pattern: `idx` starts at 0 and moves whenever `a[i] < a[idx]`; strict `<` keeps the first of equal minimums. The swap needs a temporary, or the old `a[0]` would be lost.\n\n**(b)** is selection sort. The key idea comes from Day 12: `a + j` points at `a[j]`, so `smallest_to_front(n - j, a + j)` treats `a[j]`, ..., `a[n-1]` as an array of `n - j` elements whose front is `a[j]`. Pass `j` therefore moves the smallest of the remaining elements to index `j`. After `n - 1` passes the last element is the largest, so it is already in place.\n\nOutput:\n\n```\n2 4 4 11 17 29 \n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`smallest_to_front`: `idx` starts at 0, loop from 1 to `n - 1`"
+    },
+    {
+     "marks": 1,
+     "item": "compares `a[i] < a[idx]` and updates `idx` (not just the value)"
+    },
+    {
+     "marks": 1,
+     "item": "correct three-step swap of `a[0]` and `a[idx]` with a temporary"
+    },
+    {
+     "marks": 1,
+     "item": "`sort` loops `j` from 0 to `n - 2` (n - 1 calls)"
+    },
+    {
+     "marks": 1,
+     "item": "passes the remaining part: length `n - j`, start `a + j` (or `&a[j]`)"
+    },
+    {
+     "marks": 1,
+     "item": "`sort` does not assign to elements itself; `main` passes the length and prints"
+    }
+   ],
+   "pitfalls": [
+    "Calling `smallest_to_front(n, a)` every time: it always works on the whole array, so the smallest element just stays at `a[0]`.",
+    "Passing `a + j` but still the length `n`: the function reads past the end of the array.",
+    "Keeping only the minimum value instead of its index: then you do not know which element to swap with.",
+    "Swapping with `a[0] = a[idx]; a[idx] = a[0];` (no temporary): both end up as the minimum."
+   ]
+  },
+  {
+   "id": "c14-w-02",
+   "topic": "c14-2d",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Complete `col_sums` so that it stores the sum of column `j` of the 2D array `m` in `out[j]`, for every column, and complete the call in `main`. The program should print `15 18 21 24 ` (each sum followed by a space).",
+   "starter": "#include <stdio.h>\n\n// Stores the sum of column j of m in out[j], for every column j.\nvoid col_sums(int rows, int cols, int m[____][____], int out[cols]) {\n    for (int j = 0; j < cols; j++) {\n        out[j] = ____;\n        for (int i = 0; i < rows; i++) {\n            ____ += m[____][____];\n        }\n    }\n}\n\nint main(void) {\n    int m[3][4] = {\n        {1, 2, 3, 4},\n        {5, 6, 7, 8},\n        {9, 10, 11, 12}\n    };\n    int sums[4];\n    col_sums(____, ____, ____, ____);\n    for (int j = 0; j < 4; j++) {\n        printf(\"%d \", sums[j]);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\n// Stores the sum of column j of m in out[j], for every column j.\nvoid col_sums(int rows, int cols, int m[rows][cols], int out[cols]) {\n    for (int j = 0; j < cols; j++) {\n        out[j] = 0;\n        for (int i = 0; i < rows; i++) {\n            out[j] += m[i][j];\n        }\n    }\n}\n\nint main(void) {\n    int m[3][4] = {\n        {1, 2, 3, 4},\n        {5, 6, 7, 8},\n        {9, 10, 11, 12}\n    };\n    int sums[4];\n    col_sums(3, 4, m, sums);\n    for (int j = 0; j < 4; j++) {\n        printf(\"%d \", sums[j]);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "parameter `int m[rows][cols]` uses the earlier parameters as sizes"
+    },
+    {
+     "marks": 1,
+     "item": "`out[j] = 0` before adding up column `j`"
+    },
+    {
+     "marks": 1,
+     "item": "`out[j] += m[i][j]`: row index `i` first, column `j` second"
+    },
+    {
+     "marks": 1,
+     "item": "call `col_sums(3, 4, m, sums)`: rows, columns, the array, the output array"
+    }
+   ],
+   "pitfalls": [
+    "Writing `m[j][i]`: that reads row `j`, column `i`, which goes past the 3 rows when `j` is 3.",
+    "Forgetting `out[j] = 0`: `sums` is a local array with no initialiser, so it starts as garbage.",
+    "Passing `4, 3` instead of `3, 4`: the function would then think rows have 3 elements and read the wrong ones."
+   ]
+  },
+  {
+   "id": "c14-w-03",
+   "topic": "c14-algos",
+   "stage": "blank",
+   "marks": 8,
+   "prompt": "Modeled on Fall 2016 Q4 (lines in order), with integers. Write a complete program `ordered` that takes 1 to 100 integer command-line arguments (otherwise: a usage message on standard error, exit status 1). Store them in an `int` array with `atoi`. Write a function\n\n```c\nint first_out_of_order(int n, const int a[n])\n```\n\nthat returns the index `i` of the **first** neighbouring pair with `a[i] > a[i + 1]`, or `-1` if the values never decrease. `main` then prints `values are in order` and exits with status 0, or prints the first pair out of order and exits with status 1:\n\n```\n$ ./ordered 1 3 3 8\nvalues are in order\n$ ./ordered 2 7 9 4 6 1\nvalues out of order:\n  9\n  4\n$ echo $?\n1\n```\n\nEqual neighbours (`3 3`) are in order.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Returns the index i of the first pair a[i], a[i + 1] that is out of\n// order (a[i] > a[i + 1]), or -1 if the whole array is in order.\nint first_out_of_order(int n, const int a[n]) {\n    for (int i = 0; i < n - 1; i++) {\n        if (a[i] > a[i + 1]) {\n            return i;\n        }\n    }\n    return -1;\n}\n\nint main(int argc, char *argv[]) {\n    if (argc < 2 || argc > 101) {\n        fprintf(stderr, \"Usage: %s n1 n2 ... (1 to 100 integers)\\n\", argv[0]);\n        return 1;\n    }\n    int n = argc - 1;\n    int a[100];\n    for (int i = 0; i < n; i++) {\n        a[i] = atoi(argv[i + 1]);\n    }\n    int i = first_out_of_order(n, a);\n    if (i == -1) {\n        printf(\"values are in order\\n\");\n        return 0;\n    }\n    printf(\"values out of order:\\n\");\n    printf(\"  %d\\n\", a[i]);\n    printf(\"  %d\\n\", a[i + 1]);\n    return 1;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "checks `argc` (1 to 100 values); usage on stderr with `fprintf(stderr, ...)`, `return 1`"
+    },
+    {
+     "marks": 1,
+     "item": "fills an `int` array with `atoi(argv[i + 1])`, `n = argc - 1`"
+    },
+    {
+     "marks": 1,
+     "item": "function header as given; loop `i < n - 1` (never reads `a[n]`)"
+    },
+    {
+     "marks": 1,
+     "item": "compares `a[i] > a[i + 1]` (strict, so equal values are in order)"
+    },
+    {
+     "marks": 1,
+     "item": "returns `i` inside the loop at the first bad pair; `-1` after the loop"
+    },
+    {
+     "marks": 1,
+     "item": "in order: prints `values are in order`, exit status 0"
+    },
+    {
+     "marks": 1,
+     "item": "otherwise prints the header line and `a[i]`, `a[i + 1]` indented two spaces"
+    },
+    {
+     "marks": 1,
+     "item": "returns 1 from `main` when out of order"
+    }
+   ],
+   "pitfalls": [
+    "Loop `i < n` with `a[i + 1]`: the last pass reads past the end of the array.",
+    "Using `>=`: then `3 3` is reported as out of order.",
+    "Returning `-1` inside the loop (in an `else`): the function gives up after the first pair.",
+    "Reading `argv[i]` instead of `argv[i + 1]`: `argv[0]` is the program name."
+   ]
+  }
+ ]
+}
