@@ -1,0 +1,635 @@
+{
+ "day": 27,
+ "title": "Input and output, part 2",
+ "goal": "Understand buffering and the file position, move around a file with ftell, rewind and fseek, change a file in place with the update modes and their rules, and combine file reading with arrays, strings and structs the way the final exam does.",
+ "topics": [
+  {
+   "id": "c27-buffer-pos",
+   "title": "Buffering, fflush, and the file position: ftell and rewind",
+   "notebook": "c/IO.ipynb",
+   "priority": "medium",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Buffering\n\nTalking to a disk (or a terminal) is slow compared with the CPU and memory. So a stream does not send each character to its destination the moment you write it. It collects the characters in a piece of memory called a **buffer**, and transfers the whole buffer at once. Sending the buffer's contents on is called **flushing** the buffer.\n\nThe notebook lists three buffered states a stream can be in:\n\n| State | Data is transferred... | Typical streams on Linux |\n|---|---|---|\n| **unbuffered** | as soon as possible | `stderr` (you want to see errors at once) |\n| **line buffered** | when a whole line (a `'\\n'`) is complete | `stdout` and `stdin` when connected to a terminal |\n| **fully buffered** | when the buffer is full | streams connected to files (and `stdout` when redirected to a file or pipe) |\n\nYou normally do not notice buffering. Here is a program where you do:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"one (stdout)\\n\");\n    fprintf(stderr, \"two (stderr)\\n\");\n    printf(\"three (stdout)\\n\");\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o order order.c\n$ ./order\none (stdout)\ntwo (stderr)\nthree (stdout)\n$ ./order > out.txt 2>&1\n$ cat out.txt\ntwo (stderr)\none (stdout)\nthree (stdout)"
+    },
+    {
+     "type": "md",
+     "text": "On the terminal, `stdout` is line buffered: each `\\n` sends the line out, so the lines appear in program order. Redirected to a file, `stdout` becomes **fully buffered**: `one` and `three` wait in the buffer until the program ends, while unbuffered `stderr` writes `two` immediately. (Remember `2>&1` from Bash: it sends standard error to the same place as standard output.)\n\n### `fflush`\n\n```c\nint fflush(FILE *stream);\n```\n\n`fflush(f)` delivers whatever is waiting in the output buffer of `f` **now**. It returns 0, or `EOF` on failure. Use it only on output streams (and on the update streams of the next lesson after a write); `fflush(stdin)` is **undefined behaviour** in standard C.\n\nYou rarely need to call it yourself, because the buffers are also flushed by `fclose`, by `exit`, and by returning from `main`. The next program makes the buffer visible: it writes to `buf.txt` with one stream and measures the file by opening it again with a **second** stream."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n// opens the file again with a second stream and counts its characters\nint size_now(const char *name) {\n    FILE *f = fopen(name, \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    int n = 0;\n    while (fgetc(f) != EOF) {\n        n++;\n    }\n    fclose(f);\n    return n;\n}\n\nint main(void) {\n    FILE *out = fopen(\"buf.txt\", \"w\");\n    if (!out) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fputs(\"hello\\n\", out);\n    printf(\"after fputs:  %d characters in buf.txt\\n\", size_now(\"buf.txt\"));\n    fflush(out);                    // deliver the buffer to the file now\n    printf(\"after fflush: %d characters in buf.txt\\n\", size_now(\"buf.txt\"));\n    fputs(\"world\\n\", out);\n    fclose(out);                    // fclose flushes too\n    printf(\"after fclose: %d characters in buf.txt\\n\", size_now(\"buf.txt\"));\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o flush flush.c\n$ ./flush\nafter fputs:  0 characters in buf.txt\nafter fflush: 6 characters in buf.txt\nafter fclose: 12 characters in buf.txt\n$ cat buf.txt\nhello\nworld"
+    },
+    {
+     "type": "md",
+     "text": "After `fputs` the file is still empty: `hello\\n` is only in the buffer. (The 0 is what our Linux system shows; how big a buffer is and when it fills are up to the library.)\n\n### The file position\n\nEvery open stream has a **file position**: the place where the next character will be read or written. On Linux it is simply the number of bytes from the start of the file, counting from **0** (the first character is at position 0, the second at 1, ...).\n\n- Opening with `\"r\"`, `\"w\"`, `\"r+\"` or `\"w+\"` sets the position to 0.\n- Reading or writing one character moves it forward by 1 (`fgets` moves it past the whole line it read).\n- With `\"a\"` or `\"a+\"`, every **write** goes to the end of the file, whatever the position says.\n- The position belongs to the **stream**, not to the file. Two streams on the same file (like `out` and the reader in `size_now` above) each have their own position.\n\n### `ftell`: where am I?\n\n```c\nlong ftell(FILE *stream);\n```\n\nIt returns the current file position (a `long`, so print it with `%ld`), or -1 on failure. The notebook's file `tell.txt` has four lines of five letters. Each line is really **6** characters long, because of its `'\\n'`, so the file has 24 characters. Make it in Bash with:\n\n```\n$ printf 'ABCDE\\nFGHIJ\\nKLMNO\\nPQRST\\n' > tell.txt\n```\n\nThis is the notebook's `tell.c`, with `int c` (Day 26) and a `perror` message added. It asks for the position **before** each read, so it prints where each character lives:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"tell.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    int c;\n    long pos = ftell(f);             // where the next fgetc will read\n    while ((c = fgetc(f)) != EOF) {\n        if (c == '\\n') {\n            printf(\"\\\\n : position = %ld\\n\", pos);\n        }\n        else {\n            printf(\"%c  : position = %ld\\n\", c, pos);\n        }\n        pos = ftell(f);\n    }\n    printf(\"at the end ftell says %ld\\n\", pos);\n    fclose(f);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o tell tell.c\n$ ./tell\nA  : position = 0\nB  : position = 1\nC  : position = 2\nD  : position = 3\nE  : position = 4\n\\n : position = 5\nF  : position = 6\nG  : position = 7\nH  : position = 8\nI  : position = 9\nJ  : position = 10\n\\n : position = 11\nK  : position = 12\nL  : position = 13\nM  : position = 14\nN  : position = 15\nO  : position = 16\n\\n : position = 17\nP  : position = 18\nQ  : position = 19\nR  : position = 20\nS  : position = 21\nT  : position = 22\n\\n : position = 23\nat the end ftell says 24"
+    },
+    {
+     "type": "md",
+     "text": "Notice the newline characters at positions 5, 11, 17 and 23, and that after the last character the position is 24, the size of the file.\n\n### `rewind`: back to the start\n\n```c\nvoid rewind(FILE *stream);\n```\n\n`rewind(f)` sets the position back to 0, so the file can be read again without closing and reopening it. The notebook's `telln.c` reads `tell.txt` `MAX` times. This version prints the characters on one line (a newline is shown as `\\n`) to keep the output short:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"tell.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    const size_t MAX = 2;\n    size_t count = 0;\n    int c;\n    long pos = ftell(f);\n    while ((c = fgetc(f)) != EOF && count < MAX) {\n        if (c == '\\n') {\n            printf(\"\\\\n\");               // show a newline as \\n\n        }\n        else {\n            putchar(c);\n        }\n        if (pos == 23) {                 // we just read the last character\n            printf(\"  <- position 23, rewinding\\n\");\n            rewind(f);                   // back to position 0\n            count++;\n        }\n        pos = ftell(f);\n    }\n    fclose(f);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o telln telln.c\n$ ./telln\nABCDE\\nFGHIJ\\nKLMNO\\nPQRST\\n  <- position 23, rewinding\nABCDE\\nFGHIJ\\nKLMNO\\nPQRST\\n  <- position 23, rewinding"
+    },
+    {
+     "type": "md",
+     "text": "When `pos` is 23 the program has just read the last `\\n`, so it rewinds and counts one pass. After the second pass `count` is 2: the next `fgetc` reads `A`, but `count < MAX` is now false, so the loop stops without printing it."
+    },
+    {
+     "type": "check",
+     "q": "`f` was just opened with `\"r\"` on `tell.txt`. After `fgetc(f); fgetc(f);` and then `fgets(buf, 100, f)`, what does `ftell(f)` return?",
+     "a": "6. The two `fgetc` calls move the position to 2; `fgets` then reads the rest of the first line, `CDE\\n`, which is 4 more characters."
+    },
+    {
+     "type": "check",
+     "q": "A program does `printf(\"Working...\");` (no `\\n`) and then runs a very long calculation. Why may nothing appear on the terminal until the calculation ends, and what one line fixes it?",
+     "a": "`stdout` on a terminal is line buffered, and the text has no newline, so it waits in the buffer. Add `fflush(stdout);` after the `printf`."
+    },
+    {
+     "type": "why",
+     "q": "Why do streams buffer at all, instead of writing each character immediately?",
+     "a": "Each transfer to a disk or device has a large fixed cost (it can take far longer than thousands of CPU operations). Sending one big block instead of thousands of single characters pays that cost once. The price is that output can be delayed, which is why `fflush` and `fclose` exist."
+    },
+    {
+     "type": "pitfall",
+     "text": "Do not use `fflush(stdin)` to \"clear the keyboard input\". It is undefined behaviour in standard C. To skip the rest of an input line, read and discard characters up to `'\\n'`, like the `discard` function in the next lesson."
+    },
+    {
+     "type": "pitfall",
+     "text": "The first character is at position **0**, and every `'\\n'` takes a position too. A file of 4 lines with 5 letters each has 24 characters, not 20."
+    },
+    {
+     "type": "try",
+     "text": "Create `tell.txt` with the `printf` command above, then compile and run `tell.c`. Run `./order > out.txt 2>&1; cat out.txt`, then add `fflush(stdout);` after the first `printf` in `order.c` and run it again: now `one` comes first."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Output is collected in a **buffer** and transferred later. `stderr` is unbuffered, `stdout` is line buffered on a terminal, files are fully buffered.\n- `fflush(f)` sends an output buffer on now. `fclose`, `exit` and returning from `main` flush too. Never `fflush(stdin)`.\n- The **file position** counts bytes from 0; reads and writes move it forward; each stream has its own.\n- `long ftell(FILE *f)` returns the position (`%ld`). `void rewind(FILE *f)` goes back to 0."
+    }
+   ]
+  },
+  {
+   "id": "c27-seek-update",
+   "title": "fseek, the update modes r+, w+, a+, and clearerr",
+   "notebook": "c/IO.ipynb",
+   "priority": "high",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `fseek`: jump to a position\n\n```c\nint fseek(FILE *stream, long offset, int origin);\n```\n\n`fseek` moves the file position to `offset` bytes from `origin`. The three origins are constants from `<stdio.h>`:\n\n| `origin` | `offset` is counted from... | Example |\n|---|---|---|\n| `SEEK_SET` | the beginning of the file | `fseek(f, 7, SEEK_SET)`: position 7 |\n| `SEEK_CUR` | the current position | `fseek(f, -1, SEEK_CUR)`: one step back |\n| `SEEK_END` | the end of the file | `fseek(f, -2, SEEK_END)`: 2 before the end |\n\nThe offset may be negative (move backwards). `fseek` returns **0** on success and a non-zero value (-1 on Linux) on failure, for example when you try to go before the start. So `rewind(f)` is just `fseek(f, 0, SEEK_SET)`. Using `tell.txt` from lesson 1:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"tell.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    int c;\n    fseek(f, 7, SEEK_SET);           // 7 from the beginning\n    c = fgetc(f);\n    printf(\"SEEK_SET  7: %c, now at %ld\\n\", c, ftell(f));\n\n    fseek(f, 4, SEEK_CUR);           // 4 more from where we are (8)\n    c = fgetc(f);\n    printf(\"SEEK_CUR  4: %c, now at %ld\\n\", c, ftell(f));\n\n    fseek(f, -3, SEEK_CUR);          // a negative offset moves backwards\n    c = fgetc(f);\n    printf(\"SEEK_CUR -3: %c, now at %ld\\n\", c, ftell(f));\n\n    fseek(f, -2, SEEK_END);          // 2 before the end (the end is 24)\n    c = fgetc(f);\n    printf(\"SEEK_END -2: %c, now at %ld\\n\", c, ftell(f));\n\n    fseek(f, 0, SEEK_END);           // to the very end\n    printf(\"file size = %ld\\n\", ftell(f));\n\n    if (fseek(f, -100, SEEK_SET) != 0) {\n        printf(\"fseek to -100 failed, still at %ld\\n\", ftell(f));\n    }\n    fclose(f);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o seek3 seek3.c\n$ ./seek3\nSEEK_SET  7: G, now at 8\nSEEK_CUR  4: K, now at 13\nSEEK_CUR -3: J, now at 11\nSEEK_END -2: T, now at 23\nfile size = 24\nfseek to -100 failed, still at 24"
+    },
+    {
+     "type": "md",
+     "text": "Two things to notice:\n\n- Each `fgetc` moves the position one step **after** the character it read. That is why `SEEK_CUR 4` from position 8 lands on 12 (`K`).\n- `fseek(f, 0, SEEK_END)` followed by `ftell(f)` is the standard way to get the **size of a file**.\n\nThe program reads with `c = fgetc(f);` in its own statement before calling `printf`. Writing `printf(\"%c %ld\", fgetc(f), ftell(f))` would be a bug: C does not say in which order a function's arguments are evaluated, so `ftell` might run before `fgetc`.\n\n### The notebook's `seek.c`\n\nThe notebook's `seek.c` asks the user for positions and prints the character found there. It uses tools you know from Days 4, 17 and 26: `fgets` from `stdin`, `strchr` to see whether the newline was read, and `atoi`. With `char buf[3]`, `fgets` reads at most 2 characters. If the user typed more, the newline is not in `buf`, so `discard` throws away the rest of the line. This version also checks `fopen` and stops when `fgets` returns `NULL` (end of input); the notebook's version would loop forever on end of input."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n// throw away the rest of the current input line\nvoid discard(void) {\n    int c;\n    while ((c = getchar()) != '\\n' && c != EOF) {\n    }\n}\n\nint main(void) {\n    FILE *f = fopen(\"tell.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    while (1) {\n        char buf[3] = { 0 };\n        puts(\"Enter a position to seek to: \");\n        if (fgets(buf, 3, stdin) == NULL) {    // end of input: stop\n            break;\n        }\n        // discard the rest of stdin in case the user typed a long string\n        if (!strchr(buf, '\\n')) {\n            discard();\n        }\n        int pos = atoi(buf);\n        if (pos < 0) {\n            break;\n        }\n        if (pos < 24) {\n            fseek(f, pos, SEEK_SET);\n            int c = fgetc(f);\n            printf(\"found : %c at position : %d\\n\", c, pos);\n        }\n    }\n    fclose(f);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o seek seek.c\n$ printf '0\\n7\\n22\\n-1\\n' | ./seek\nEnter a position to seek to: \nfound : A at position : 0\nEnter a position to seek to: \nfound : G at position : 7\nEnter a position to seek to: \nfound : T at position : 22\nEnter a position to seek to: \n$ printf '18\\n123\\n' | ./seek\nEnter a position to seek to: \nfound : P at position : 18\nEnter a position to seek to: \nfound : K at position : 12\nEnter a position to seek to: "
+    },
+    {
+     "type": "md",
+     "text": "In the second run `123` does not fit: `buf` gets `12`, `discard` removes `3\\n`, and position 12 holds `K`. (`puts` adds its own newline, so each prompt line ends with a space and a newline.)\n\n### The update modes `r+`, `w+`, `a+`\n\nDay 26 used `\"r\"`, `\"w\"` and `\"a\"`. Adding a `+` gives an **update** (or *extended*) mode: the stream can **read and write**. Here is the notebook's full table:\n\n| Mode | Meaning | If the file exists | If it does not exist |\n|---|---|---|---|\n| `\"r\"` | read | read from the start | fails |\n| `\"w\"` | write | contents destroyed | new file created |\n| `\"a\"` | append | writes go at the end | new file created |\n| `\"r+\"` | read and write | read from the start, contents **kept** | fails |\n| `\"w+\"` | read and write | contents **destroyed** | new file created |\n| `\"a+\"` | read and write | reads anywhere, writes **always at the end** | new file created |\n\nTo change a file **in place**, use `\"r+\"`: it is the only mode that keeps the contents and lets you write anywhere.\n\n### The two rules for update streams\n\nAn update stream has one buffer for both directions, so you must tell it when you switch:\n\n1. Between a **read** and a following **write**, call a file positioning function (`fseek`, `rewind`).\n2. Between a **write** and a following **read**, call a file positioning function **or `fflush`**.\n\nBreaking a rule is undefined behaviour: the program may seem to work, or write in the wrong place, or lose data. Nobody can predict it.\n\n### `replace_char.c`\n\nThe notebook's example replaces every occurrence of one character in a file by another, in place. This version adds the `fopen` check and uses `int c`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 4) {\n        fprintf(stderr, \"Usage: replace_char file targetchar replacementchar\\n\");\n        exit(EXIT_FAILURE);\n    }\n    FILE *f = fopen(argv[1], \"r+\");       // read AND write, keep the contents\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    char target = argv[2][0];             // first character of argument 2\n    char replace = argv[3][0];            // first character of argument 3\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        if (c == target) {\n            fseek(f, -1, SEEK_CUR);       // back up onto the character just read\n            fputc(replace, f);            // overwrite it\n            fflush(f);                    // a write followed by a read needs this\n        }\n    }\n    fclose(f);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o replace_char replace_char.c\n$ printf 'banana\\nbandana\\n' > words.txt\n$ ./replace_char words.txt a o\n$ cat words.txt\nbonono\nbondono\n$ ./replace_char words.txt n\nUsage: replace_char file targetchar replacementchar\n$ echo $?\n1"
+    },
+    {
+     "type": "md",
+     "text": "Follow one replacement. `fgetc` reads an `a` and the position moves past it. `fseek(f, -1, SEEK_CUR)` steps back onto the `a`: this is the position call that **rule 1** requires, and it also puts us in the right place. `fputc` overwrites the `a` and moves the position past it again. The loop's next action is a read, so **rule 2** needs `fflush(f)` (or another `fseek`) first. That is the line the notebook says \"see explanation below\" about.\n\n### `w+` and `a+` in action\n\n`\"w+\"` is handy for a scratch file you write and then read back. Between the write and the read, `rewind` satisfies rule 2 and moves to the start:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"wplus.txt\", \"w+\");   // empty (or create) the file; read and write\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fputs(\"line one\\nline two\\n\", f);     // write ...\n    rewind(f);                            // ... reposition ...\n    char buf[100];\n    while (fgets(buf, 100, f) != NULL) {  // ... then read it back\n        printf(\"read: %s\", buf);\n    }\n    fclose(f);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ ./wplus\nread: line one\nread: line two"
+    },
+    {
+     "type": "md",
+     "text": "With `\"a+\"` you can read anywhere, but writing always happens at the end, even after an `fseek` to position 0:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"aplus.txt\", \"w\");    // start with a known file\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fputs(\"abc\\n\", f);\n    fclose(f);\n\n    f = fopen(\"aplus.txt\", \"a+\");         // read anywhere, write only at the end\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    rewind(f);                            // reading starts at position 0\n    int c = fgetc(f);\n    printf(\"first character: %c\\n\", c);\n    fseek(f, 0, SEEK_SET);                // ask to write at position 0 ...\n    fputs(\"xyz\\n\", f);                    // ... but \"a+\" writes at the end anyway\n    rewind(f);\n    while ((c = fgetc(f)) != EOF) {\n        putchar(c);\n    }\n    fclose(f);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ ./aplus\nfirst character: a\nabc\nxyz"
+    },
+    {
+     "type": "md",
+     "text": "### `clearerr`\n\nDay 26 introduced the **end-of-file indicator** (`feof`) and the **error indicator** (`ferror`). They are *sticky*: once set, they stay set, and while the end-of-file indicator is set, `fgetc` keeps returning `EOF` even if the file has grown since. `clearerr` clears both:\n\n```c\nvoid clearerr(FILE *stream);\n```\n\n(A successful `fseek` or `rewind` also clears the end-of-file indicator.) In this program one stream writes a file while another reads it:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *out = fopen(\"grow.txt\", \"w\");    // one stream writes ...\n    FILE *in = fopen(\"grow.txt\", \"r\");     // ... another one reads\n    if (!out || !in) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fputs(\"ab\", out);\n    fflush(out);                           // make \"ab\" visible in the file\n\n    int c;\n    while ((c = fgetc(in)) != EOF) {\n        putchar(c);\n    }\n    printf(\"\\nfeof = %d\\n\", feof(in) != 0);\n\n    fputs(\"cd\", out);                      // the file grows ...\n    fflush(out);\n    c = fgetc(in);                         // ... but the indicator is still set\n    printf(\"next fgetc: %d, feof = %d\\n\", c, feof(in) != 0);\n\n    clearerr(in);                          // clear end-of-file (and error) indicators\n    printf(\"after clearerr: feof = %d\\n\", feof(in) != 0);\n    while ((c = fgetc(in)) != EOF) {\n        putchar(c);\n    }\n    putchar('\\n');\n    fclose(in);\n    fclose(out);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o clear clear.c\n$ ./clear\nab\nfeof = 1\nnext fgetc: -1, feof = 1\nafter clearerr: feof = 0\ncd"
+    },
+    {
+     "type": "md",
+     "text": "The same idea works for the keyboard: after the user presses Ctrl-D, `clearerr(stdin)` lets the program read from `stdin` again."
+    },
+    {
+     "type": "check",
+     "q": "`tell.txt` holds `ABCDE\\nFGHIJ\\nKLMNO\\nPQRST\\n`. What does `fgetc` return after each of these calls: `fseek(f, 0, SEEK_SET)`, `fseek(f, -1, SEEK_END)`, `fseek(f, 13, SEEK_SET)`?",
+     "a": "`'A'` (position 0), `'\\n'` (position 23, the last character), `'L'` (position 13)."
+    },
+    {
+     "type": "check",
+     "q": "Which mode would you use to open an existing file so that you can change some characters in the middle of it, and why not `\"w+\"` or `\"a+\"`?",
+     "a": "`\"r+\"`. `\"w+\"` would destroy the contents when opening, and `\"a+\"` sends every write to the end of the file."
+    },
+    {
+     "type": "why",
+     "q": "Why does `replace_char.c` call `fseek(f, -1, SEEK_CUR)` before `fputc`, instead of just writing?",
+     "a": "Two reasons. After `fgetc` read the target, the position is one past it, so writing there would overwrite the **next** character. And rule 1 requires a positioning call between a read and a write on an update stream; the `fseek` is both the fix and the required call."
+    },
+    {
+     "type": "pitfall",
+     "text": "Forgetting `fflush` (or `fseek`) after a write before the next read on an `r+` stream is undefined behaviour. It may happen to work on one machine and corrupt the file on another."
+    },
+    {
+     "type": "pitfall",
+     "text": "`fseek(f, n, SEEK_END)` with a positive `n` moves *past* the end, not before it. To reach the last character use `fseek(f, -1, SEEK_END)`."
+    },
+    {
+     "type": "try",
+     "text": "Run `seek` with no redirection and type positions by hand: `5` (a newline is printed after `found :`), a long number like `123456`, and `-1` to stop. Then `cp tell.txt copy.txt`, run `./replace_char copy.txt E e` and `cat copy.txt`. Finally, in `replace_char.c`, print `ftell(f)` just before each `fputc` to watch the position step back."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `fseek(f, offset, origin)` with `SEEK_SET` (start), `SEEK_CUR` (here), `SEEK_END` (end); returns 0 on success. Offsets may be negative.\n- File size: `fseek(f, 0, SEEK_END); long size = ftell(f);`.\n- `\"r+\"` keeps the file and reads/writes anywhere; `\"w+\"` empties it first; `\"a+\"` always writes at the end.\n- Update rules: read then write needs `fseek`/`rewind`; write then read needs `fseek`/`rewind` or `fflush`.\n- In-place change: `fgetc`, then `fseek(f, -1, SEEK_CUR)`, `fputc`, `fflush(f)`.\n- `clearerr(f)` clears the sticky end-of-file and error indicators."
+    }
+   ]
+  },
+  {
+   "id": "c27-together",
+   "title": "Review with catn.c, then putting it together: records from a file",
+   "notebook": "c/IO.ipynb",
+   "priority": "high",
+   "examNote": "This is the shape of the long file questions on Prof. Ma's list. **April 2022 Q6** (30 points over four parts): read every line of a file into an array of strings (store at most 100, return the real count), move the shortest string to the front by swapping, sort by repeating that, and a `main` that checks its one argument and prints the result. **Fall 2015 Q6** (5 points): read the first five lines of a file into an array of `typedef struct` values and abort with an informative message if the file cannot be opened, has too few lines, or has a line that is too short. Today's `standings.c` and the blank writing item practise both with new details; the original questions are kept for the past-paper bank.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `catn.c`: the whole topic in one program\n\nThe notebook's `catn.c` reads a file line by line and writes each line, with a line number in front, to a second file. It uses almost every idea from Days 26 and 27, so it makes a good review. This version takes both file names from the command line (the notebook's names were fixed) and closes the input file before exiting when the output file cannot be opened:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    int status = EXIT_FAILURE;            // assume failure until we finish\n    if (argc != 3) {\n        fprintf(stderr, \"usage: catn infile outfile\\n\");\n        exit(status);\n    }\n\n    // input file\n    FILE *f_in = fopen(argv[1], \"r\");\n    if (!f_in) {\n        perror(\"fopen() failed\");\n        exit(status);\n    }\n\n    // output file\n    FILE *f_out = fopen(argv[2], \"w\");\n    if (!f_out) {\n        perror(\"fopen() failed\");\n        fclose(f_in);\n        exit(status);\n    }\n\n    // current line number (starting at 1)\n    int line_num = 1;\n\n    // input line buffer\n    char str_in[100];\n    while (fgets(str_in, 100, f_in) != NULL) {\n        fprintf(f_out, \"%03d %s\", line_num, str_in);\n        if (ferror(f_out)) {\n            break;\n        }\n        line_num++;\n    }\n    if (ferror(f_in) || ferror(f_out)) {\n        fprintf(stderr, \"I/O error\\n\");\n    }\n    else if (feof(f_in)) {\n        status = EXIT_SUCCESS;\n    }\n\n    fclose(f_in);\n    fclose(f_out);\n    return status;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o catn catn.c\n$ ./catn tell.txt numbered.txt\n$ echo $?\n0\n$ cat numbered.txt\n001 ABCDE\n002 FGHIJ\n003 KLMNO\n004 PQRST\n$ ./catn missing.txt x.txt\nfopen() failed: No such file or directory\n$ ./catn tell.txt\nusage: catn infile outfile"
+    },
+    {
+     "type": "md",
+     "text": "Walk through it as a checklist:\n\n1. **`status` starts as `EXIT_FAILURE`** and becomes `EXIT_SUCCESS` only if everything worked. One variable, one `return` at the end.\n2. **Open** each file and **check for `NULL`** with `perror`. The input uses `\"r\"`, the output `\"w\"` (it is emptied or created).\n3. **Read lines** with `fgets(str_in, 100, f_in) != NULL`. The newline stays in `str_in`, which is exactly what we want here: printing it ends the output line.\n4. **Write** with `fprintf(f_out, \"%03d %s\", ...)`. `%03d` pads the number with zeros to width 3 (Day 17).\n5. **Find out why the loop stopped**: `ferror` on either stream means an I/O error; otherwise `feof(f_in)` means the whole file was read.\n6. **Close** both files.\n\nThe notebook builds each output line in `char str_out[104]` with `sprintf` and then calls `fputs`. With `gcc -Wall`, that version warns that `sprintf` may write up to 111 bytes into the 104-byte array: line numbers above 999 make `%03d` longer than 3 digits. Writing straight to the stream with `fprintf` needs no array at all, so nothing can overflow. (A line longer than 99 characters still comes back from `fgets` in two pieces and gets two numbers.)"
+    },
+    {
+     "type": "md",
+     "text": "### The I/O toolbox at a glance\n\n| Task | Function | At the end / on failure |\n|---|---|---|\n| open / close | `fopen(name, mode)` / `fclose(f)` | `NULL` / `EOF` |\n| one character | `fgetc(f)`, `fputc(c, f)` | `EOF` |\n| one line | `fgets(buf, n, f)`, `fputs(s, f)` | `NULL` / `EOF` |\n| formatted | `fscanf(f, fmt, ...)`, `fprintf(f, fmt, ...)` | fewer items or `EOF` / negative |\n| why did it stop? | `feof(f)`, `ferror(f)`, `clearerr(f)` | |\n| position | `ftell(f)`, `fseek(f, off, origin)`, `rewind(f)` | -1 / non-zero |\n| buffer | `fflush(f)` | `EOF` |\n| error message | `perror(\"text\")` | |"
+    },
+    {
+     "type": "md",
+     "text": "### Putting it together: from a file into an array of structs\n\nExam questions combine file reading with the other things you learned: arrays (Day 14), strings (Days 16 and 17) and structs (Day 13). The plan is almost always the same:\n\n1. Open the file, check for `NULL`.\n2. Read **one line at a time** with `fgets` into a `char line[100]`.\n3. Take the line apart with `sscanf` (or remove the `'\\n'` and use it as a string), checking how many values you got.\n4. Store the result in the next element of an array, **only if there is room**, but keep counting.\n5. Close the file. Then work on the array (find, swap, sort, print) in separate functions.\n\nThe file `teams.txt` has one team per line: a name, wins and losses. This program reads it into an array of a `typedef struct`, sorts it by wins, most first, and prints it. `best_to_front` swaps whole structs (structs can be copied with `=`), and `sort_by_wins` calls it on the shorter and shorter array that starts at `t + i` (Day 12: `t + i` points to `t[i]`)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\ntypedef struct {\n    char name[20];\n    int wins;\n    int losses;\n} team;\n\n// Reads lines \"name wins losses\" from the file into t. Stores at most 30\n// teams but returns the TOTAL number of lines. Exits with a message if the\n// file cannot be opened or a line is not in the right form.\nint read_teams(const char *filename, team t[static 30]) {\n    FILE *f = fopen(filename, \"r\");\n    if (!f) {\n        perror(filename);\n        exit(EXIT_FAILURE);\n    }\n    char line[100];\n    int n = 0;\n    while (fgets(line, 100, f) != NULL) {\n        team tmp;\n        if (sscanf(line, \"%19s %d %d\", tmp.name, &tmp.wins, &tmp.losses) != 3) {\n            fprintf(stderr, \"%s: line %d is not \\\"name wins losses\\\"\\n\", filename, n + 1);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        if (n < 30) {\n            t[n] = tmp;                   // structs can be copied with =\n        }\n        n++;\n    }\n    fclose(f);\n    return n;\n}\n\n// Swaps the team with the most wins into t[0] (the first one if several tie).\nvoid best_to_front(int n, team t[static n]) {\n    int best = 0;\n    for (int i = 1; i < n; i++) {\n        if (t[i].wins > t[best].wins) {\n            best = i;\n        }\n    }\n    team tmp = t[0];\n    t[0] = t[best];\n    t[best] = tmp;\n}\n\n// Sorts by wins, most first: put the best of t[i..n-1] at t[i], for each i.\nvoid sort_by_wins(int n, team t[static n]) {\n    for (int i = 0; i < n - 1; i++) {\n        best_to_front(n - i, t + i);      // t + i is the array starting at t[i]\n    }\n}\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: standings file\\n\");\n        exit(EXIT_FAILURE);\n    }\n    team t[30];\n    int total = read_teams(argv[1], t);\n    int n = total < 30 ? total : 30;      // how many were actually stored\n    sort_by_wins(n, t);\n    for (int i = 0; i < n; i++) {\n        printf(\"%-6s %2d-%d\\n\", t[i].name, t[i].wins, t[i].losses);\n    }\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o standings standings.c\n$ printf 'hawks 7 5\\nbears 10 2\\nowls 3 9\\nlions 10 2\\nfoxes 8 4\\n' > teams.txt\n$ ./standings teams.txt\nbears  10-2\nlions  10-2\nfoxes   8-4\nhawks   7-5\nowls    3-9\n$ printf 'hawks 7 5\\nbears ten 2\\n' > bad.txt\n$ ./standings bad.txt\nbad.txt: line 2 is not \"name wins losses\"\n$ echo $?\n1\n$ ./standings nope.txt\nnope.txt: No such file or directory"
+    },
+    {
+     "type": "md",
+     "text": "Points worth copying into your own answers:\n\n- `read_teams` returns the **total** number of lines, but `main` only uses `n = total < 30 ? total : 30` elements, because only those were stored.\n- The fields go into a temporary struct `tmp` first, and are copied into the array only when `sscanf` returned 3 **and** there is room.\n- The error message names the file and the line, and goes to `stderr`; the program exits with a failure status. That is what \"abort with an informative error message\" means on an exam.\n- `%19s` keeps a long name from overflowing `name[20]`."
+    },
+    {
+     "type": "why",
+     "q": "Why read each line with `fgets` and then use `sscanf`, instead of calling `fscanf(f, \"%19s %d %d\", ...)` directly in the loop?",
+     "a": "With `fgets` each loop pass consumes exactly **one line**, so you can count lines and report \"line 2 is bad\". `fscanf` skips newlines like spaces, so a line with a missing number would quietly take its value from the next line, and you could not tell which line was wrong."
+    },
+    {
+     "type": "check",
+     "q": "Fall 2015-style change: the function must read **only the first 4 lines** of the file and abort if the file has fewer. Which two changes to `read_teams` do that?",
+     "a": "Loop at most 4 times, for example `for (int i = 0; i < 4; i++)`, and inside the loop treat `fgets(...) == NULL` as an error: print a message to `stderr` (`\"fewer than 4 lines\"`) and `exit(EXIT_FAILURE)`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Writing `t[n] = tmp;` before checking `n < 30` overflows the array as soon as the file has 31 lines. Check first, then store, and count in every case."
+    },
+    {
+     "type": "pitfall",
+     "text": "Returning the number of **stored** items when the question asks for the number of lines in the file (April 2022 Q6(a) wants the real count, even above 100)."
+    },
+    {
+     "type": "try",
+     "text": "Add 30 more lines to `teams.txt` (for example with `for i in $(seq 30); do echo \"t$i $i 0\"; done >> teams.txt`) and run `standings` again: it prints 30 teams. Then add `printf(\"%d lines\\n\", total);` to `main` to see that `read_teams` still counted all 35."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- The I/O pattern: `fopen` + `NULL` check, a reading loop (`fgetc`/`fgets`/`fscanf`), find out why it stopped (`feof`/`ferror`), `fclose`.\n- Exit status: start with failure, set success only at the end (`catn.c`).\n- `fprintf` straight to the stream is safer than `sprintf` into a fixed array.\n- Records from a file: `fgets` a line, `sscanf` the fields, check the count, store only if there is room, count every line.\n- \"Abort with an informative message\" = `perror` or `fprintf(stderr, ...)` naming the problem, then `exit(EXIT_FAILURE)`."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c27-fc-01",
+   "topic": "c27-buffer-pos",
+   "front": "What is a buffer, and what does flushing it mean?",
+   "back": "A piece of memory where a stream collects data before transferring it in one go. Flushing = transferring the buffer's contents now."
+  },
+  {
+   "id": "c27-fc-02",
+   "topic": "c27-buffer-pos",
+   "front": "Unbuffered, line buffered, fully buffered: which streams are which on Linux?",
+   "back": "`stderr`: unbuffered. `stdout`/`stdin` on a terminal: line buffered. Files (and `stdout` redirected to a file): fully buffered."
+  },
+  {
+   "id": "c27-fc-03",
+   "topic": "c27-buffer-pos",
+   "front": "What does `fflush(f)` do, and what else flushes?",
+   "back": "Sends the output waiting in `f`'s buffer on now (returns 0 or `EOF`). `fclose`, `exit` and returning from `main` also flush. Never `fflush(stdin)`."
+  },
+  {
+   "id": "c27-fc-04",
+   "topic": "c27-buffer-pos",
+   "front": "What is the file position?",
+   "back": "Where the next character is read or written: the number of bytes from the start, counting from 0. Each read/write moves it forward. It belongs to the stream, not the file."
+  },
+  {
+   "id": "c27-fc-05",
+   "topic": "c27-buffer-pos",
+   "front": "`ftell`: declaration and meaning.",
+   "back": "`long ftell(FILE *stream);` returns the current file position (print with `%ld`), or -1 on failure."
+  },
+  {
+   "id": "c27-fc-06",
+   "topic": "c27-buffer-pos",
+   "front": "What does `rewind(f)` do?",
+   "back": "Sets the file position back to 0 (and clears the end-of-file and error indicators). Same as `fseek(f, 0, SEEK_SET)` plus clearing the error indicator."
+  },
+  {
+   "id": "c27-fc-07",
+   "topic": "c27-seek-update",
+   "front": "`fseek`: declaration and return value.",
+   "back": "`int fseek(FILE *stream, long offset, int origin);` moves to `offset` from `origin`. Returns 0 on success, non-zero on failure."
+  },
+  {
+   "id": "c27-fc-08",
+   "topic": "c27-seek-update",
+   "front": "The three origins for `fseek`.",
+   "back": "`SEEK_SET`: from the beginning. `SEEK_CUR`: from the current position. `SEEK_END`: from the end. Offsets may be negative."
+  },
+  {
+   "id": "c27-fc-09",
+   "topic": "c27-seek-update",
+   "front": "How do you find the size of a file in bytes?",
+   "back": "`fseek(f, 0, SEEK_END); long size = ftell(f);`"
+  },
+  {
+   "id": "c27-fc-10",
+   "topic": "c27-seek-update",
+   "front": "`\"r+\"`, `\"w+\"`, `\"a+\"`: what do they do with an existing file?",
+   "back": "All three read and write. `r+` keeps it and starts at 0 (fails if missing). `w+` destroys the contents. `a+` keeps it, reads anywhere, but always writes at the end."
+  },
+  {
+   "id": "c27-fc-11",
+   "topic": "c27-seek-update",
+   "front": "The two rules for update-mode streams.",
+   "back": "Read then write: call a positioning function (`fseek`, `rewind`) in between. Write then read: call a positioning function or `fflush` in between."
+  },
+  {
+   "id": "c27-fc-12",
+   "topic": "c27-seek-update",
+   "front": "The four steps to replace one character in place (after `fgetc` read it).",
+   "back": "`fseek(f, -1, SEEK_CUR);` `fputc(newc, f);` `fflush(f);` then keep reading. The file was opened with `\"r+\"`."
+  },
+  {
+   "id": "c27-fc-13",
+   "topic": "c27-seek-update",
+   "front": "What does `clearerr(f)` do, and when do you need it?",
+   "back": "Clears the end-of-file and error indicators of `f`. They are sticky: after `EOF`, reads keep failing until they are cleared (e.g. a file that grew, or `stdin` after Ctrl-D)."
+  },
+  {
+   "id": "c27-fc-14",
+   "topic": "c27-together",
+   "front": "In what order should a function store a record read from a file into `a[static N]`?",
+   "back": "Read the line, parse it into a temporary, check the parse succeeded, then `if (count < N) a[count] = tmp;` and `count++` every time. Return the total count."
+  },
+  {
+   "id": "c27-fc-15",
+   "topic": "c27-together",
+   "front": "Why `fgets` + `sscanf` instead of `fscanf` for line-based records?",
+   "back": "One line per loop pass: you can count lines, report which line is bad, and a missing field cannot be taken from the next line."
+  },
+  {
+   "id": "c27-fc-16",
+   "topic": "c27-together",
+   "front": "How does `catn.c` decide its exit status?",
+   "back": "`int status = EXIT_FAILURE;` at the start; set `status = EXIT_SUCCESS` only if no `ferror` and `feof(f_in)` is true after the loop; `return status;`."
+  },
+  {
+   "id": "c27-fc-17",
+   "topic": "c27-together",
+   "front": "What does \"abort with an informative error message\" look like in C?",
+   "back": "`fprintf(stderr, \"%s: fewer than 5 lines\\n\", filename);` (or `perror(filename)` after a failed `fopen`) followed by `exit(EXIT_FAILURE);`."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c27-q-01",
+   "topic": "c27-buffer-pos",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"p1.txt\", \"w\");\n    fputs(\"hello\\nhi\\n\", f);\n    fclose(f);\n\n    f = fopen(\"p1.txt\", \"r\");\n    printf(\"%ld \", ftell(f));\n    fgetc(f);\n    fgetc(f);\n    fgetc(f);\n    printf(\"%ld \", ftell(f));\n    char buf[20];\n    fgets(buf, 20, f);\n    printf(\"%ld [%c]\\n\", ftell(f), buf[0]);\n    fclose(f);\n    return 0;\n}",
+   "answer": "0 3 6 [l]",
+   "explain": "A new `\"r\"` stream starts at 0. Three `fgetc` calls move to 3. `fgets` reads the rest of the line, `lo\\n` (3 characters), so the position is 6, and `buf[0]` is `l`."
+  },
+  {
+   "id": "c27-q-02",
+   "topic": "c27-buffer-pos",
+   "type": "output",
+   "q": "The program is run as `./p > out.txt 2>&1` and then `cat out.txt` is typed. What does `cat` show?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"A\\n\");\n    fputs(\"B\\n\", stderr);\n    printf(\"C\\n\");\n    fputs(\"D\\n\", stderr);\n    return 0;\n}",
+   "answer": "B\nD\nA\nC",
+   "explain": "Redirected to a file, `stdout` is fully buffered: `A` and `C` wait in the buffer until the program ends. `stderr` is unbuffered, so `B` and `D` reach the file first. On a terminal the order would be A B C D."
+  },
+  {
+   "id": "c27-q-03",
+   "topic": "c27-buffer-pos",
+   "type": "short",
+   "q": "A program writes a report with `fprintf(out, ...)`, and before calling `fclose(out)` it starts another program that reads the report file. The other program finds the file empty or incomplete. Why, and what is the fix?",
+   "answer": "The data is still in `out`'s buffer (files are fully buffered), not yet in the file. Call `fflush(out)` (or `fclose(out)`) before the other program reads it.",
+   "explain": "Buffers are flushed when full, on `fflush`, on `fclose`, and when the program exits; until then other readers do not see the data."
+  },
+  {
+   "id": "c27-q-04",
+   "topic": "c27-buffer-pos",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"p5.txt\", \"w\");\n    fputs(\"xyz\\n\", f);\n    fclose(f);\n\n    f = fopen(\"p5.txt\", \"r\");\n    int n = 0;\n    while (fgetc(f) != EOF) {\n        n++;\n    }\n    rewind(f);\n    int c = fgetc(f);\n    printf(\"%d %c %d\\n\", n, c, feof(f) != 0);\n    fclose(f);\n    return 0;\n}",
+   "answer": "4 x 0",
+   "explain": "The file has 4 characters (`xyz\\n`). After the loop the end-of-file indicator is set, but `rewind` goes back to 0 **and** clears it; the next `fgetc` reads `x`, so `feof` is 0."
+  },
+  {
+   "id": "c27-q-05",
+   "topic": "c27-seek-update",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"p2.txt\", \"w\");\n    fputs(\"0123456789\", f);\n    fclose(f);\n\n    f = fopen(\"p2.txt\", \"r\");\n    int a, b, c;\n    fseek(f, -3, SEEK_END);\n    a = fgetc(f);\n    fseek(f, 2, SEEK_SET);\n    b = fgetc(f);\n    fseek(f, 1, SEEK_CUR);\n    c = fgetc(f);\n    printf(\"%c %c %c %ld\\n\", a, b, c, ftell(f));\n    fclose(f);\n    return 0;\n}",
+   "answer": "7 2 4 5",
+   "explain": "The file has 10 characters. `-3` from the end is position 7 (`7`). `SEEK_SET 2` reads `2` and moves to 3. `SEEK_CUR 1` moves to 4, reads `4`, and the position is 5."
+  },
+  {
+   "id": "c27-q-06",
+   "topic": "c27-seek-update",
+   "type": "mcq",
+   "q": "You must open an existing file to read it and change a few characters in the middle, keeping everything else. If the file does not exist, opening should fail. Which mode?",
+   "options": [
+    "`\"w+\"`",
+    "`\"a+\"`",
+    "`\"r+\"`",
+    "`\"rw\"`"
+   ],
+   "answer": 2,
+   "explain": "`\"r+\"` keeps the contents, allows reading and writing anywhere, and fails if the file is missing. `\"w+\"` erases the file, `\"a+\"` writes only at the end, and `\"rw\"` is not one of the six modes."
+  },
+  {
+   "id": "c27-q-07",
+   "topic": "c27-seek-update",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"p6.txt\", \"w+\");\n    fputs(\"abc\", f);\n    printf(\"%ld \", ftell(f));\n    rewind(f);\n    int c = fgetc(f);\n    printf(\"%c %ld\\n\", c, ftell(f));\n    fclose(f);\n    return 0;\n}",
+   "answer": "3 a 1",
+   "explain": "`\"w+\"` creates an empty file at position 0; writing `abc` moves to 3. `rewind` (a positioning call, so the read is allowed) goes back to 0; `fgetc` reads `a` and the position is 1."
+  },
+  {
+   "id": "c27-q-08",
+   "topic": "c27-seek-update",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"p7.txt\", \"w\");\n    fputs(\"12\\n\", f);\n    fclose(f);\n\n    f = fopen(\"p7.txt\", \"a+\");\n    rewind(f);\n    fputs(\"34\\n\", f);\n    rewind(f);\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        putchar(c);\n    }\n    fclose(f);\n    return 0;\n}",
+   "answer": "12\n34",
+   "explain": "In `\"a+\"` mode every write goes to the end of the file, even right after `rewind`. So `34` is added after `12`, and reading from the start prints both lines."
+  },
+  {
+   "id": "c27-q-09",
+   "topic": "c27-seek-update",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"p11.txt\", \"w\");\n    fputs(\"cat\\ndog\\nemu\\n\", f);\n    fclose(f);\n\n    f = fopen(\"p11.txt\", \"r+\");\n    int c;\n    int at_start = 1;                    // is c the first character of a line?\n    while ((c = fgetc(f)) != EOF) {\n        if (at_start && c >= 'a' && c <= 'z') {\n            fseek(f, -1, SEEK_CUR);\n            fputc(c - 'a' + 'A', f);\n            fflush(f);\n        }\n        at_start = (c == '\\n');\n    }\n    rewind(f);\n    while ((c = fgetc(f)) != EOF) {\n        putchar(c);\n    }\n    fclose(f);\n    return 0;\n}",
+   "answer": "Cat\nDog\nEmu",
+   "explain": "`at_start` is 1 for the first character and for every character after a `'\\n'`. Each of those lowercase letters is overwritten in place with its capital (`fseek` back one, `fputc`, `fflush`). Then the file is rewound and printed."
+  },
+  {
+   "id": "c27-q-10",
+   "topic": "c27-seek-update",
+   "type": "short",
+   "q": "State the two rules for switching between reading and writing on a stream opened with `\"r+\"`, `\"w+\"` or `\"a+\"`.",
+   "answer": "(1) Between a read and a following write, call a file positioning function (`fseek` or `rewind`). (2) Between a write and a following read, call a file positioning function or `fflush`.",
+   "explain": "Breaking either rule is undefined behaviour. In `replace_char.c` the `fseek(f, -1, SEEK_CUR)` satisfies rule 1 and the `fflush(f)` satisfies rule 2."
+  },
+  {
+   "id": "c27-q-11",
+   "topic": "c27-seek-update",
+   "type": "short",
+   "q": "A program reads `stdin` with `getchar()` until `EOF` (the user pressed Ctrl-D), then wants to read a second batch of input from the keyboard, but every `getchar()` returns `EOF` at once. Why, and which call fixes it?",
+   "answer": "The end-of-file indicator of `stdin` is sticky: once set, reads keep returning `EOF`. Call `clearerr(stdin);` before reading again.",
+   "explain": "`clearerr` clears both the end-of-file and the error indicator of a stream."
+  },
+  {
+   "id": "c27-q-12",
+   "topic": "c27-seek-update",
+   "type": "short",
+   "q": "Write statements that print the last character of the open stream `f` (opened with `\"r\"`) and the size of the file, in the form `last: X, size: N`. Assume the file is not empty.",
+   "answer": "```c\nfseek(f, -1, SEEK_END);\nint c = fgetc(f);\nlong size = ftell(f);   // after reading the last character we are at the end\nprintf(\"last: %c, size: %ld\\n\", c, size);\n```",
+   "explain": "`-1` from `SEEK_END` is the last character; reading it moves the position to the end, which equals the size. (`fseek(f, 0, SEEK_END); ftell(f)` also gives the size.) Keep the `fgetc` in its own statement: the order in which `printf`'s arguments are evaluated is not specified."
+  },
+  {
+   "id": "c27-q-13",
+   "topic": "c27-together",
+   "type": "short",
+   "q": "A function reads lines of the form `name age` into `person p[static 20]` and must return the number of lines in the file even if there are more than 20. Here is its loop. Find the bug and fix it.\n\n```c\nwhile (fgets(line, 100, f) != NULL) {\n    sscanf(line, \"%19s %d\", p[n].name, &p[n].age);\n    n++;\n}\n```",
+   "answer": "When the file has more than 20 lines, `p[n]` with `n >= 20` writes past the end of the array. Parse into a temporary and store only if there is room:\n\n```c\nwhile (fgets(line, 100, f) != NULL) {\n    person tmp;\n    if (sscanf(line, \"%19s %d\", tmp.name, &tmp.age) == 2 && n < 20) {\n        p[n] = tmp;\n    }\n    n++;\n}\n```",
+   "explain": "Count every line, store at most 20. (It is also good practice to check that `sscanf` returned 2.)"
+  },
+  {
+   "id": "c27-q-14",
+   "topic": "c27-together",
+   "type": "short",
+   "q": "In the notebook's `catn.c`, `sprintf(str_out, \"%03d %s\", line_num, str_in)` writes into `char str_out[104]` while `str_in` holds up to 99 characters. `gcc -Wall` warns about it. Why can it overflow, and what simpler code avoids the array?",
+   "answer": "`%03d` is at least 3 digits but can be more (line 1000 has 4 digits, and a big `int` has up to 11 characters), so the result can be longer than 104 bytes. Write directly to the file instead: `fprintf(f_out, \"%03d %s\", line_num, str_in);`.",
+   "explain": "The `0` and `3` in `%03d` give a *minimum* width with zero padding, never a maximum."
+  }
+ ],
+ "write": [
+  {
+   "id": "c27-w-01",
+   "topic": "c27-seek-update",
+   "stage": "worked",
+   "marks": 6,
+   "prompt": "Write a function `int swap_case_file(const char *filename)` that changes the file **in place**: every lowercase letter becomes uppercase and every uppercase letter becomes lowercase; other characters stay. It returns the number of characters changed, or -1 if the file cannot be opened.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Flips the case of every letter in the file, in place.\n// Returns the number of characters changed, or -1 if the file cannot be opened.\nint swap_case_file(const char *filename) {\n    FILE *f = fopen(filename, \"r+\");      // read and write, keep the contents\n    if (!f) {\n        return -1;\n    }\n    int changed = 0;\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        int d = c;\n        if (c >= 'a' && c <= 'z') {\n            d = c - 'a' + 'A';\n        }\n        else if (c >= 'A' && c <= 'Z') {\n            d = c - 'A' + 'a';\n        }\n        if (d != c) {\n            fseek(f, -1, SEEK_CUR);       // rule 1: reposition between read and write\n            fputc(d, f);                  // overwrite the letter just read\n            fflush(f);                    // rule 2: flush between write and read\n            changed++;\n        }\n    }\n    fclose(f);\n    return changed;\n}",
+   "explain": "This is `replace_char.c` with a different rule for the new character.\n\n- `\"r+\"` keeps the contents and allows writing anywhere (`\"w+\"` would erase the file).\n- `d` is the new character (Day 5: `c - 'a' + 'A'`). Only when it differs do we write.\n- `fseek(f, -1, SEEK_CUR)` steps back onto the letter just read; it is also the positioning call rule 1 demands between a read and a write.\n- After `fputc`, the next action is a read, so rule 2 demands `fflush(f)` (or another `fseek`).\n\nTested with a `main` that writes `Hello, World 42` and `C is Fun` to `case.txt`, calls the function, prints the file, and calls it on a missing file:\n\n```\n$ gcc -std=c17 -Wall -o swapcase swapcase.c\n$ ./swapcase\nchanged 16\nhELLO, wORLD 42\nc IS fUN\nmissing: -1\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`fopen(filename, \"r+\")` and returns -1 on `NULL`"
+    },
+    {
+     "marks": 1,
+     "item": "`int c` and the loop `while ((c = fgetc(f)) != EOF)`"
+    },
+    {
+     "marks": 1,
+     "item": "correct case change for both ranges, other characters untouched"
+    },
+    {
+     "marks": 2,
+     "item": "`fseek(f, -1, SEEK_CUR)` before `fputc`, and `fflush(f)` (or `fseek`) after it"
+    },
+    {
+     "marks": 1,
+     "item": "counts changes, `fclose(f)`, returns the count"
+    }
+   ],
+   "pitfalls": [
+    "Opening with `\"w+\"`: the file is erased before you read it.",
+    "Writing without stepping back: overwrites the next character instead of the letter.",
+    "Leaving out `fflush`: undefined behaviour on an update stream.",
+    "Writing every character back, even unchanged ones: works, but the count is wrong unless you only count real changes."
+   ]
+  },
+  {
+   "id": "c27-w-02",
+   "topic": "c27-seek-update",
+   "stage": "faded",
+   "marks": 6,
+   "prompt": "Complete `print_tail`. It prints the last `n` characters of the file to standard output (the whole file if it has fewer than `n` characters) and returns how many characters it printed, or -1 if the file cannot be opened. Use `fseek` and `ftell`, not a loop over the whole file. For a file containing `first line`, `second line`, `last line` (each followed by a newline), `print_tail(name, 10)` prints `last line` and its newline and returns 10.",
+   "starter": "#include <stdio.h>\n#include <stdlib.h>\n\n// Prints the last n characters of the file (the whole file if it is shorter).\n// Returns the number of characters printed, or -1 if the file cannot be opened.\nlong print_tail(const char *filename, long n) {\n    FILE *f = ____;\n    if (____) {\n        return -1;\n    }\n    ____;                                 // go to the end ...\n    long size = ____;                     // ... so the position is the size\n    long start = ____;\n    if (start < 0) {\n        start = 0;\n    }\n    ____;\n    int c;\n    while (____) {\n        putchar(c);\n    }\n    ____;\n    return ____;\n}",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Prints the last n characters of the file (the whole file if it is shorter).\n// Returns the number of characters printed, or -1 if the file cannot be opened.\nlong print_tail(const char *filename, long n) {\n    FILE *f = fopen(filename, \"r\");\n    if (f == NULL) {\n        return -1;\n    }\n    fseek(f, 0, SEEK_END);                // go to the end ...\n    long size = ftell(f);                 // ... so the position is the size\n    long start = size - n;\n    if (start < 0) {\n        start = 0;\n    }\n    fseek(f, start, SEEK_SET);\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        putchar(c);\n    }\n    fclose(f);\n    return size - start;\n}",
+   "explain": "Go to the end and ask `ftell` for the position: that is the size. The first character to print is at `size - n`, but never before 0. Jump there with `SEEK_SET` and copy to the end. Tested on `tail.txt` (33 characters):\n\n```\n$ ./tail\nlast line\n(10 printed)\nfirst line\nsecond line\nlast line\n(33 printed)\nmissing: -1\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`fopen(filename, \"r\")`, returns -1 on `NULL`"
+    },
+    {
+     "marks": 2,
+     "item": "`fseek(f, 0, SEEK_END)` then `size = ftell(f)`"
+    },
+    {
+     "marks": 1,
+     "item": "start = size - n, but at least 0; `fseek(f, start, SEEK_SET)`"
+    },
+    {
+     "marks": 1,
+     "item": "`fgetc`/`putchar` loop to `EOF`"
+    },
+    {
+     "marks": 1,
+     "item": "`fclose(f)` and returns `size - start`"
+    }
+   ],
+   "pitfalls": [
+    "`fseek(f, -n, SEEK_END)` alone fails when the file is shorter than `n` (it would go before the start).",
+    "Returning `n` instead of the number actually printed.",
+    "Printing `ftell` with `%d` instead of `%ld`."
+   ]
+  },
+  {
+   "id": "c27-w-03",
+   "topic": "c27-together",
+   "stage": "blank",
+   "marks": 8,
+   "prompt": "Here is a struct type (assume it is already in your program, with `<stdio.h>`, `<stdlib.h>` and `<string.h>`):\n\n```c\ntypedef struct {\n    char first[30];   // the first word of the line\n    size_t length;    // the length of the line, not counting '\\n'\n} lineinfo;\n```\n\nWrite the function\n\n```c\nvoid read_three(const char *filename, lineinfo info[static 3])\n```\n\nthat reads the **first three lines** of the file and fills `info[0]`, `info[1]`, `info[2]` with each line's first word and its length (without the newline). Lines after the third are ignored. Every line except possibly the last ends with `'\\n'`, and no line has more than 60 characters. The function must abort the program (with an informative message on standard error and a failure exit status) if:\n\n- the file cannot be opened,\n- the file has fewer than 3 lines,\n- one of the first three lines has no word (it is empty or contains only spaces).",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\ntypedef struct {\n    char first[30];   // the first word of the line\n    size_t length;    // the length of the line, not counting '\\n'\n} lineinfo;\n\nvoid read_three(const char *filename, lineinfo info[static 3]) {\n    FILE *f = fopen(filename, \"r\");\n    if (f == NULL) {\n        perror(filename);\n        exit(EXIT_FAILURE);\n    }\n    char line[100];\n    for (int i = 0; i < 3; i++) {\n        if (fgets(line, 100, f) == NULL) {\n            fprintf(stderr, \"%s: fewer than 3 lines\\n\", filename);\n            exit(EXIT_FAILURE);\n        }\n        size_t len = strlen(line);\n        if (len > 0 && line[len - 1] == '\\n') {\n            line[len - 1] = '\\0';\n            len--;\n        }\n        if (sscanf(line, \"%29s\", info[i].first) != 1) {\n            fprintf(stderr, \"%s: line %d has no words\\n\", filename, i + 1);\n            exit(EXIT_FAILURE);\n        }\n        info[i].length = len;\n    }\n    fclose(f);\n}",
+   "explain": "Same shape as Fall 2015 Q6 (first lines of a file into an array of structs, with abort conditions) using the line-by-line tools of April 2022 Q6(a). A `for` loop runs exactly 3 times; `fgets` returning `NULL` inside it means the file ran out early. Remove the newline only if it is there (the last line may not have one), then `sscanf(line, \"%29s\", ...)` returns 1 if the line has a word and `EOF` if it is empty or blank. Exiting without `fclose` is acceptable here because `exit` closes all streams. Tested with a `main` that prints each struct:\n\n```\n$ printf 'the cat sat\\n  big dog\\nend\\nignored line\\n' > a.txt\n$ ./read_three a.txt\nthe 11\nbig 9\nend 3\n$ printf 'one\\ntwo\\nthree' > d.txt\n$ ./read_three d.txt\none 3\ntwo 3\nthree 5\n$ printf 'one\\ntwo\\n' > b.txt\n$ ./read_three b.txt\nb.txt: fewer than 3 lines\n$ printf 'one\\n   \\nthree' > c.txt\n$ ./read_three c.txt\nc.txt: line 2 has no words\n$ ./read_three nope.txt\nnope.txt: No such file or directory\n$ echo $?\n1\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`fopen(filename, \"r\")`; on `NULL` a message to `stderr` and `exit(EXIT_FAILURE)`"
+    },
+    {
+     "marks": 1,
+     "item": "loop exactly 3 times with `fgets(line, size, f)` and a buffer big enough for 60 characters + `\\n` + `\\0`"
+    },
+    {
+     "marks": 2,
+     "item": "`fgets` returning `NULL` inside the loop: \"fewer than 3 lines\" message and exit"
+    },
+    {
+     "marks": 1,
+     "item": "removes the trailing `\\n` only if present; `length` is the length without it"
+    },
+    {
+     "marks": 2,
+     "item": "gets the first word (`sscanf(line, \"%29s\", info[i].first)` or a manual scan) and aborts when there is none"
+    },
+    {
+     "marks": 1,
+     "item": "`info[i].` member assignments and `fclose(f)` on the normal path"
+    }
+   ],
+   "pitfalls": [
+    "Using `strlen(line)` as the length without removing the `\\n` (one too many).",
+    "Assuming the last line has a newline and always cutting the last character.",
+    "Checking only the first character for a space: `\"  big dog\"` has a word.",
+    "`sscanf(line, \"%s\", info[i].first) == EOF` is the empty case, but comparing with `!= 1` covers it more simply.",
+    "Error message to `stdout`, or `return` instead of `exit` (the caller would use garbage)."
+   ]
+  }
+ ]
+}
