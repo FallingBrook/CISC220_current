@@ -1,0 +1,234 @@
+{
+  "sourceId": "f16",
+  "source": "Final exam 2016",
+  "questions": [
+    {
+      "id": "f16-3",
+      "source": "Final exam 2016, Q3",
+      "kind": "short",
+      "marks": 10,
+      "topics": [
+        "c/pointers",
+        "c/arrays"
+      ],
+      "prompt": "**Question 3 (10 points): Pointers**\n\nRead the following short program:\n\n```c\n#include <stdio.h>\n#include <stdlib.h>\n\nint main() {\n  int a = 1;\n  int b = 2;\n  int c = 3;\n  int *p, *q, *r;\n  p = &a;\n  q = &b;\n  r = &a;\n\n  printf(\"line 1: %d, %d, %d\\n\", *p, *q, *r);\n\n  p = q;\n  q = &c;\n\n  printf(\"line 2: %d, %d, %d\\n\", *p, *q, *r);\n\n  *p = *q;\n  *r = *q + 1;\n  *q = 5;\n\n  printf(\"line 3: %d, %d, %d\\n\", *p, *q, *r);\n  printf(\"line 4: %d, %d, %d\\n\", a, b, c);\n\n  int numbers[] = {10,20,30,40,50,60,70,80,90,100,110,120};\n\n  printf(\"line 5: %d, %d\\n\", *numbers, *(numbers+2));\n\n  exit(0);\n} // end main\n```\n\nWrite the output of this program.",
+      "answer": "```\nline 1: 1, 2, 1\nline 2: 2, 3, 1\nline 3: 3, 5, 4\nline 4: 4, 3, 5\nline 5: 10, 30\n```\n\nTrace: p=&a, q=&b, r=&a. After `p = q; q = &c;` p points at b, q at c, r still at a. `*p = *q` sets b=3; `*r = *q + 1` sets a=4; `*q = 5` sets c=5. So *p=b=3, *q=c=5, *r=a=4. `*numbers` is numbers[0]=10 and `*(numbers+2)` is numbers[2]=30.",
+      "grading": "Verified by compiling and running. Two marks per line (5 lines). Line 3 and line 4 are the ones students usually get wrong: the common mistake is forgetting that after `p = q`, p points at b (not a), so `*p = *q` changes b, not a. Another common error is `*(numbers+2)` = 12 (adding 2 to the value) or 20 (off by one). Award a line's marks only if all three values on it are right, but if an early mistake is carried consistently into lines 3–4, give partial credit (1 of 2) for lines that are correct given the student's earlier values. Exact spacing/punctuation doesn't matter.",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "line 1: 1, 2, 1"
+        },
+        {
+          "marks": 2,
+          "item": "line 2: 2, 3, 1 (p now points at b, q at c, r still at a)"
+        },
+        {
+          "marks": 2,
+          "item": "line 3: 3, 5, 4"
+        },
+        {
+          "marks": 2,
+          "item": "line 4: 4, 3, 5 (a=4, b=3, c=5)"
+        },
+        {
+          "marks": 2,
+          "item": "line 5: 10, 30"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f16-3-v",
+      "source": "Variant of Final exam 2016, Q3",
+      "kind": "short",
+      "marks": 10,
+      "topics": [
+        "c/pointers",
+        "c/arrays"
+      ],
+      "prompt": "Read the following short program:\n\n```c\n#include <stdio.h>\n#include <stdlib.h>\n\nint main() {\n  int x = 4;\n  int y = 7;\n  int z = 9;\n  int *p, *q, *r;\n  p = &y;\n  q = &z;\n  r = &y;\n\n  printf(\"line 1: %d, %d, %d\\n\", *p, *q, *r);\n\n  q = p;\n  p = &x;\n\n  printf(\"line 2: %d, %d, %d\\n\", *p, *q, *r);\n\n  *q = *p + 2;\n  *p = *r * 2;\n  r = &z;\n  *r = *q - 1;\n\n  printf(\"line 3: %d, %d, %d\\n\", *p, *q, *r);\n  printf(\"line 4: %d, %d, %d\\n\", x, y, z);\n\n  int values[] = {3, 6, 9, 12, 15, 18, 21, 24};\n\n  printf(\"line 5: %d, %d, %d\\n\", *(values+3), *values + 3, values[5]);\n\n  exit(0);\n} // end main\n```\n\nWrite the output of this program.",
+      "answer": "```\nline 1: 7, 9, 7\nline 2: 4, 7, 7\nline 3: 12, 6, 5\nline 4: 12, 6, 5\nline 5: 12, 6, 18\n```\n\nTrace: p=&y, q=&z, r=&y. After `q = p; p = &x;` q points at y, p at x, r at y. `*q = *p + 2` sets y=6; `*p = *r * 2` sets x=12 (r points at y, now 6); `r = &z` then `*r = *q - 1` sets z=5. So *p=x=12, *q=y=6, *r=z=5. Line 5: `*(values+3)` is values[3]=12, `*values + 3` is values[0]+3=6, `values[5]`=18.",
+      "grading": "Verified by compiling and running. Two marks per line. Common errors: using y's old value 7 in `*p = *r * 2` (giving 14), forgetting that `r = &z` re-points r before the last assignment, and reading `*values + 3` as `*(values + 3)` (precedence: `*` binds tighter than `+`, so it is 3+3=6, not 12). Award a line's marks only if all values on it are right; give 1 of 2 for later lines that are consistent with an earlier error.",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "line 1: 7, 9, 7"
+        },
+        {
+          "marks": 2,
+          "item": "line 2: 4, 7, 7"
+        },
+        {
+          "marks": 2,
+          "item": "line 3: 12, 6, 5"
+        },
+        {
+          "marks": 2,
+          "item": "line 4: 12, 6, 5"
+        },
+        {
+          "marks": 2,
+          "item": "line 5: 12, 6, 18 (note *values + 3 is 6, not 12)"
+        }
+      ],
+      "variantOf": "f16-3"
+    },
+    {
+      "id": "f16-4",
+      "source": "Final exam 2016, Q4",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/IO",
+        "c/strings"
+      ],
+      "prompt": "**Question 4 (10 points): I/O and Strings**\n\nWrite a complete C program that reads a text file and decides if the lines in the file are in alphabetical order. The program should take one command line argument, the name of the input file. (Save time by assuming there will be exactly one argument.) If the lines of the input file are in order, the program should print a confirmation message to the standard output and exit successfully. If the lines are not in order, it should print a message to the standard output identifying the first pair of lines that are out of order and exit with a failure status.\n\nYour program should compare lines as strings, in dictionary order with a case-sensitive comparison. (Hint: use the `strcmp` function.) It's okay if the input file contains duplicate lines. Lines may contain spaces.\n\nIf any line in the input file contains more than 100 characters, your program should immediately write an error message and exit with a failure status.\n\nYou may assume that there is at least one line in the input file.\n\nBesides looking for lines over 100 characters long, the only I/O error you need to check for is not being able to open the input file. In that case, your program should write an error message and exit with a failure status.\n\nHere is a transcript showing the correct behavior (assuming that your program is called `ordered`):\n\n```\n-------$ cat good\napple\nbanana\ngrape\ngrape\norange\n-------$ ordered good\nlines in input are in order\n$: cat bad\napple\ngrape\nbanana\npeach\norange\n-------$ ordered bad\nlines out of order:\n  grape\n  banana\n-------$\n```\n\n(Exam instructions: you don't need to bother with `#include`s for libraries; you may use any C library functions.)",
+      "answer": "```c\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n#define MAX_LEN 100\n\nint main(int argc, char *argv[]) {\n    FILE *f = fopen(argv[1], \"r\");\n    if (!f) {\n        fprintf(stderr, \"cannot open %s\\n\", argv[1]);\n        exit(EXIT_FAILURE);\n    }\n\n    // room for 100 chars, plus one extra char to detect a long line, plus '\\0'\n    char prev[MAX_LEN + 2];\n    char curr[MAX_LEN + 2];\n    int first = 1;\n    while (fgets(curr, sizeof curr, f) != NULL) {\n        // remove the trailing newline, if any\n        size_t len = strlen(curr);\n        if (len > 0 && curr[len - 1] == '\\n') {\n            curr[len - 1] = '\\0';\n            len--;\n        }\n        if (len > MAX_LEN) {\n            fprintf(stderr, \"error: line longer than %d characters\\n\", MAX_LEN);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        if (!first && strcmp(prev, curr) > 0) {\n            printf(\"lines out of order:\\n  %s\\n  %s\\n\", prev, curr);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        strcpy(prev, curr);\n        first = 0;\n    }\n    fclose(f);\n    printf(\"lines in input are in order\\n\");\n    exit(EXIT_SUCCESS);\n}\n```\n\nTested on the `good` and `bad` files from the transcript, on a last line with no trailing newline, on lines of exactly 100 and 101 characters, and on a missing file.",
+      "grading": "Any correct approach is fine. Essentials: open the file named by `argv[1]` with `fopen` and check for NULL (error message, failure exit); read line by line (`fgets` is the natural choice; `getline` or reading char by char are also fine); detect lines longer than 100 characters (with `fgets`, a buffer of at least 102 chars and checking the length after removing the newline, or checking that a newline was read); remember the previous line (`strcpy` into a second buffer, or swap two buffers) and compare with `strcmp(prev, curr) > 0`; print both lines of the first out-of-order pair and exit with a failure status (`exit(EXIT_FAILURE)`, `exit(1)`, or `return 1` from main); otherwise print a confirmation and exit successfully.\n\nCommon mistakes that lose marks: comparing pointers with `<` or `==` instead of `strcmp`; storing only a pointer to the buffer as the \"previous line\" (it is overwritten by the next `fgets`, so prev and curr are always equal); a buffer of exactly 100 chars, which cannot hold a 100-char line plus the newline and '\\0' and then mis-splits lines; not stripping the newline, which is mostly harmless for comparison but wrong if the last line has no newline (\"zoo\" vs \"zoo\\n\") — minor deduction at most; treating duplicate lines as out of order (`>= 0` instead of `> 0`); forgetting to exit with a failure status. The paper says `#include`s may be omitted. Error messages may go to stdout or stderr (stderr is better). Exact wording of messages doesn't matter.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Opens argv[1] with fopen and on failure prints an error and exits with a failure status"
+        },
+        {
+          "marks": 2,
+          "item": "Reads the file one line at a time in a correct loop (e.g. while (fgets(buf, size, f) != NULL)) with a suitably sized buffer"
+        },
+        {
+          "marks": 2,
+          "item": "Detects a line longer than 100 characters, prints an error and exits with a failure status"
+        },
+        {
+          "marks": 2,
+          "item": "Keeps a copy of the previous line (strcpy or buffer swap, not just a pointer to the same buffer) and compares with strcmp, allowing duplicates"
+        },
+        {
+          "marks": 2,
+          "item": "On the first out-of-order pair prints both lines to stdout and exits with a failure status"
+        },
+        {
+          "marks": 1,
+          "item": "If all lines are in order, prints a confirmation and exits successfully"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f16-4-v",
+      "source": "Variant of Final exam 2016, Q4",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/IO",
+        "c/strings"
+      ],
+      "prompt": "Write a complete C program that reads a text file and decides if the lines in the file are sorted by length, shortest first (each line is no longer than the line after it). The program should take one command line argument, the name of the input file. (Save time by assuming there will be exactly one argument.) If the lines are sorted by length, the program should print a confirmation message to the standard output and exit successfully. If not, it should print a message to the standard output identifying the line numbers and contents of the first pair of lines that are out of order, and exit with a failure status.\n\nLines of equal length are fine in any order. Lines may contain spaces. The length of a line does not include its newline character.\n\nIf any line in the input file contains more than 80 characters, your program should immediately write an error message that includes the line number and exit with a failure status.\n\nYou may assume that there is at least one line in the input file.\n\nBesides looking for lines over 80 characters long, the only I/O error you need to check for is not being able to open the input file. In that case, your program should write an error message and exit with a failure status.\n\nHere is a transcript showing the correct behavior (assuming that your program is called `bylength`):\n\n```\n$ cat short\nto\ncat\nfrog\nfrog\nhorses\n$ bylength short\nlines are sorted by length\n$ cat mixed\na\nbee\nat\nzebra\n$ bylength mixed\nlines 2 and 3 are out of order:\n  bee\n  at\n$\n```",
+      "answer": "```c\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n#define MAX_LEN 80\n\nint main(int argc, char *argv[]) {\n    FILE *f = fopen(argv[1], \"r\");\n    if (!f) {\n        fprintf(stderr, \"cannot open %s\\n\", argv[1]);\n        exit(EXIT_FAILURE);\n    }\n\n    // room for 80 chars, plus one extra char to detect a long line, plus '\\0'\n    char prev[MAX_LEN + 2];\n    char curr[MAX_LEN + 2];\n    int line_num = 0;\n    while (fgets(curr, sizeof curr, f) != NULL) {\n        line_num++;\n        size_t len = strlen(curr);\n        if (len > 0 && curr[len - 1] == '\\n') {\n            curr[len - 1] = '\\0';\n            len--;\n        }\n        if (len > MAX_LEN) {\n            fprintf(stderr, \"error: line %d is longer than %d characters\\n\",\n                    line_num, MAX_LEN);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        if (line_num > 1 && strlen(prev) > len) {\n            printf(\"lines %d and %d are out of order:\\n  %s\\n  %s\\n\",\n                   line_num - 1, line_num, prev, curr);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        strcpy(prev, curr);\n    }\n    fclose(f);\n    printf(\"lines are sorted by length\\n\");\n    exit(EXIT_SUCCESS);\n}\n```\n\nTested on sorted and unsorted files, lines of exactly 80 and 81 characters, and a missing file.",
+      "grading": "Essentials: `fopen(argv[1], \"r\")` with a NULL check (error + failure exit); a line-by-line read loop (`fgets` with a buffer of at least 82 chars, `getline`, or char-by-char); remove or account for the newline when measuring length (a line that ends with '\\n' and one at end of file without it must be treated the same); count line numbers; error (with line number) and failure exit for a line over 80 chars; remember the previous line's contents (or at least its length plus a copy of its text, since the text must be printed) and compare lengths with `strlen`; print both line numbers and both lines for the first out-of-order pair and exit with failure; otherwise print a confirmation and exit successfully.\n\nCommon mistakes: comparing strings with `strcmp` instead of comparing lengths; counting the newline in the length (makes the last line, if it lacks a newline, look one shorter); treating equal lengths as out of order; keeping only a pointer to the read buffer as the previous line; off-by-one line numbers. Message wording does not matter.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Opens argv[1] and handles fopen failure with an error message and failure exit"
+        },
+        {
+          "marks": 2,
+          "item": "Correct line-by-line read loop with a big enough buffer, tracking line numbers"
+        },
+        {
+          "marks": 2,
+          "item": "Detects a line over 80 characters (newline not counted), prints error with the line number, exits with failure"
+        },
+        {
+          "marks": 2,
+          "item": "Keeps the previous line's text and compares lengths with strlen, allowing equal lengths"
+        },
+        {
+          "marks": 2,
+          "item": "Prints the line numbers and contents of the first out-of-order pair and exits with failure"
+        },
+        {
+          "marks": 1,
+          "item": "Prints a confirmation and exits successfully when sorted"
+        }
+      ],
+      "variantOf": "f16-4"
+    },
+    {
+      "id": "f16-5",
+      "source": "Final exam 2016, Q5",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/struct",
+        "c/pointers",
+        "c/allocating_and_deallocating_memory",
+        "c/linked_stack"
+      ],
+      "prompt": "**Question 5 (10 points): Structs and Storage Allocation**\n\nIn Assignment 5 you created linked lists using structs and pointers. As a reminder, here is the definition of the types used in that assignment:\n\n```c\n// A single node in a linked list\nstruct ListNode {\n  int data; // the data in this node\n  struct ListNode *next; // pointer to the next node\n};\n\n// Refer to a linked list with a pointer to the first node\ntypedef struct ListNode *LinkedList;\n```\n\nThe \"next\" pointer in the last node of a list should be null.\n\nWrite a function called `deleteSecond` with a parameter of type `LinkedList`. The function should delete the second node of the linked list. Its return value should be the number that was inside the node that was deleted. The function must also free the heap space used for the node being deleted, to prevent a \"memory leak\".\n\nIf the list is empty or has only one element, your function should do nothing and return 0. (These cases aren't shown in the sample code below in order to save paper, but please be sure to include them in your function.)\n\nThe header for your `deleteSecond` function should be:\n\n```c\nint deleteSecond(LinkedList list)\n```\n\nHere is an example of some code using `deleteSecond`, also using the `addToEnd` and `heapReport` functions from Assignment 5:\n\n```c\nprintf(\"start of program: \"); heapReport();\nLinkedList list = NULL;\n\n// create a singleton list\nlist = addToEnd(list, 10);\nprintf(\"heap report for singleton list: \"); heapReport();\n\n// Add five more values to the list\nlist = addToEnd(list, 20);\nlist = addToEnd(list, 30);\nlist = addToEnd(list, 40);\nlist = addToEnd(list, 50);\nlist = addToEnd(list, 60);\nprintf(\"full list: \"); printList(list);\nprintf(\"heap report for full list: \"); heapReport();\n\n// Test deleteSecond\nint i;\nfor (i = 0; i < 5; i++) {\n  int val = deleteSecond(list);\n  printf(\"deleted %d, list is \", val); printList(list);\n} // end for\n\nprintf(\"heap report after deletions: \"); heapReport();\n```\n\nOutput:\n\n```\nstart of program: heap use 0\nheap report for singleton list: heap use 32\nfull list: [10,20,30,40,50,60]\nheap report for full list: heap use 192\ndeleted 20, list is [10,30,40,50,60]\ndeleted 30, list is [10,40,50,60]\ndeleted 40, list is [10,50,60]\ndeleted 50, list is [10,60]\ndeleted 60, list is [10]\nheap report after deletions: heap use 32\n```\n\nThe above example was run on one of the CASLab Linux machines. The exact amount of heap space used might be different on a different computer, but the important thing is that the heap space reported in the two lines \"heap report for singleton list\" and \"heap report after deletions\" is the same, which demonstrates that the space used to store all of the deleted nodes was released.",
+      "answer": "```c\nint deleteSecond(LinkedList list) {\n  if (list == NULL || list->next == NULL) {\n    return 0;                      // empty or one-element list\n  }\n  struct ListNode *second = list->next;\n  int value = second->data;\n  list->next = second->next;       // unlink the second node\n  free(second);                    // release its heap space\n  return value;\n}\n```\n\nChecked with the example above plus an empty list and a one-element list; valgrind reports no leaks or errors.",
+      "grading": "Essentials: handle `list == NULL` and `list->next == NULL` by returning 0 *before* dereferencing anything else; save a pointer to the second node and its `data` before freeing; relink `list->next = second->next` (so the third node, or NULL, becomes the second); `free` the removed node; return the saved value. Accept `(*list).next`, a temporary for the third node, or any equivalent ordering as long as nothing is read from the node after `free`.\n\nCommon mistakes: reading `second->data` or `second->next` after `free(second)` (use after free: lose 2); freeing the wrong node (e.g. `free(list)`) or not freeing at all (memory leak: lose 2); `list->next = list->next` or otherwise losing the rest of the list; dereferencing `list->next->next` without checking that `list->next` is non-NULL; returning the deleted node's pointer instead of its data. Note the function cannot (and need not) change the caller's `list` variable because the first node is never deleted.",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "Returns 0 without doing anything for an empty list and for a one-element list (checks before dereferencing)"
+        },
+        {
+          "marks": 2,
+          "item": "Gets a pointer to the second node and saves its data value"
+        },
+        {
+          "marks": 2,
+          "item": "Relinks the first node to the third node (list->next = second->next), keeping the rest of the list intact"
+        },
+        {
+          "marks": 2,
+          "item": "Frees the deleted node, and only after everything needed from it has been read"
+        },
+        {
+          "marks": 2,
+          "item": "Returns the deleted value; correct header and no other errors"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f16-5-v",
+      "source": "Variant of Final exam 2016, Q5",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/struct",
+        "c/pointers",
+        "c/allocating_and_deallocating_memory",
+        "c/linked_stack"
+      ],
+      "prompt": "Here are the types for a singly linked list of `int` values:\n\n```c\n// A single node in a linked list\nstruct ListNode {\n  int data; // the data in this node\n  struct ListNode *next; // pointer to the next node\n};\n\n// Refer to a linked list with a pointer to the first node\ntypedef struct ListNode *LinkedList;\n```\n\nThe \"next\" pointer in the last node of a list should be null.\n\nWrite a function called `deleteLast` with a parameter of type `LinkedList`. The function should delete the **last** node of the linked list. Its return value should be the number that was inside the node that was deleted. The function must also free the heap space used for the node being deleted, to prevent a memory leak.\n\nIf the list is empty or has only one element, your function should do nothing and return 0. (The caller's pointer to the first node cannot be changed by this function, which is why a one-element list is left alone.)\n\nThe header for your function should be:\n\n```c\nint deleteLast(LinkedList list)\n```\n\nExample code using `deleteLast` (with `addToEnd` and `printList` helpers like those from Assignment 5):\n\n```c\nLinkedList list = NULL;\nlist = addToEnd(list, 7);\nlist = addToEnd(list, 3);\nlist = addToEnd(list, 9);\nlist = addToEnd(list, 4);\nlist = addToEnd(list, 8);\nprintf(\"full list: \"); printList(list);\n\nfor (int i = 0; i < 5; i++) {\n  int val = deleteLast(list);\n  printf(\"deleted %d, list is \", val); printList(list);\n}\n```\n\nOutput:\n\n```\nfull list: [7,3,9,4,8]\ndeleted 8, list is [7,3,9,4]\ndeleted 4, list is [7,3,9]\ndeleted 9, list is [7,3]\ndeleted 3, list is [7]\ndeleted 0, list is [7]\n```",
+      "answer": "```c\nint deleteLast(LinkedList list) {\n  if (list == NULL || list->next == NULL) {\n    return 0;                      // empty or one-element list\n  }\n  struct ListNode *prev = list;    // will stop at the second-last node\n  while (prev->next->next != NULL) {\n    prev = prev->next;\n  }\n  struct ListNode *last = prev->next;\n  int value = last->data;\n  prev->next = NULL;               // second-last node becomes the last node\n  free(last);\n  return value;\n}\n```\n\nChecked with the example above plus an empty and a one-element list; valgrind reports no leaks or errors.",
+      "grading": "Essentials: return 0 for `list == NULL` or `list->next == NULL`; walk to the **second-last** node (loop while `prev->next->next != NULL`, or keep a trailing `prev` pointer behind a `curr` pointer); save the last node's data; set the second-last node's `next` to NULL; `free` the last node; return the saved value.\n\nCommon mistakes: walking to the last node itself and then having no way to set the previous node's `next` to NULL (leaves a dangling pointer in the list: lose 2–4); reading the data after `free`; not freeing (leak); not setting `next` to NULL; dereferencing `list->next->next` before checking for a one-element list. Any correct traversal style (while/for, two pointers) is fine.",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "Returns 0 without changes for an empty or one-element list"
+        },
+        {
+          "marks": 2,
+          "item": "Correctly finds the second-last node (or tracks a previous pointer)"
+        },
+        {
+          "marks": 2,
+          "item": "Saves the last node's data before freeing"
+        },
+        {
+          "marks": 2,
+          "item": "Sets the second-last node's next to NULL and frees the last node"
+        },
+        {
+          "marks": 2,
+          "item": "Returns the deleted value; no use after free or other errors"
+        }
+      ],
+      "variantOf": "f16-5"
+    }
+  ]
+}

@@ -1,0 +1,967 @@
+{
+  "sourceId": "f22",
+  "source": "Final exam April 2022",
+  "questions": [
+    {
+      "id": "f22-2a",
+      "source": "Final exam April 2022, Q2(a)",
+      "kind": "short",
+      "marks": 3,
+      "topics": [
+        "c/pointers",
+        "c/arrays"
+      ],
+      "prompt": "**Question 2(a) (3 points)**\n\nConsider the following C function that searches an array arr of positive values for the maximum value in the array and returns the index of the maximum value; the array is assumed to have at least two values and the last value in array is assumed to be -1:\n\n```c\nsize_t maxidx(const int *arr) {\n    size_t index = 0;\n    int hi = arr[index];\n    for (size_t i = 1; arr[i] != -1; i++) {\n        if (arr[i] > hi) {\n            index = i;\n            hi = arr[i];\n        }\n    }\n    return index;\n}\n```\n\nInstead of returning an index, how would you change the return statement so that the function returned a pointer to the maximum value instead of returning an index (assume that the return type is changed to `int *`)? Your answer should change only the return statement; do not modify any other part of the function.",
+      "answer": "```c\nreturn (int *) &arr[index];\n```\n\nor equivalently `return (int *) (arr + index);`",
+      "grading": "Essential: return the *address* of the maximum element, i.e. `&arr[index]` or `arr + index`. The `(int *)` cast is needed only because `arr` is `const int *` and the return type is `int *`; without it gcc compiles the code but warns \"return discards 'const' qualifier\". Give full marks with or without the cast (the course didn't stress this). Wrong: `return arr[index];` (returns the value, not a pointer: 0 marks), `return *arr + index;`, `return &hi;` (address of a local variable, dangling once the function returns: 0 marks), `return arr;` (pointer to the first element).",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "Returns the address of element index: &arr[index] or arr + index"
+        },
+        {
+          "marks": 1,
+          "item": "Correct syntax, changes only the return statement (cast to int * optional)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-2a-v",
+      "source": "Variant of Final exam April 2022, Q2(a)",
+      "kind": "short",
+      "marks": 3,
+      "topics": [
+        "c/pointers",
+        "c/arrays"
+      ],
+      "prompt": "Consider the following C function that searches an array `arr` of `double` values for the first negative value and returns its index; the array is assumed to contain at least one negative value:\n\n```c\nsize_t negidx(const double *arr) {\n    size_t index = 0;\n    while (arr[index] >= 0.0) {\n        index++;\n    }\n    return index;\n}\n```\n\nInstead of returning an index, how would you change the return statement so that the function returned a pointer to the first negative value (assume that the return type is changed to `double *`)? Your answer should change only the return statement; do not modify any other part of the function.",
+      "answer": "```c\nreturn (double *) (arr + index);\n```\n\nor equivalently `return (double *) &arr[index];`",
+      "grading": "Essential: return the address of element `index` (`arr + index` or `&arr[index]`). The `(double *)` cast only removes the `const` from `const double *`; without it gcc warns but compiles; accept either. Wrong: `return arr[index];` (a double, not a pointer), `return &index;` (address of a local size_t), `return arr;`. Pointer arithmetic on a `double *` advances by whole elements, so `arr + index` is correct — `arr + index * sizeof(double)` is wrong.",
+      "rubric": [
+        {
+          "marks": 2,
+          "item": "Returns the address of element index: arr + index or &arr[index]"
+        },
+        {
+          "marks": 1,
+          "item": "Correct syntax, changes only the return statement (cast optional)"
+        }
+      ],
+      "variantOf": "f22-2a"
+    },
+    {
+      "id": "f22-2b",
+      "source": "Final exam April 2022, Q2(b)",
+      "kind": "long",
+      "marks": 7,
+      "topics": [
+        "c/pointers",
+        "c/arrays"
+      ],
+      "prompt": "**Question 2(b) (7 points)**\n\nRecall the function from Question 2(a), which searches an array of positive values terminated by -1 (at least two values) for its maximum:\n\n```c\nsize_t maxidx(const int *arr) {\n    size_t index = 0;\n    int hi = arr[index];\n    for (size_t i = 1; arr[i] != -1; i++) {\n        if (arr[i] > hi) {\n            index = i;\n            hi = arr[i];\n        }\n    }\n    return index;\n}\n```\n\nWrite a function named `ptr2max` that when called as shown below:\n\n```c\n// a is an array of int whose last value is -1\nsize_t i = maxidx(a);\nint *p = ptr2max(a);\n```\n\nreturns a pointer `p` such that `p` points to the maximum value in `a`.\n\nYour function must not use array indexing (this means that you cannot use square brackets `[]` in your answer), and it must not call another function. It should use a pointer (or pointers), pointer dereferencing, and pointer arithmetic instead of array indexing. Note that `ptr2max` does not receive the length of the array as input.",
+      "answer": "```c\nint *ptr2max(const int *a) {\n    const int *max = a;                    // pointer to the largest so far\n    for (const int *p = a + 1; *p != -1; p++) {\n        if (*p > *max) {\n            max = p;\n        }\n    }\n    return (int *) max;\n}\n```\n\nThe parameter may also be `int *a` (then no cast is needed). Tested on arrays where the maximum is first, in the middle, and repeated.",
+      "grading": "Essentials: start a pointer at the first element; advance a pointer with `p++` (or `p = p + 1`) until `*p == -1`; compare values with `*p > *max` (dereference!), keep a pointer (not just the value) to the largest; return that pointer. No `[]` anywhere and no function calls (so no calling `maxidx`).\n\nAccepted alternatives: parameter `int *a` or `const int *a`; a while loop; keeping the index as a pointer difference is not needed. With `const int *a`, returning without a cast gives only a warning; don't deduct.\n\nCommon mistakes: comparing pointers `p > max` instead of values (lose 2); using `a[i]` or calling `maxidx` (violates the rules: lose most marks); stopping at `p != -1` instead of `*p != -1`; keeping only the max value and then returning `&hi` (address of a local variable: dangling); missing the case where the maximum is the first element (e.g. starting max at a+1).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct header: int *ptr2max(int *a) or with const int *a"
+        },
+        {
+          "marks": 1,
+          "item": "Initializes a max pointer to the first element"
+        },
+        {
+          "marks": 2,
+          "item": "Loops with pointer arithmetic until the element pointed to is -1 (*p != -1)"
+        },
+        {
+          "marks": 2,
+          "item": "Compares dereferenced values and updates the max pointer to the current pointer"
+        },
+        {
+          "marks": 1,
+          "item": "Returns the pointer; no [] and no function calls"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-2b-v",
+      "source": "Variant of Final exam April 2022, Q2(b)",
+      "kind": "long",
+      "marks": 7,
+      "topics": [
+        "c/pointers",
+        "c/arrays"
+      ],
+      "prompt": "Write a function named `ptr2lastmin` that when called as shown below:\n\n```c\n// a is an array of positive int values whose last value is 0\n// (there is at least one positive value before the 0)\nint *p = ptr2lastmin(a);\n```\n\nreturns a pointer `p` that points to the **last** occurrence of the minimum value in `a`. For example, if `a` is `{5, 2, 8, 2, 9, 0}` then `p` should point at `a[3]`.\n\nYour function must not use array indexing (you cannot use square brackets `[]` in your answer), and it must not call another function. It should use a pointer (or pointers), pointer dereferencing, and pointer arithmetic instead of array indexing. Note that `ptr2lastmin` does not receive the length of the array as input.",
+      "answer": "```c\nint *ptr2lastmin(const int *a) {\n    const int *min = a;                    // pointer to the smallest so far\n    for (const int *p = a + 1; *p != 0; p++) {\n        if (*p <= *min) {                  // <= so a later tie wins\n            min = p;\n        }\n    }\n    return (int *) min;\n}\n```\n\nTested on `{5, 2, 8, 2, 9, 0}` (points at index 3) and `{4, 0}` (points at index 0).",
+      "grading": "Essentials: pointer to the first element as the current minimum; loop with `p++` while `*p != 0`; compare dereferenced values with `<=` so a later equal value replaces the earlier one; return the pointer. No `[]`, no function calls. Parameter may be `int *` or `const int *` (cast optional).\n\nCommon mistakes: using `<` (returns the first occurrence: lose 1); comparing pointers instead of values; stopping on `p != 0` (a null pointer test) instead of `*p != 0`; returning the address of a local copy of the minimum.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct header returning int *"
+        },
+        {
+          "marks": 1,
+          "item": "Initializes a min pointer to the first element"
+        },
+        {
+          "marks": 2,
+          "item": "Loops with pointer arithmetic until the element pointed to is 0"
+        },
+        {
+          "marks": 2,
+          "item": "Compares dereferenced values with <= so the last minimum wins, updating the pointer"
+        },
+        {
+          "marks": 1,
+          "item": "Returns the pointer; no [] and no function calls"
+        }
+      ],
+      "variantOf": "f22-2b"
+    },
+    {
+      "id": "f22-3a",
+      "source": "Final exam April 2022, Q3(a)",
+      "kind": "short",
+      "marks": 4,
+      "topics": [
+        "c/allocating_and_deallocating_memory"
+      ],
+      "prompt": "**Question 3(a) (4 points)**\n\nShow how to use the `malloc` function to:\n\n1. allocate memory for a single `int` value\n2. allocate memory for an array of 10 `float` values",
+      "answer": "```c\nint *p = malloc(sizeof(int));\nfloat *arr = malloc(10 * sizeof(float));\n```",
+      "grading": "Each part: correct pointer type to hold the result (1) and correct size argument using `sizeof` (1). Accept `sizeof *p` / `sizeof(*arr) * 10`, and an `(int *)` / `(float *)` cast on the result (unnecessary in C but harmless). Checking for NULL is good practice but not required here. Wrong: `malloc(4)` / `malloc(40)` with hard-coded sizes (lose 1 each: not portable), `malloc(10)` for the array (only 10 bytes), `malloc(sizeof(float *) * 10)`, storing the result in an `int` instead of a pointer, `int p = malloc(...)`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "i: result stored in an int * variable"
+        },
+        {
+          "marks": 1,
+          "item": "i: malloc(sizeof(int))"
+        },
+        {
+          "marks": 1,
+          "item": "ii: result stored in a float * variable"
+        },
+        {
+          "marks": 1,
+          "item": "ii: malloc(10 * sizeof(float))"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-3a-v",
+      "source": "Variant of Final exam April 2022, Q3(a)",
+      "kind": "short",
+      "marks": 4,
+      "topics": [
+        "c/allocating_and_deallocating_memory"
+      ],
+      "prompt": "Show how to use the `malloc` function to:\n\n1. allocate memory for a single `double` value\n2. allocate memory for an array of 8 `long` values",
+      "answer": "```c\ndouble *d = malloc(sizeof(double));\nlong *arr = malloc(8 * sizeof(long));\n```",
+      "grading": "Each part: correct pointer type (1) and correct `sizeof`-based size (1). Accept `sizeof *d`, `sizeof(*arr) * 8`, and casts on the result. Wrong: hard-coded byte counts like `malloc(8)` or `malloc(64)`, `malloc(8)` for the array (8 bytes, not 8 longs), `sizeof(long *)`, assigning to a non-pointer variable.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "i: result stored in a double * variable"
+        },
+        {
+          "marks": 1,
+          "item": "i: malloc(sizeof(double))"
+        },
+        {
+          "marks": 1,
+          "item": "ii: result stored in a long * variable"
+        },
+        {
+          "marks": 1,
+          "item": "ii: malloc(8 * sizeof(long))"
+        }
+      ],
+      "variantOf": "f22-3a"
+    },
+    {
+      "id": "f22-3b",
+      "source": "Final exam April 2022, Q3(b)",
+      "kind": "short",
+      "marks": 4,
+      "topics": [
+        "c/allocating_and_deallocating_memory",
+        "c/strings",
+        "c/arrays"
+      ],
+      "prompt": "**Question 3(b) (4 points)**\n\nShow how to use the `malloc` function to allocate memory for an array of 5 strings where each string has length 10 (hint: there should be six calls to `malloc`, one for the array and one for each string)",
+      "answer": "```c\nchar **s = malloc(5 * sizeof(char *));\nfor (int i = 0; i < 5; i++) {\n    s[i] = malloc(10 + 1);    // 10 characters plus the null terminator\n}\n```",
+      "grading": "Essentials: the array is an array of `char *`, so `char **s = malloc(5 * sizeof(char *))`; each string needs room for 10 characters **plus** the terminating '\\0', i.e. 11 bytes (`malloc(11)`, `malloc(11 * sizeof(char))`, `malloc((10 + 1) * sizeof(char))`). A loop or five separate calls are both fine.\n\nDeductions: allocating 10 bytes per string (no room for '\\0'): lose 1; `sizeof(char)` instead of `sizeof(char *)` for the array: lose 1–2; declaring `char *s[5]` on the stack (then only five mallocs — not what was asked: lose 1); `char *s = malloc(5 * 11)` (one block, not an array of strings: at most 1).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Declares char **s (pointer to char pointers)"
+        },
+        {
+          "marks": 1,
+          "item": "Array allocation malloc(5 * sizeof(char *))"
+        },
+        {
+          "marks": 1,
+          "item": "Allocates each of the 5 strings (loop or 5 calls) and stores them in s[i]"
+        },
+        {
+          "marks": 1,
+          "item": "Each string gets 11 bytes (10 chars + null terminator)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-3b-v",
+      "source": "Variant of Final exam April 2022, Q3(b)",
+      "kind": "short",
+      "marks": 4,
+      "topics": [
+        "c/allocating_and_deallocating_memory",
+        "c/strings",
+        "c/arrays"
+      ],
+      "prompt": "Show how to use the `malloc` function to allocate memory for an array of 4 strings where each string has length 15 (hint: there should be five calls to `malloc`, one for the array and one for each string)",
+      "answer": "```c\nchar **w = malloc(4 * sizeof(char *));\nfor (int i = 0; i < 4; i++) {\n    w[i] = malloc((15 + 1) * sizeof(char));   // 15 chars + '\\0'\n}\n```",
+      "grading": "Essentials: `char **w = malloc(4 * sizeof(char *))`; each string gets 16 bytes (15 characters + '\\0'); loop or four separate calls. Deductions: 15 bytes per string (no room for the terminator): lose 1; `sizeof(char)` for the array of pointers; using a stack array `char *w[4]` instead of malloc for the array; a single `malloc(4 * 16)` block stored in a `char *`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Declares char **w"
+        },
+        {
+          "marks": 1,
+          "item": "Array allocation malloc(4 * sizeof(char *))"
+        },
+        {
+          "marks": 1,
+          "item": "Allocates each of the 4 strings and stores them in w[i]"
+        },
+        {
+          "marks": 1,
+          "item": "Each string gets 16 bytes (15 chars + null terminator)"
+        }
+      ],
+      "variantOf": "f22-3b"
+    },
+    {
+      "id": "f22-3c",
+      "source": "Final exam April 2022, Q3(c)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/allocating_and_deallocating_memory",
+        "c/strings"
+      ],
+      "prompt": "**Question 3(c) (2 points)**\n\nQuestion 3(b) asked: show how to use `malloc` to allocate memory for an array of 5 strings where each string has length 10 (one `malloc` for the array and one for each string), e.g.\n\n```c\nchar **s = malloc(5 * sizeof(char *));\nfor (int i = 0; i < 5; i++) {\n    s[i] = malloc(10 + 1);\n}\n```\n\nShow how to use the `realloc` function so that the first string in your array from Question 3(b) can safely store a null-terminated string containing 20 characters.",
+      "answer": "```c\nchar *tmp = realloc(s[0], 20 + 1);   // 20 chars + null terminator\nif (tmp != NULL) {\n    s[0] = tmp;\n}\n```",
+      "grading": "Essentials: call `realloc` on the existing pointer `s[0]` with a new size of 21 bytes (`21`, `21 * sizeof(char)`, `20 + 1`) and store the result back into `s[0]`. Full marks also for the one-liner `s[0] = realloc(s[0], 21);` (it leaks the old block if realloc fails, so the temporary is better practice — mention it but don't deduct). Deductions: size 20 (no room for '\\0'): lose 1; not assigning the result back to `s[0]` (realloc may move the block): lose 1; `realloc(s, ...)` (resizes the array of pointers instead): 0.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "realloc(s[0], ...) with the result assigned back to s[0] (directly or via a checked temporary)"
+        },
+        {
+          "marks": 1,
+          "item": "New size is 21 bytes (20 chars + null terminator)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-3c-v",
+      "source": "Variant of Final exam April 2022, Q3(c)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/allocating_and_deallocating_memory",
+        "c/strings"
+      ],
+      "prompt": "Suppose an array of 4 strings was allocated as follows:\n\n```c\nchar **w = malloc(4 * sizeof(char *));\nfor (int i = 0; i < 4; i++) {\n    w[i] = malloc(15 + 1);\n}\n```\n\nShow how to use the `realloc` function so that the **last** string in the array can safely store a null-terminated string containing 40 characters.",
+      "answer": "```c\nchar *tmp = realloc(w[3], 40 + 1);   // 40 chars + null terminator\nif (tmp != NULL) {\n    w[3] = tmp;\n}\n```",
+      "grading": "Essentials: `realloc(w[3], 41)` (the last string is `w[3]`, not `w[4]`) and assign the result back to `w[3]`, ideally through a temporary checked for NULL. Accept `w[3] = realloc(w[3], 41);`. Deductions: size 40 (forgets '\\0'): lose 1; `w[4]` (out of bounds): lose 1; not storing the result back: lose 1.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "realloc(w[3], ...) with the result assigned back to w[3]"
+        },
+        {
+          "marks": 1,
+          "item": "New size is 41 bytes (40 chars + null terminator)"
+        }
+      ],
+      "variantOf": "f22-3c"
+    },
+    {
+      "id": "f22-4a",
+      "source": "Final exam April 2022, Q4(a)",
+      "kind": "short",
+      "marks": 4,
+      "topics": [
+        "c/struct",
+        "c/strings"
+      ],
+      "prompt": "**Question 4(a) (4 points)**\n\nAn assessment item for a course is an item that receives a grade (e.g., a quiz, assignment, exam, etc). Every assessment item has a name, a maximum grade, and a weight (the percentage that the item contributes to the course grade).\n\nDefine a C struct that can store the information for an assessment item. Assume that the name is a string less than 128 characters in length, the maximum grade is an integer value, and the weight is a floating-point value.",
+      "answer": "```c\nstruct assessment_item {\n    char name[128];     // less than 128 chars, so room for the '\\0' too\n    int max_grade;\n    double weight;\n};\n```",
+      "grading": "One mark each: `struct tag { ... };` syntax including the closing semicolon; name as `char name[128]` (a string of fewer than 128 chars plus '\\0' fits in 128; `char name[129]` is also fine); `int` max grade; `double` or `float` weight. A `char *name` member is acceptable (the name would then need to be allocated separately) — give the name mark but note it affects 4(c). Deductions: `char name` (a single char), `string name` (no string type in C), missing semicolon after the closing brace, `char name[127]` (lose the name mark: no room for the terminator of a 127-char name).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct struct syntax: struct tag { ... }; with the semicolon"
+        },
+        {
+          "marks": 1,
+          "item": "Name member: char array of at least 128 (or char *)"
+        },
+        {
+          "marks": 1,
+          "item": "Maximum grade member of type int"
+        },
+        {
+          "marks": 1,
+          "item": "Weight member of type double or float"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-4a-v",
+      "source": "Variant of Final exam April 2022, Q4(a)",
+      "kind": "short",
+      "marks": 4,
+      "topics": [
+        "c/struct",
+        "c/strings"
+      ],
+      "prompt": "A book in a library catalogue has a title, a number of pages, a price, and a flag saying whether it is currently on loan.\n\nDefine a C struct that can store the information for a book. Assume that the title is a string less than 200 characters in length, the number of pages is an integer value, the price is a floating-point value, and the on-loan flag is a Boolean value.",
+      "answer": "```c\n#include <stdbool.h>\n\nstruct book {\n    char title[200];    // less than 200 chars, so room for the '\\0' too\n    int pages;\n    double price;\n    bool on_loan;\n};\n```",
+      "grading": "One mark each: struct syntax with closing semicolon; `char title[200]` (or larger, or `char *title`); `int pages` and `double`/`float` price (1 mark for both); `bool on_loan` (with `<stdbool.h>`) or an `int` used as a flag. Deductions: `string title`, `char title` (one char), `char title[199]`, missing semicolon.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct struct syntax with the closing semicolon"
+        },
+        {
+          "marks": 1,
+          "item": "Title member: char array of at least 200 (or char *)"
+        },
+        {
+          "marks": 1,
+          "item": "int pages and double/float price"
+        },
+        {
+          "marks": 1,
+          "item": "bool (or int) on-loan flag"
+        }
+      ],
+      "variantOf": "f22-4a"
+    },
+    {
+      "id": "f22-4b",
+      "source": "Final exam April 2022, Q4(b)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/struct"
+      ],
+      "prompt": "**Question 4(b) (2 points)**\n\nQuestion 4(a) asked you to define a C struct for an assessment item (a name that is a string less than 128 characters long, an integer maximum grade, and a floating-point weight), for example:\n\n```c\nstruct assessment_item {\n    char name[128];\n    int max_grade;\n    double weight;\n};\n```\n\nProvide a C `typedef` for the struct in Question 4(a).",
+      "answer": "```c\ntypedef struct assessment_item my_item;\n```",
+      "grading": "Any alias name is fine. Also full marks for combining the typedef with the definition (`typedef struct assessment_item { ... } my_item;`) or an anonymous struct (`typedef struct { ... } my_item;`). Deductions: missing the `struct` keyword (`typedef assessment_item my_item;`): lose 1; reversed order (`typedef my_item struct assessment_item;`): lose 1; missing semicolon.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "typedef struct <tag> ... form with the struct keyword"
+        },
+        {
+          "marks": 1,
+          "item": "Alias name in the right position and terminating semicolon"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-4b-v",
+      "source": "Variant of Final exam April 2022, Q4(b)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/struct"
+      ],
+      "prompt": "Given the following struct:\n\n```c\nstruct book {\n    char title[200];\n    int pages;\n    double price;\n    bool on_loan;\n};\n```\n\nProvide a C `typedef` so that the type can be written as `book` instead of `struct book`.",
+      "answer": "```c\ntypedef struct book book;\n```",
+      "grading": "Using the same name for the alias and the tag is legal in C (tags live in a separate namespace) and is the style used in the course notebooks. Also accept a combined definition `typedef struct book { ... } book;`. Deductions: `typedef book struct book;` (reversed), omitting `struct`, missing semicolon.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "typedef struct book ..."
+        },
+        {
+          "marks": 1,
+          "item": "Alias book in the right position and terminating semicolon"
+        }
+      ],
+      "variantOf": "f22-4b"
+    },
+    {
+      "id": "f22-4c",
+      "source": "Final exam April 2022, Q4(c)",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "c/struct",
+        "c/strings"
+      ],
+      "prompt": "**Question 4(c) (4 points)**\n\nAn assessment item for a course has a name (a string less than 128 characters in length), a maximum grade (an integer), and a weight (a floating-point value). Questions 4(a) and 4(b) asked for a struct and a typedef for it, for example:\n\n```c\nstruct assessment_item {\n    char name[128];\n    int max_grade;\n    double weight;\n};\ntypedef struct assessment_item my_item;\n```\n\nWrite a C function `copy_item` that takes an assessment item as a parameter and returns an independent copy of the item. For example, suppose your typedef from Question 4(b) is called `my_item`, then:\n\n```c\nmy_item assignment2 = copy_item(assignment1);\n```\n\nwould allow a programmer to change the name, maximum grade, and weight of `assignment2` without affecting `assignment1`.",
+      "answer": "```c\nmy_item copy_item(my_item item) {\n    my_item copy;\n    strcpy(copy.name, item.name);\n    copy.max_grade = item.max_grade;\n    copy.weight = item.weight;\n    return copy;\n}\n```\n\nBecause `name` is an array *inside* the struct, the struct is passed and returned by value and struct assignment copies the whole array, so `my_item copy_item(my_item item) { return item; }` is also a correct, independent copy (verified: changing the copy's name leaves the original unchanged).",
+      "grading": "Accept either the field-by-field version or `return item;` / `my_item copy = item; return copy;` — with a `char name[128]` member they are equivalent and independent. Accept a pointer parameter `copy_item(const my_item *item)` if it returns a `my_item` by value.\n\nIf the student's 4(a) used `char *name`, then a correct answer must allocate new memory: `copy.name = malloc(strlen(item.name) + 1); strcpy(copy.name, item.name);` — just copying the pointer is a shallow copy (lose 2). Other deductions: `copy.name = item.name;` with an array member (does not compile: arrays can't be assigned; lose 1–2); returning a pointer to a local variable (`return &copy;`: dangling, lose 2); forgetting to copy max_grade or weight (lose 1).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct header: returns my_item and takes a my_item (or pointer to one)"
+        },
+        {
+          "marks": 2,
+          "item": "Name is copied into storage owned by the copy (strcpy into the array, struct copy, or malloc+strcpy for char *)"
+        },
+        {
+          "marks": 1,
+          "item": "Maximum grade and weight copied and the copy returned by value"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-4c-v",
+      "source": "Variant of Final exam April 2022, Q4(c)",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "c/struct",
+        "c/strings",
+        "c/allocating_and_deallocating_memory"
+      ],
+      "prompt": "A book is represented by the following type, where `title` points to a **dynamically allocated** null-terminated string:\n\n```c\ntypedef struct {\n    char *title;      // points to a dynamically allocated string\n    int pages;\n    double price;\n} book;\n```\n\nWrite a C function `copy_book` that takes a book as a parameter and returns an independent copy of the book. For example:\n\n```c\nbook b2 = copy_book(b1);\n```\n\nwould allow a programmer to change the title (including its characters), pages, and price of `b2` without affecting `b1`, and later `free(b1.title)` and `free(b2.title)` separately. You may assume `malloc` succeeds.",
+      "answer": "```c\nbook copy_book(book b) {\n    book copy = b;   // copies pages, price, and (for now) the pointer\n    copy.title = malloc(strlen(b.title) + 1);\n    strcpy(copy.title, b.title);\n    return copy;\n}\n```\n\nVerified: changing `b2.title[0]` leaves `b1.title` unchanged; freeing both titles gives no valgrind errors or leaks.",
+      "grading": "Essential: a **deep** copy of the title — allocate `strlen(b.title) + 1` bytes and `strcpy` into it. `return b;` or `copy.title = b.title;` is a shallow copy (both books share one string; freeing both is a double free): at most 1 mark. Accept a `const book *` parameter, `strdup` (POSIX, not taught but correct), and a NULL check on malloc. Deductions: `malloc(strlen(b.title))` (no room for '\\0'): lose 1; `malloc(sizeof(b.title))` (size of a pointer, 8 bytes): lose 1; returning a pointer to a local book: lose 2; not copying pages/price: lose 1.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct header returning book by value"
+        },
+        {
+          "marks": 1,
+          "item": "Allocates strlen(title) + 1 bytes for the new title"
+        },
+        {
+          "marks": 1,
+          "item": "Copies the characters with strcpy (or equivalent) into the new memory"
+        },
+        {
+          "marks": 1,
+          "item": "Copies pages and price and returns the copy"
+        }
+      ],
+      "variantOf": "f22-4c"
+    },
+    {
+      "id": "f22-5a",
+      "source": "Final exam April 2022, Q5(a)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/scope",
+        "c/pointers"
+      ],
+      "prompt": "**Question 5(a) (2 points)**\n\nConsider the generic stack data structure (that we implemented in the course) where the function `stack_push(void *elem)` pushes an element pointed to by `elem` onto the stack. Suppose that a programmer writes the following function:\n\n```c\nvoid push_zero(stack *s) {\n    double z = 0.0;\n    stack_push(s, &z);\n}\n```\n\nAfter calling the function, is the top element of the stack a zero? Explain why or why not.",
+      "answer": "No (not reliably). The generic stack stores only the **pointer** `&z`, not a copy of the value. `z` is a local variable with automatic storage duration, so its lifetime ends when `push_zero` returns. The top node then holds a dangling pointer to memory that no longer belongs to `z`; reading through it is undefined behaviour and the memory will likely be overwritten by later function calls. (Fix: push a pointer to heap memory, e.g. `double *z = malloc(sizeof *z); *z = 0.0; stack_push(s, z);`.)",
+      "grading": "Typo on the paper: the prose says `stack_push(void *elem)` but the call is `stack_push(s, &z)`; the intended signature takes the stack too — irrelevant to the answer. 1 mark for \"no / not guaranteed / undefined\" and 1 for the reason: the stack stores the address of a local variable whose lifetime ends when the function returns (dangling pointer). Accept \"it might still read 0 by chance, but it is undefined behaviour\". \"Yes\" earns 0 even with a reason; \"No\" with a wrong reason (e.g. \"because 0.0 is a double, not an int\" or \"void pointers can't hold doubles\") earns 1 at most.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Answers no (or: not guaranteed / undefined behaviour)"
+        },
+        {
+          "marks": 1,
+          "item": "Explains the stack stores a pointer to the local variable z, which no longer exists after push_zero returns (dangling pointer)"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-5a-v",
+      "source": "Variant of Final exam April 2022, Q5(a)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/allocating_and_deallocating_memory",
+        "c/pointers"
+      ],
+      "prompt": "Consider the generic linked stack (that we implemented in the course) where `stack_push(stack *s, void *elem)` pushes the pointer `elem` onto the stack (the stack stores the pointer, not a copy of the element). Suppose that a programmer writes the following function:\n\n```c\nvoid push_one(stack *s) {\n    int *p = malloc(sizeof(int));\n    *p = 1;\n    stack_push(s, p);\n}\n```\n\nAfter calling the function (and assuming `malloc` succeeded), is the top element of the stack equal to 1? Explain why or why not.",
+      "answer": "Yes. The stack stores the pointer `p`, which points to memory on the **heap**. Heap memory allocated with `malloc` stays valid until it is explicitly `free`d, so it outlives the call to `push_one`; only the local pointer variable `p` disappears, and its value (the address) has already been copied into the stack's node. The element therefore still holds 1. (Whoever pops it later is responsible for freeing it.)",
+      "grading": "1 mark for \"yes\", 1 for the reason: the pointer refers to heap memory, which persists after the function returns until freed (contrast with a local variable, whose lifetime ends). Answering \"no because p is a local variable\" confuses the pointer variable with the memory it points to: 0. Mentioning that the caller must eventually free the element is good but not required.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Answers yes"
+        },
+        {
+          "marks": 1,
+          "item": "Explains that malloc'd heap memory remains valid after the function returns (only the local pointer variable goes away; its value was copied into the stack)"
+        }
+      ],
+      "variantOf": "f22-5a"
+    },
+    {
+      "id": "f22-5b",
+      "source": "Final exam April 2022, Q5(b)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/pointers"
+      ],
+      "prompt": "**Question 5(b) (2 points)**\n\nThe following function declaration:\n\n```c\nbool is_zero(const void *e);\n```\n\ndeclares a function that returns true if the element that `e` points to is equal to zero. Assume that you have a definition of the `is_zero` function in a C source code file. Create a variable whose type is a pointer to a function and initialize its value so that it points at the `is_zero` function. Your variable must not be a void pointer.",
+      "answer": "```c\nbool (*f)(const void *) = is_zero;\n```\n\n(`= &is_zero;` is equivalent.)",
+      "grading": "Any variable name. Accept `&is_zero`, a parameter name inside the type (`bool (*f)(const void *e)`), or a typedef first (`typedef bool (*pred)(const void *); pred f = is_zero;`). Deductions: missing parentheses around `*f` (`bool *f(const void *)` declares a function returning `bool *`): lose 1; wrong parameter or return type: lose 1; `= is_zero(...)` (calls the function): lose 1.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct function-pointer type: bool (*name)(const void *)"
+        },
+        {
+          "marks": 1,
+          "item": "Initialized to is_zero (or &is_zero), without calling it"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-5b-v",
+      "source": "Variant of Final exam April 2022, Q5(b)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/pointers"
+      ],
+      "prompt": "The following function declaration:\n\n```c\nint compare_strings(const void *a, const void *b);\n```\n\ndeclares a comparison function of the kind passed to `qsort`. Assume that you have a definition of `compare_strings` in a C source code file. Create a variable whose type is a pointer to a function and initialize its value so that it points at the `compare_strings` function. Your variable must not be a void pointer.",
+      "answer": "```c\nint (*cmp)(const void *, const void *) = compare_strings;\n```",
+      "grading": "Any variable name; `&compare_strings` is equivalent; parameter names inside the type are fine; a typedef is fine. Deductions: `int *cmp(const void *, const void *)` (missing parentheses: declares a function): lose 1; only one parameter or wrong types: lose 1; calling the function in the initializer: lose 1.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct type: int (*name)(const void *, const void *)"
+        },
+        {
+          "marks": 1,
+          "item": "Initialized to compare_strings (or &compare_strings) without calling it"
+        }
+      ],
+      "variantOf": "f22-5b"
+    },
+    {
+      "id": "f22-5c",
+      "source": "Final exam April 2022, Q5(c)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/pointers"
+      ],
+      "prompt": "**Question 5(c) (2 points)**\n\nThe following function declaration:\n\n```c\nbool is_zero(const void *e);\n```\n\ndeclares a function that returns true if the element that `e` points to is equal to zero. Provide an implementation of the `is_zero` function where the value pointed to by `e` has type `double`. Note that the function parameter type must be `const void *`.",
+      "answer": "```c\nbool is_zero(const void *e) {\n    const double *d = e;\n    return *d == 0.0;\n}\n```",
+      "grading": "Essential: convert the `const void *` to a `const double *` (assignment or cast) and dereference it before comparing. Accept `return *(const double *) e == 0;`, `(double *) e` without const (a warning at most), an if/else returning true/false. Deductions: dereferencing a `void *` directly (`*e == 0`: does not compile): lose 1; casting to `int *` (wrong type): lose 1; comparing the pointer itself (`e == 0` tests for NULL): lose 1–2. Exact `== 0.0` comparison is what the question asks (no tolerance needed).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Converts e to a (const) double * before dereferencing"
+        },
+        {
+          "marks": 1,
+          "item": "Returns whether the pointed-to double equals 0"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-5c-v",
+      "source": "Variant of Final exam April 2022, Q5(c)",
+      "kind": "short",
+      "marks": 2,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/pointers"
+      ],
+      "prompt": "The following function declaration:\n\n```c\nbool is_negative(const void *e);\n```\n\ndeclares a function that returns true if the element that `e` points to is less than zero. Provide an implementation of the `is_negative` function where the value pointed to by `e` has type `int`. The function parameter type must be `const void *`.",
+      "answer": "```c\nbool is_negative(const void *e) {\n    const int *x = e;\n    return *x < 0;\n}\n```",
+      "grading": "Essential: convert to `const int *` (or `int *`) and dereference: `*x < 0` or `*(const int *) e < 0`. Deductions: dereferencing the `void *` directly (does not compile), comparing the pointer `e < 0`, using `<= 0` (zero is not negative): lose 1 each.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Converts e to a (const) int * before dereferencing"
+        },
+        {
+          "marks": 1,
+          "item": "Returns whether the pointed-to int is < 0"
+        }
+      ],
+      "variantOf": "f22-5c"
+    },
+    {
+      "id": "f22-5d",
+      "source": "Final exam April 2022, Q5(d)",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/linked_stack",
+        "c/pointers"
+      ],
+      "prompt": "**Question 5(d) (4 points)**\n\nThe following function declaration:\n\n```c\nbool is_zero(const void *e);\n```\n\ndeclares a function that returns true if the element that `e` points to is equal to zero.\n\nThe stack data structure that we implemented in the course used a sequence of linked nodes to store the elements. The node and stack typedefs are shown below:\n\n```c\ntypedef struct node node;\nstruct node {\n    void *elem;\n    node *next;\n};\ntypedef struct stack stack;\nstruct stack {\n    node *top;\n    size_t size;\n};\n```\n\nProvide an implementation of a function that tests if a generic stack contains multiple elements equal to zero (i.e., the stack has two or more elements equal to zero). The inputs to the function are a pointer to a stack and a pointer to a function having the same declaration as `is_zero`. The return type of the function is `bool`.",
+      "answer": "```c\nbool has_multiple_zeros(const stack *s, bool (*is_zero)(const void *e)) {\n    int count = 0;\n    for (node *n = s->top; n != NULL; n = n->next) {\n        if (is_zero(n->elem)) {\n            count++;\n            if (count >= 2) {\n                return true;\n            }\n        }\n    }\n    return false;\n}\n```\n\nTested with an empty stack, one zero, and two zeros among non-zero elements.",
+      "grading": "Any function name. Essentials: a parameter of function-pointer type `bool (*f)(const void *)`; walk the nodes from `s->top` following `next` until NULL; call the function pointer on each `n->elem` (not on the node); count matches and return true when the count reaches 2 (or return `count >= 2` after the loop); return false otherwise. Also accept iterating with a counter up to `s->size`.\n\nCommon mistakes: passing `n` instead of `n->elem` to the predicate (lose 1); popping elements to inspect them (destroys the stack: lose 2); `count > 2`; loop that skips the top node or dereferences NULL; parameter declared as `void *` instead of a function pointer (lose 1).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Header with a stack pointer and a function-pointer parameter bool (*f)(const void *), returning bool"
+        },
+        {
+          "marks": 1,
+          "item": "Traverses every node from s->top via next until NULL without modifying the stack"
+        },
+        {
+          "marks": 1,
+          "item": "Calls the function pointer on each node's elem and counts the matches"
+        },
+        {
+          "marks": 1,
+          "item": "Returns true iff the count is at least 2"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-5d-v",
+      "source": "Variant of Final exam April 2022, Q5(d)",
+      "kind": "long",
+      "marks": 4,
+      "topics": [
+        "c/generic_linked_stack",
+        "c/linked_stack",
+        "c/pointers"
+      ],
+      "prompt": "The generic stack data structure that we implemented in the course used a sequence of linked nodes to store the elements. The node and stack typedefs are shown below:\n\n```c\ntypedef struct node node;\nstruct node {\n    void *elem;\n    node *next;\n};\ntypedef struct stack stack;\nstruct stack {\n    node *top;\n    size_t size;\n};\n```\n\nA *predicate* is a function with the declaration\n\n```c\nbool pred(const void *e);\n```\n\nthat returns true or false for the element `e` points to (for example, `is_negative`).\n\nProvide an implementation of a function `all_match` that tests whether **every** element of a generic stack satisfies a predicate. The inputs are a pointer to a stack and a pointer to a predicate function; the return type is `bool`. An empty stack should give `true`.",
+      "answer": "```c\nbool all_match(const stack *s, bool (*pred)(const void *e)) {\n    for (node *n = s->top; n != NULL; n = n->next) {\n        if (!pred(n->elem)) {\n            return false;\n        }\n    }\n    return true;   // includes the empty stack\n}\n```\n\nTested with an empty stack, a stack of all negative ints, and a stack containing one non-negative int.",
+      "grading": "Essentials: function-pointer parameter `bool (*pred)(const void *)`; traverse from `s->top` following `next`; call `pred(n->elem)`; return false as soon as an element fails; return true after the loop (so the empty stack gives true). Accept a counter loop to `s->size`, or counting matches and comparing to `s->size`.\n\nCommon mistakes: returning true as soon as one element matches (that is \"any\", not \"all\": lose 2); passing the node instead of `n->elem`; popping to inspect; returning false for an empty stack (lose 1).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Header with a stack pointer and a bool (*)(const void *) parameter, returning bool"
+        },
+        {
+          "marks": 1,
+          "item": "Traverses all nodes from s->top without modifying the stack"
+        },
+        {
+          "marks": 1,
+          "item": "Calls the predicate on each node's elem and returns false on the first failure"
+        },
+        {
+          "marks": 1,
+          "item": "Returns true after the loop (including for an empty stack)"
+        }
+      ],
+      "variantOf": "f22-5d"
+    },
+    {
+      "id": "f22-6a",
+      "source": "Final exam April 2022, Q6(a)",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/IO",
+        "c/strings",
+        "c/arrays"
+      ],
+      "prompt": "**Question 6(a) (10 points)**\n\nWrite the following C function:\n\n```c\nint read_strings(const char* filename, char *s[static 100])\n```\n\nthat opens the file having name `filename`, reads the contents of the file, and then closes the file. Assume that the file exists, is readable, and consists of an unspecified number of lines where each line is a string. The function should read each line of the file and store each line in the array `s` (the contents of the first line of the file should be stored in `s[0]`, the second line in `s[1]`, and so on). You should assume that `s[i]` has sufficient capacity to store the contents of line `i` (i.e., do not dynamically allocate memory in this question). The function should return the number of lines read from the file. If there are more than 100 lines in the file, then the function should store only the first 100 lines but still return the actual number of lines in the file.",
+      "answer": "```c\nint read_strings(const char* filename, char *s[static 100]) {\n    FILE *f = fopen(filename, \"r\");\n    int n = 0;      // number of lines read so far\n    size_t j = 0;   // index of the next character in the current line\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        if (c == '\\n') {\n            if (n < 100) {\n                s[n][j] = '\\0';\n            }\n            n++;\n            j = 0;\n        }\n        else {\n            if (n < 100) {\n                s[n][j] = c;\n            }\n            j++;\n        }\n    }\n    if (j > 0) {    // last line did not end with a newline\n        if (n < 100) {\n            s[n][j] = '\\0';\n        }\n        n++;\n    }\n    fclose(f);\n    return n;\n}\n```\n\nThis stores each line **without** its newline. Because no line length is given, it reads character by character so lines past the 100th can still be counted without storing them. A shorter `fgets` version that assumes some maximum line length (6(d) later says lines are under 100 characters) is also acceptable:\n\n```c\nint read_strings(const char* filename, char *s[static 100]) {\n    FILE *f = fopen(filename, \"r\");\n    char extra[1000];   // lines after the 100th are read here and discarded\n    int n = 0;\n    while (fgets(n < 100 ? s[n] : extra, 1000, f) != NULL) {\n        n++;\n    }\n    fclose(f);\n    return n;\n}\n```\n\n(this one keeps the newline at the end of each stored line). Both tested with 4 lines, a last line without a newline, an empty file, and 120 lines.",
+      "grading": "Essentials: `fopen(filename, \"r\")`; a loop that reads one line at a time until end of file (`fgets(...) != NULL`, `getline`, or `fgetc` until `EOF`); store line i in `s[i]` (copy characters into the existing buffer: `fgets` directly into `s[n]`, or `strcpy(s[n], buf)`); only store when `n < 100` but keep counting afterwards (read later lines into a scratch buffer); `fclose`; return the count.\n\nAccepted: keeping or stripping the newline (either is fine if consistent with 6(d)); an assumed buffer size for `fgets` (the question gives none, so any reasonable constant like 100, 1000 or `BUFSIZ` is fine); `fscanf(f, \"%[^\\n]\\n\", ...)`-style reading if it handles lines correctly. No error checking needed (file is assumed readable).\n\nCommon mistakes: `s[n] = buf;` (stores the same buffer pointer in every element, so all lines end up equal: lose 3); stopping at 100 lines instead of counting the rest (lose 2); writing to `s[100]` or beyond (lose 2); using `fscanf(\"%s\")` (stops at spaces, so it reads words not lines: lose 2–3); forgetting `fclose` (lose 1); `malloc`ing the strings (the question forbids it: lose 1); `char c` instead of `int c` with `fgetc` (minor, lose at most 1); counting a trailing empty line when the file ends with a newline.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Opens the file with fopen(filename, \"r\")"
+        },
+        {
+          "marks": 3,
+          "item": "Correct loop that reads the file one line at a time until end of file"
+        },
+        {
+          "marks": 2,
+          "item": "Stores line i into s[i] by copying into the existing storage (not by assigning a shared buffer pointer)"
+        },
+        {
+          "marks": 2,
+          "item": "Stores only the first 100 lines but keeps counting the rest; no access past s[99]"
+        },
+        {
+          "marks": 1,
+          "item": "Closes the file with fclose"
+        },
+        {
+          "marks": 1,
+          "item": "Returns the total number of lines in the file"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-6a-v",
+      "source": "Variant of Final exam April 2022, Q6(a)",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/IO",
+        "c/strings",
+        "c/arrays"
+      ],
+      "prompt": "Write the following C function:\n\n```c\nint read_words(const char *filename, char *w[static 50])\n```\n\nthat opens the file having name `filename`, reads the contents of the file, and then closes the file. Assume that the file exists, is readable, and contains an unspecified number of words separated by whitespace (spaces, tabs or newlines); each word is fewer than 64 characters long. The function should store the words in the array `w` in the order they appear (the first word in `w[0]`, the second in `w[1]`, and so on). You should assume that each `w[i]` has room for at least 64 characters (do not dynamically allocate memory). The function should return the number of words in the file. If there are more than 50 words in the file, the function should store only the first 50 words but still return the actual number of words in the file.",
+      "answer": "```c\nint read_words(const char *filename, char *w[static 50]) {\n    FILE *f = fopen(filename, \"r\");\n    char extra[64];   // words after the 50th are read here and discarded\n    int n = 0;\n    while (fscanf(f, \"%63s\", n < 50 ? w[n] : extra) == 1) {\n        n++;\n    }\n    fclose(f);\n    return n;\n}\n```\n\n`%63s` reads one whitespace-separated word of at most 63 characters (plus '\\0' = 64). After 50 words, the remaining words are read into `extra` and discarded so they can still be counted. Tested with 9 words over two lines, an empty file, and 60 words.",
+      "grading": "Essentials: `fopen(filename, \"r\")`; loop `while (fscanf(f, \"%s\", ...) == 1)` (or `!= EOF`) reading one word at a time; read into `w[n]` directly (it is already a char buffer) while `n < 50`, and into a local scratch buffer of at least 64 chars afterwards; count every word; `fclose`; return the count. A field width (`%63s`) is good practice but not required since words are guaranteed short.\n\nCommon mistakes: `fscanf(f, \"%s\", &w[n])` (wrong type, though it happens to work: lose at most 1); `w[n] = buf;` (every element points to the same buffer: lose 3); stopping after 50 words (lose 2); writing to `w[50]`; using `fgets` (reads lines, not words: lose 2–3 unless the line is split with strtok/sscanf correctly); forgetting `fclose`; `malloc`ing words.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Opens the file with fopen(filename, \"r\")"
+        },
+        {
+          "marks": 3,
+          "item": "Correct loop reading one whitespace-separated word at a time until end of file (e.g. fscanf %s == 1)"
+        },
+        {
+          "marks": 2,
+          "item": "Stores word i into the existing storage of w[i] (not a shared buffer pointer)"
+        },
+        {
+          "marks": 2,
+          "item": "Stores only the first 50 words but keeps counting the rest; no access past w[49]"
+        },
+        {
+          "marks": 1,
+          "item": "Closes the file"
+        },
+        {
+          "marks": 1,
+          "item": "Returns the total number of words"
+        }
+      ],
+      "variantOf": "f22-6a"
+    },
+    {
+      "id": "f22-6b",
+      "source": "Final exam April 2022, Q6(b)",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/strings",
+        "c/arrays",
+        "c/pointers"
+      ],
+      "prompt": "**Question 6(b) (10 points)**\n\nWrite the following C function:\n\n```c\nvoid shortest_to_front(int n, char *s[static n])\n```\n\nthat finds the shortest string in the array `s` and moves the shortest string to the front of the array by swapping the shortest string with the string at the front of the array. For example, if `s` is the array `[\"zebra\", \"anteater\", \"bat\", \"frog\"]` then calling the function would modify `s` so that it becomes the array `[\"bat\", \"anteater\", \"zebra\", \"frog\"]`.",
+      "answer": "```c\nvoid shortest_to_front(int n, char *s[static n]) {\n    int min = 0;                     // index of the shortest string so far\n    for (int i = 1; i < n; i++) {\n        if (strlen(s[i]) < strlen(s[min])) {\n            min = i;\n        }\n    }\n    char *tmp = s[0];                // swap the pointers\n    s[0] = s[min];\n    s[min] = tmp;\n}\n```\n\nTested on the example (gives `bat, anteater, zebra, frog`) and on arrays whose shortest string is already first.",
+      "grading": "Essentials: find the index (or a pointer to the element) of the shortest string with a loop and `strlen`; then swap the two `char *` pointers `s[0]` and `s[min]` through a temporary. Ties may go to any of the shortest strings. Accept a `char **` pointer to the minimum element, a loop starting at 0, or computing lengths into a variable.\n\nCommon mistakes: swapping string contents with `strcpy` (the strings may have different capacities, e.g. copying \"anteater\" into the 6-byte \"zebra\" storage overflows; lose 2–3); swapping without a temporary (`s[0] = s[min]; s[min] = s[0];` loses a string: lose 2); comparing strings with `strcmp` (alphabetical, not length: lose 3); comparing `sizeof(s[i])` (size of a pointer, always 8: lose 3); tracking the minimum length but not its index, so the swap can't be done; off-by-one loop bounds (`i <= n`).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct header and loop over all n strings"
+        },
+        {
+          "marks": 3,
+          "item": "Uses strlen to compare string lengths"
+        },
+        {
+          "marks": 3,
+          "item": "Tracks the index (or pointer) of the shortest string found so far"
+        },
+        {
+          "marks": 3,
+          "item": "Swaps the pointers s[0] and s[min] correctly using a temporary"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-6b-v",
+      "source": "Variant of Final exam April 2022, Q6(b)",
+      "kind": "long",
+      "marks": 10,
+      "topics": [
+        "c/strings",
+        "c/arrays",
+        "c/pointers"
+      ],
+      "prompt": "Write the following C function:\n\n```c\nvoid largest_to_back(int n, char *w[static n])\n```\n\nthat finds the alphabetically last string in the array `w` (the largest according to `strcmp`) and moves it to the back of the array by swapping it with the string at the back of the array. For example, if `w` is the array `[\"pear\", \"zucchini\", \"apple\", \"kiwi\"]` then calling the function would modify `w` so that it becomes `[\"pear\", \"kiwi\", \"apple\", \"zucchini\"]`.",
+      "answer": "```c\nvoid largest_to_back(int n, char *w[static n]) {\n    int max = 0;                     // index of the alphabetically last string so far\n    for (int i = 1; i < n; i++) {\n        if (strcmp(w[i], w[max]) > 0) {\n            max = i;\n        }\n    }\n    char *tmp = w[n - 1];            // swap the pointers\n    w[n - 1] = w[max];\n    w[max] = tmp;\n}\n```\n\nTested on the example (gives `pear, kiwi, apple, zucchini`) and on arrays whose largest string is already last.",
+      "grading": "Essentials: find the index of the largest string using `strcmp(w[i], w[max]) > 0`; swap pointers `w[n-1]` and `w[max]` through a temporary. Accept tracking a `char **`, scanning from the back, and ties to either occurrence.\n\nCommon mistakes: comparing with `<`/`>` on the pointers (compares addresses, not text: lose 3); using `strlen` (length, not alphabetical order: lose 3); swapping with `strcpy` (may overflow different-sized buffers: lose 2–3); swapping with `w[0]` instead of `w[n-1]`; using `w[n]` (out of bounds: lose 2); swap without a temporary.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct header and loop over all n strings"
+        },
+        {
+          "marks": 3,
+          "item": "Uses strcmp to decide which string is alphabetically larger"
+        },
+        {
+          "marks": 3,
+          "item": "Tracks the index (or pointer) of the largest string found so far"
+        },
+        {
+          "marks": 3,
+          "item": "Swaps the pointers w[n-1] and w[max] correctly using a temporary"
+        }
+      ],
+      "variantOf": "f22-6b"
+    },
+    {
+      "id": "f22-6c",
+      "source": "Final exam April 2022, Q6(c)",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "c/arrays",
+        "c/pointers",
+        "c/strings"
+      ],
+      "prompt": "**Question 6(c) (2 points)**\n\nWrite the following C function:\n\n```c\nvoid sort_by_length(int n, char *s[static n])\n```\n\nthat sorts the array of strings `s` in increasing string length using the `shortest_to_front` function from Question 6(b). For example, if `s` is the array `[\"zebra\", \"anteater\", \"bat\", \"frog\"]` then calling the function would modify `s` so that it becomes the array `[\"bat\", \"frog\", \"zebra\", \"anteater\"]`. To move elements of the array `s`, you must use the `shortest_to_front` function (this means that you cannot write something like `s[i] = …` to assign an array element).\n\nHint: Call `shortest_to_front` (n-1) times. You don't need to answer 6(b) to use `shortest_to_front` in your answer.\n\nFor reference, Question 6(b) was: write `void shortest_to_front(int n, char *s[static n])` that finds the shortest string in the array `s` and moves it to the front of the array by swapping it with the string at the front of the array (e.g. `[\"zebra\", \"anteater\", \"bat\", \"frog\"]` becomes `[\"bat\", \"anteater\", \"zebra\", \"frog\"]`).",
+      "answer": "```c\nvoid sort_by_length(int n, char *s[static n]) {\n    for (int i = 0; i < n - 1; i++) {\n        shortest_to_front(n - i, s + i);   // or &s[i]\n    }\n}\n```\n\nEach call puts the shortest of the remaining strings `s[i] … s[n-1]` at position i, by passing the sub-array that starts at `s + i` (a pointer to `s[i]`) with length `n - i`. Tested on the example: gives `bat, frog, zebra, anteater`.",
+      "grading": "Essential idea: call `shortest_to_front` n-1 times on shrinking sub-arrays: `shortest_to_front(n - i, s + i)` or `shortest_to_front(n - i, &s[i])` (taking an address is not an assignment, so `&s[i]` is allowed). Running i to n-1 (one extra call on a 1-element sub-array) is harmless. Deductions: calling `shortest_to_front(n, s)` repeatedly on the whole array (does nothing after the first call: 0–1); passing `s + i` but keeping length `n` (reads past the end of the array: lose 1); assigning `s[i] = ...` (forbidden).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loop that calls shortest_to_front n-1 times"
+        },
+        {
+          "marks": 1,
+          "item": "Passes the shrinking sub-array correctly: s + i (or &s[i]) with length n - i"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-6c-v",
+      "source": "Variant of Final exam April 2022, Q6(c)",
+      "kind": "long",
+      "marks": 2,
+      "topics": [
+        "c/arrays",
+        "c/pointers",
+        "c/strings"
+      ],
+      "prompt": "Write the following C function:\n\n```c\nvoid sort_words(int n, char *w[static n])\n```\n\nthat sorts the array of strings `w` into alphabetical (`strcmp`) order using the function\n\n```c\nvoid largest_to_back(int n, char *w[static n]);\n```\n\nwhich finds the alphabetically last of the first `n` strings in `w` and swaps it with `w[n-1]`. For example, if `w` is `[\"pear\", \"zucchini\", \"apple\", \"kiwi\"]` then calling `sort_words(4, w)` would modify `w` so that it becomes `[\"apple\", \"kiwi\", \"pear\", \"zucchini\"]`. To move elements of the array `w`, you must use the `largest_to_back` function (you cannot write something like `w[i] = …`). You do not need to write `largest_to_back`.",
+      "answer": "```c\nvoid sort_words(int n, char *w[static n]) {\n    for (int k = n; k > 1; k--) {\n        largest_to_back(k, w);\n    }\n}\n```\n\nEach call moves the largest of the first k strings to position k-1, then the next call only looks at the first k-1. Tested on `[\"pear\", \"zucchini\", \"apple\", \"kiwi\"]`: gives `apple, kiwi, pear, zucchini`.",
+      "grading": "Essential idea: n-1 calls with a shrinking length and the **same** start pointer: `largest_to_back(k, w)` for k = n down to 2 (or `largest_to_back(n - i, w)` for i = 0..n-2). Deductions: passing `w + i` (moves the start, so the back stays fixed: wrong order: lose 1); always passing n (does nothing after the first call: 0–1); assigning to `w[i]` (forbidden).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Loop that calls largest_to_back n-1 times"
+        },
+        {
+          "marks": 1,
+          "item": "Passes the correct shrinking length with the start of the array (largest_to_back(k, w), k = n..2)"
+        }
+      ],
+      "variantOf": "f22-6c"
+    },
+    {
+      "id": "f22-6d",
+      "source": "Final exam April 2022, Q6(d)",
+      "kind": "long",
+      "marks": 8,
+      "topics": [
+        "c/IO",
+        "c/arrays",
+        "c/strings",
+        "c/pointers"
+      ],
+      "prompt": "**Question 6(d) (8 points)**\n\nWrite the `main` function of a C program that requires one command-line argument which is a file name. If one command-line argument is not given, then the function should exit with an exit status of 1.\n\nThe input file is a plain-text file made up of individual lines of text. The program should read the lines of text into an array of strings (using the `read_strings` function). The program should then sort the lines of the file by increasing string length (using the `sort_by_length` function). Finally, the program should print the lines of the file from shortest line to longest line, each line as a separate line of output. You may assume that each line of text in the input file is less than 100 characters in length.\n\nFor reference, the functions from the earlier parts of Question 6 are:\n\n```c\n// opens filename, stores line i of the file in s[i] (first 100 lines only; s[i] must\n// already have enough space), closes the file, and returns the actual number of lines\nint read_strings(const char* filename, char *s[static 100]);\n\n// sorts the n strings in s by increasing length\nvoid sort_by_length(int n, char *s[static n]);\n```",
+      "answer": "```c\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        exit(1);\n    }\n    char lines[100][100];   // each line is less than 100 characters\n    char *s[100];\n    for (int i = 0; i < 100; i++) {\n        s[i] = lines[i];\n    }\n    int n = read_strings(argv[1], s);\n    if (n > 100) {\n        n = 100;            // only the first 100 lines were stored\n    }\n    if (n > 0) {\n        sort_by_length(n, s);\n    }\n    for (int i = 0; i < n; i++) {\n        printf(\"%s\\n\", s[i]);\n    }\n    return 0;\n}\n```\n\n(If your `read_strings` keeps the newline at the end of each line, use `char lines[100][101]` and print with `printf(\"%s\", s[i])` instead.) Tested with the 4-line example, an empty file, a file of 120 lines (only the first 100 are sorted and printed), and no argument (exit status 1).",
+      "grading": "Essentials: check `argc != 2` and `exit(1)` (or `return 1`); provide **storage** for up to 100 lines of up to 100 chars (a 2-D array `char lines[100][100]`, or `malloc` for each string) and an array of 100 `char *` pointing at it, because `read_strings` writes into `s[i]`; call `read_strings(argv[1], s)`; limit the count to 100 since `read_strings` may return more; call `sort_by_length(n, s)`; print each stored line on its own line.\n\nAccepted: allocating each `s[i]` with `malloc(100)` or `malloc(101)` (then freeing them is good practice; don't deduct for missing frees at the end of main); a different buffer length consistent with whether the newline is kept; skipping the n == 0 guard.\n\nCommon mistakes: `char *s[100];` with no storage behind the pointers (uninitialized pointers, writing through them is undefined behaviour: lose 2–3); passing `char lines[100][100]` directly as `s` (wrong type: `char (*)[100]` is not `char **`: lose 2); not capping n at 100 (prints garbage past the array: lose 1); `argc != 1` (argc counts the program name); printing an extra blank line between lines when the newline was kept and `\\n` is printed again (lose 1).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks argc != 2 and exits with status 1"
+        },
+        {
+          "marks": 2,
+          "item": "Provides storage for 100 lines (2-D array or malloc) and an array of 100 char * pointing to it"
+        },
+        {
+          "marks": 1,
+          "item": "Calls read_strings(argv[1], s) and keeps the returned count"
+        },
+        {
+          "marks": 1,
+          "item": "Uses at most 100 as the number of stored lines"
+        },
+        {
+          "marks": 1,
+          "item": "Calls sort_by_length(n, s)"
+        },
+        {
+          "marks": 2,
+          "item": "Prints each line on its own line (no blank lines between), shortest to longest"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f22-6d-v",
+      "source": "Variant of Final exam April 2022, Q6(d)",
+      "kind": "long",
+      "marks": 8,
+      "topics": [
+        "c/IO",
+        "c/arrays",
+        "c/strings",
+        "c/pointers"
+      ],
+      "prompt": "Write the `main` function of a C program that requires one command-line argument which is a file name. If one command-line argument is not given, then the program should print a usage message to standard error and exit with an exit status of 2.\n\nThe input file is a plain-text file containing words separated by whitespace; each word is fewer than 64 characters long. The program should read the words into an array of strings (using `read_words`), sort the stored words alphabetically (using `sort_words`), print the stored words in sorted order, one per line, and finally print a line `N words in file` where N is the total number of words in the file (which may be more than the number stored).\n\nThe functions you must use are:\n\n```c\n// opens filename, stores the first 50 words of the file in w[0], w[1], ...\n// (each w[i] must already have room for 64 chars), closes the file,\n// and returns the actual number of words in the file\nint read_words(const char *filename, char *w[static 50]);\n\n// sorts the n strings in w alphabetically\nvoid sort_words(int n, char *w[static n]);\n```",
+      "answer": "```c\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s filename\\n\", argv[0]);\n        exit(2);\n    }\n    char words[50][64];   // each word is fewer than 64 characters\n    char *w[50];\n    for (int i = 0; i < 50; i++) {\n        w[i] = words[i];\n    }\n    int total = read_words(argv[1], w);\n    int n = total < 50 ? total : 50;\n    if (n > 0) {\n        sort_words(n, w);\n    }\n    for (int i = 0; i < n; i++) {\n        printf(\"%s\\n\", w[i]);\n    }\n    printf(\"%d words in file\\n\", total);\n    return 0;\n}\n```\n\nTested with 9 words, an empty file (prints `0 words in file`), 60 words (prints the first 50 sorted, then `60 words in file`), and no argument (usage message, exit status 2).",
+      "grading": "Essentials: `argc != 2` → message on `stderr` (`fprintf(stderr, ...)`) and `exit(2)`; storage for 50 words of 64 chars (`char words[50][64]` or `malloc(64)` each) plus an array of 50 `char *` pointing into it; `read_words(argv[1], w)` keeping the total; number stored = min(total, 50); `sort_words(stored, w)`; print each stored word on its own line; print `total words in file` using the **total**, not the stored count.\n\nCommon mistakes: uninitialized `char *w[50]` (no storage: lose 2–3); passing the 2-D array directly (wrong type); usage message to stdout (lose 1); wrong exit status; sorting/printing `total` words when total > 50 (out of bounds: lose 1); printing the stored count instead of the total (lose 1).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks argc != 2, prints usage to stderr and exits with status 2"
+        },
+        {
+          "marks": 2,
+          "item": "Storage for 50 words of 64 chars and an array of 50 char * pointing to it"
+        },
+        {
+          "marks": 1,
+          "item": "Calls read_words(argv[1], w) and keeps the total"
+        },
+        {
+          "marks": 1,
+          "item": "Uses min(total, 50) as the number of stored words and calls sort_words with it"
+        },
+        {
+          "marks": 1,
+          "item": "Prints each stored word on its own line"
+        },
+        {
+          "marks": 2,
+          "item": "Prints the total word count line with the correct (total) value"
+        }
+      ],
+      "variantOf": "f22-6d"
+    }
+  ]
+}
