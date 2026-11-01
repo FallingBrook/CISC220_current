@@ -1,0 +1,285 @@
+{
+ "exam": "2026-12-10",
+ "days": [
+  {
+   "day": 1,
+   "date": "2026-11-01",
+   "kind": "learn",
+   "title": "Your first C program",
+   "notebooks": "c/a_simple_c_program, c/compiling"
+  },
+  {
+   "day": 2,
+   "date": "2026-11-02",
+   "kind": "learn",
+   "title": "Variables, types, printf and control flow",
+   "notebooks": "c/types, c/statements, c/declarations (basics)"
+  },
+  {
+   "day": 3,
+   "date": "2026-11-03",
+   "kind": "learn",
+   "title": "Arrays, strings and command-line arguments \u2192 concat2.c",
+   "notebooks": "c/arrays, c/strings (basics)"
+  },
+  {
+   "day": 4,
+   "date": "2026-11-04",
+   "kind": "learn",
+   "title": "Functions, the math library and errors \u2192 sin.c",
+   "notebooks": "c/declarations, c/scope, c/floats (basics)"
+  },
+  {
+   "day": 5,
+   "date": "2026-11-05",
+   "kind": "learn",
+   "title": "Arrays in functions, characters as numbers, binary \u2192 sumones.c",
+   "notebooks": "c/arrays, c/integers, c/types"
+  },
+  {
+   "day": 6,
+   "date": "2026-11-06",
+   "kind": "a4due",
+   "title": "Assignment 4 due: final checks and submit",
+   "notebooks": ""
+  },
+  {
+   "day": 7,
+   "date": "2026-11-07",
+   "kind": "learn",
+   "title": "Scope and lifetime",
+   "notebooks": "c/scope"
+  },
+  {
+   "day": 8,
+   "date": "2026-11-08",
+   "kind": "learn",
+   "title": "Declarations and integers in depth",
+   "notebooks": "c/declarations, c/integers"
+  },
+  {
+   "day": 9,
+   "date": "2026-11-09",
+   "kind": "learn",
+   "title": "Bitwise operations, part 1",
+   "notebooks": "c/bitwise_ops"
+  },
+  {
+   "day": 10,
+   "date": "2026-11-10",
+   "kind": "learn",
+   "title": "Bitwise operations, part 2, and floating point",
+   "notebooks": "c/bitwise_ops, c/floats"
+  },
+  {
+   "day": 11,
+   "date": "2026-11-11",
+   "kind": "learn",
+   "title": "Pointers, part 1",
+   "notebooks": "c/pointers"
+  },
+  {
+   "day": 12,
+   "date": "2026-11-12",
+   "kind": "learn",
+   "title": "Pointers, part 2, and addressing",
+   "notebooks": "c/pointers, c/addressing"
+  },
+  {
+   "day": 13,
+   "date": "2026-11-13",
+   "kind": "learn",
+   "title": "Structs",
+   "notebooks": "c/struct"
+  },
+  {
+   "day": 14,
+   "date": "2026-11-14",
+   "kind": "learn",
+   "title": "Arrays in depth",
+   "notebooks": "c/arrays"
+  },
+  {
+   "day": 15,
+   "date": "2026-11-15",
+   "kind": "review",
+   "title": "Review day: everything so far",
+   "notebooks": ""
+  },
+  {
+   "day": 16,
+   "date": "2026-11-16",
+   "kind": "learn",
+   "title": "Strings, part 1",
+   "notebooks": "c/strings"
+  },
+  {
+   "day": 17,
+   "date": "2026-11-17",
+   "kind": "learn",
+   "title": "Strings, part 2",
+   "notebooks": "c/strings"
+  },
+  {
+   "day": 18,
+   "date": "2026-11-18",
+   "kind": "learn",
+   "title": "Dynamic memory, part 1",
+   "notebooks": "c/allocating_and_deallocating_memory"
+  },
+  {
+   "day": 19,
+   "date": "2026-11-19",
+   "kind": "learn",
+   "title": "Dynamic memory, part 2",
+   "notebooks": "c/allocating_and_deallocating_memory"
+  },
+  {
+   "day": 20,
+   "date": "2026-11-20",
+   "kind": "learn",
+   "title": "A string data type, part 1",
+   "notebooks": "c/string_implementation"
+  },
+  {
+   "day": 21,
+   "date": "2026-11-21",
+   "kind": "learn",
+   "title": "A string data type, part 2",
+   "notebooks": "c/string_implementation"
+  },
+  {
+   "day": 22,
+   "date": "2026-11-22",
+   "kind": "review",
+   "title": "Review day: strings and memory",
+   "notebooks": ""
+  },
+  {
+   "day": 23,
+   "date": "2026-11-23",
+   "kind": "learn",
+   "title": "A linked stack, part 1",
+   "notebooks": "c/linked_stack"
+  },
+  {
+   "day": 24,
+   "date": "2026-11-24",
+   "kind": "learn",
+   "title": "A linked stack, part 2",
+   "notebooks": "c/linked_stack"
+  },
+  {
+   "day": 25,
+   "date": "2026-11-25",
+   "kind": "learn",
+   "title": "A generic stack",
+   "notebooks": "c/generic_linked_stack"
+  },
+  {
+   "day": 26,
+   "date": "2026-11-26",
+   "kind": "learn",
+   "title": "Input and output, part 1",
+   "notebooks": "c/IO"
+  },
+  {
+   "day": 27,
+   "date": "2026-11-27",
+   "kind": "learn",
+   "title": "Input and output, part 2",
+   "notebooks": "c/IO"
+  },
+  {
+   "day": 28,
+   "date": "2026-11-28",
+   "kind": "review",
+   "title": "Review day: data structures and I/O",
+   "notebooks": ""
+  },
+  {
+   "day": 29,
+   "date": "2026-11-29",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 30,
+   "date": "2026-11-30",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 31,
+   "date": "2026-12-01",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 32,
+   "date": "2026-12-02",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 33,
+   "date": "2026-12-03",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 34,
+   "date": "2026-12-04",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 35,
+   "date": "2026-12-05",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 36,
+   "date": "2026-12-06",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 37,
+   "date": "2026-12-07",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 38,
+   "date": "2026-12-08",
+   "kind": "practice",
+   "title": "Past-exam practice",
+   "notebooks": ""
+  },
+  {
+   "day": 39,
+   "date": "2026-12-09",
+   "kind": "eve",
+   "title": "Light review and an early night",
+   "notebooks": ""
+  },
+  {
+   "day": 40,
+   "date": "2026-12-10",
+   "kind": "exam",
+   "title": "Final exam",
+   "notebooks": ""
+  }
+ ]
+}
