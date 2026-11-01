@@ -1,0 +1,608 @@
+{
+ "day": 7,
+ "title": "Scope and lifetime",
+ "goal": "Say where each variable's name can be used (file scope, block scope, hiding) and how long it lives (automatic versus static storage duration), and trace what-does-it-print programs that mix globals, static locals and shadowed names.",
+ "topics": [
+  {
+   "id": "c7-scope",
+   "title": "Scope: where a name can be used",
+   "notebook": "c/scope.ipynb",
+   "priority": "high",
+   "examNote": "Exam tracing questions often reuse one name (`x`, `total`, `i`) at several levels. For every use of the name, ask: *which declaration is the nearest one above me, in my block or a block around me?* That is the variable being used.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "Today is about two questions you must be able to answer for every variable in a program:\n\n1. **Scope**: in which part of the program can you use the *name*?\n2. **Lifetime**: during which part of the *run* does the variable exist and hold a value?\n\nThis lesson is scope. The next lesson is lifetime.\n\n### Two kinds of scope you will use all the time\n\nThe **scope** of a name (an *identifier*) is the region of the program text where the name can be used.\n\n- **File scope**: the name is declared *outside* every function. It can be used from the line where it is declared to the end of the file. A variable with file scope is usually called a **global variable**.\n- **Block scope**: the name is declared *inside* a block (a pair of braces `{ }`), or it is a function parameter. It can be used from its declaration to the closing `}` of that block. A variable with block scope is usually called a **local variable**.\n\nA `for` loop counts as a block too: in `for (int i = 0; ...)`, the `i` exists only inside the loop.\n\nHere is the notebook's `scope.c`, with a comment on each declaration:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint j;                                      // file scope: usable from this line to the end of the file\n\nvoid f(int i) {                             // parameter i: block scope (the body of f)\n    int j = 1;                              // block scope: hides the file scope j inside f\n    i++;\n    printf(\"\\tfunc: i = %d, j = %d\\n\", i, j);\n    for (int i = 0; i < 2; i++) {           // block scope (the loop): hides the parameter i\n        int j = 2;                          // block scope (the loop body): hides f's j\n        printf(\"\\t\\tfor loop, i = %d, j = %d\\n\", i, j);\n    }\n    printf(\"\\tfunc: i = %d, j = %d\\n\", i, j);\n}\n\nint k;                                      // file scope, but only from HERE on: f cannot use k\n\nint main(void) {\n    printf(\"main: j = %d\\n\", j);\n    f(100);\n    printf(\"main: j = %d\\n\", j);\n    return 0;\n}",
+     "caption": "scope.c (from the notebook, comments added)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o scope scope.c\n$ ./scope\nmain: j = 0\n\tfunc: i = 101, j = 1\n\t\tfor loop, i = 0, j = 2\n\t\tfor loop, i = 1, j = 2\n\tfunc: i = 101, j = 1\nmain: j = 0"
+    },
+    {
+     "type": "md",
+     "text": "`\\t` in a `printf` string is a **tab** character; the notebook uses it to indent the lines printed inside `f`.\n\nNotice **where** each name was declared:\n\n- `j`, `f`, `k` and `main` all have file scope, but each starts at its own line. `k` is declared *after* `f`, so `f` cannot use `k`.\n- `main` never sees a local `j`, so it uses the global `j`. A global variable starts at 0 (more on why in the next lesson), so `main` prints 0 both times: `f` changed only its own `j`."
+    },
+    {
+     "type": "md",
+     "text": "### Using a name before (or after) its scope is a compile error\n\nIf `f` tries to use `k`, gcc stops, even though `k` is declared later in the same file:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid f(void) {\n    k = k + 1;\n}\n\nint k;\n\nint main(void) {\n    f();\n    printf(\"k = %d\\n\", k);\n    return 0;\n}",
+     "caption": "kscope.c: k is used before its declaration"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o kscope kscope.c\nkscope.c: In function 'f':\nkscope.c:4:5: error: 'k' undeclared (first use in this function)\n    4 |     k = k + 1;\n      |     ^\nkscope.c:4:5: note: each undeclared identifier is reported only once for each function it appears in"
+    },
+    {
+     "type": "md",
+     "text": "The same thing happens when you use a loop variable after its loop has ended:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    for (int i = 0; i < 3; i++) {\n        printf(\"%d\\n\", i);\n    }\n    printf(\"after: %d\\n\", i);\n    return 0;\n}",
+     "caption": "loopi.c: i only exists inside the loop"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o loopi loopi.c\nloopi.c: In function 'main':\nloopi.c:7:27: error: 'i' undeclared (first use in this function)\n    7 |     printf(\"after: %d\\n\", i);\n      |                           ^\nloopi.c:7:27: note: each undeclared identifier is reported only once for each function it appears in"
+    },
+    {
+     "type": "md",
+     "text": "If you need the value after the loop, declare the variable *before* the loop (`int i;` then `for (i = 0; ...)`)."
+    },
+    {
+     "type": "md",
+     "text": "### Hiding (shadowing)\n\nBlocks sit inside other blocks, so scopes are **nested**. C allows you to declare the same name again in an inner scope. Inside the inner scope, the *inner* declaration wins and the outer one is **hidden** (another common word for this is *shadowed*). When the inner block ends, the outer name is visible again. It is legal, but it is confusing, so avoid it in your own code. Exams use it on purpose."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint x = 1;                  // file scope (a global variable)\n\nint main(void) {\n    printf(\"A: x = %d\\n\", x);\n    int x = 2;              // block scope: hides the global x from here on\n    printf(\"B: x = %d\\n\", x);\n    {\n        int x = 3;          // an inner block: hides main's x\n        printf(\"C: x = %d\\n\", x);\n    }\n    printf(\"D: x = %d\\n\", x);\n    return 0;\n}",
+     "caption": "shadow.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o shadow shadow.c\n$ ./shadow\nA: x = 1\nB: x = 2\nC: x = 3\nD: x = 2"
+    },
+    {
+     "type": "md",
+     "text": "Line by line:\n\n- `A`: `main` has no `x` of its own yet (its `x` is declared on the next line), so this is the global `x`, 1.\n- `B`: `main`'s `x` now hides the global one.\n- `C`: inside the inner block, the innermost `x` (3) wins.\n- `D`: the inner block has ended and its `x` is gone, so we are back to `main`'s `x`, still 2. Changing an inner `x` never changes an outer one: they are *different variables* that happen to share a name."
+    },
+    {
+     "type": "try",
+     "text": "gcc does not warn about hiding with `-Wall`. Compile shadow.c with an extra flag: `gcc -std=c17 -Wall -Wshadow -o shadow shadow.c`. You get `warning: declaration of 'x' shadows a global declaration` and `... shadows a previous local`. Handy when a program prints a value you did not expect."
+    },
+    {
+     "type": "check",
+     "q": "In scope.c, the parameter `i` of `f` is 101 before the loop. What is it after the loop, and why?",
+     "a": "Still 101. The loop declares a *new* `i` that hides the parameter only inside the loop. The loop changes its own `i` (0, then 1); the parameter is never touched."
+    },
+    {
+     "type": "md",
+     "text": "### A third kind: function prototype scope\n\nThe parameter names in a prototype (a declaration without a body) have **function prototype scope**: they exist only up to the end of that prototype. It rarely matters, with one exception the notebook points out: a name must be declared before it is used, even inside the parameter list. So `void g(int n, int a[n]);` is correct, but `void g(int a[n], int n);` is an error (`'n' undeclared`), because `n` is used before it comes into scope. (There is a fourth kind, *function scope*, used only for labels; CISC220 does not use it.)"
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- **Scope** = where in the program text a name can be used.\n- **File scope** (global): declared outside all functions; usable from its line to the end of the file.\n- **Block scope** (local): declared inside `{ }` or as a parameter; usable from its line to the block's `}`. A `for (int i ...)` variable lives only in the loop.\n- Using a name outside its scope is a compile error: `'k' undeclared`.\n- An inner declaration **hides** (shadows) an outer one with the same name until the inner block ends. They are different variables.\n- To find which variable a use refers to: look for the nearest declaration *above* it, in its own block or an enclosing block, then at file scope."
+    }
+   ]
+  },
+  {
+   "id": "c7-lifetime",
+   "title": "Lifetime: automatic and static storage duration",
+   "notebook": "c/scope.ipynb",
+   "priority": "high",
+   "examNote": "The classic trace: a function with an ordinary local and a `static` local, called several times. The ordinary one restarts on every call; the `static` one is initialized once and remembers. Write a small table of each variable's value after each call.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Lifetime and storage duration\n\nThe **lifetime** of a variable is the part of the run during which it exists in memory and holds a value. C decides the lifetime from the variable's **storage duration**. The notebook lists four kinds: *automatic*, *static*, *allocated* (Day 18, `malloc`) and *thread* (not in CISC220). Today: the first two.\n\n### Automatic storage duration: ordinary local variables\n\nA variable declared inside a block (without the word `static`), and every function parameter, has **automatic** storage duration:\n\n- its memory is set aside when the program **enters** its block,\n- and it is released when the program **leaves** the block, by any means (reaching its `}` or a `return`).\n\nSo a function's locals are created fresh on *every* call and destroyed when the call returns. A variable declared inside a loop body is created and destroyed on *every iteration*.\n\nAutomatic variables are **not** initialized for you. Without `= value`, the starting value is *indeterminate* (whatever bits were in that memory). You met this on Day 4 with the notebook's `sum_of.c` bug: `unsigned long sum;` and then `sum += i`. Reading such a variable is a bug, and the output can change from run to run or computer to computer, so no fixed output can be predicted.\n\n### Static storage duration\n\nTwo kinds of variables have **static** storage duration:\n\n1. every variable with **file scope** (globals), and\n2. every variable declared with the keyword **`static`**, including one declared *inside* a function.\n\nA static-duration variable lives for the **whole run** of the program. It is initialized **exactly once**, before `main` starts. And if you do not give it a starting value, C sets it to zero: `0` for integers, `0.0` for `double` (and a *null pointer* for pointers, which you will meet on Day 11)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint g;                      // file scope: static storage duration\ndouble d;\n\nint main(void) {\n    static unsigned int s;  // static local\n    printf(\"g = %d, d = %f, s = %u\\n\", g, d, s);\n    return 0;\n}",
+     "caption": "defaults.c: static-duration variables start at zero"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o defaults defaults.c\n$ ./defaults\ng = 0, d = 0.000000, s = 0"
+    },
+    {
+     "type": "md",
+     "text": "### A `static` local keeps its value between calls\n\nCompare an ordinary local with a `static` local in the same function:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid visit(void) {\n    int a = 0;              // automatic: a new a, set to 0, on every call\n    static int s = 0;       // static: one s for the whole run, set to 0 once\n    a++;\n    s++;\n    printf(\"a = %d, s = %d\\n\", a, s);\n}\n\nint main(void) {\n    visit();\n    visit();\n    visit();\n    return 0;\n}",
+     "caption": "visit.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o visit visit.c\n$ ./visit\na = 1, s = 1\na = 1, s = 2\na = 1, s = 3"
+    },
+    {
+     "type": "md",
+     "text": "- `a` is automatic: every call makes a new `a`, sets it to 0, adds 1, prints 1, and the `a` dies at the `}`.\n- `s` is static: there is only **one** `s`. The line `static int s = 0;` is *not* run on each call; it is an initialization done once before the program starts. Each call adds 1 to the same `s`, so it remembers 1, 2, 3.\n\nThe **scope** of `s` is still only the body of `visit`: no other function can use the name `s`. Static changes the *lifetime*, not the scope. That is the point: the value is remembered, but only `visit` can touch it.\n\nThe notebook's example is a counter whose value can be read (with `count(0)`) or increased:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nunsigned int count(unsigned int increment) {\n    static unsigned int value = 0;           // initialized to 0 exactly once, retains value between calls\n    if (increment > 0) {\n        // potential overflow bug\n        value += increment;\n    }\n    return value;\n}\n\nint main(void) {\n    // current value of the counter\n    unsigned int c = count(0);\n    printf(\"current count = %u\\n\", c);\n    c = count(1);\n    printf(\"increment, current count = %u\\n\", c);\n    c = count(1);\n    printf(\"increment, current count = %u\\n\", c);\n    c = count(1);\n    printf(\"increment, current count = %u\\n\", c);\n    c = count(0);\n    printf(\"current count = %u\\n\", c);\n\n    return 0;\n}",
+     "caption": "counter.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o counter counter.c\n$ ./counter\ncurrent count = 0\nincrement, current count = 1\nincrement, current count = 2\nincrement, current count = 3\ncurrent count = 3"
+    },
+    {
+     "type": "check",
+     "q": "In counter.c, the first call is `count(0)`. Why does it print 0, and why does the last call `count(0)` print 3?",
+     "a": "`value` is a static local, initialized to 0 once. `count(0)` does not add anything, so it returns the current value: 0 at the start. Three `count(1)` calls add 1 each to the *same* `value`, so it is 3, and the final `count(0)` returns that 3."
+    },
+    {
+     "type": "md",
+     "text": "### Inside a loop body: new every iteration, unless static"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    for (int i = 0; i < 3; i++) {\n        int t = 10;         // a new t is created on every iteration\n        t = t + i;\n        printf(\"%d \", t);\n    }\n    printf(\"\\n\");\n    for (int i = 0; i < 3; i++) {\n        static int t = 10;  // one t, set to 10 once, keeps its value\n        t = t + i;\n        printf(\"%d \", t);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+     "caption": "loopt.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o loopt loopt.c\n$ ./loopt\n10 11 12 \n10 11 13 "
+    },
+    {
+     "type": "md",
+     "text": "First loop: a new `t` is made with 10 on each pass, so we print 10 + 0, 10 + 1, 10 + 2. Second loop: one `t`, set to 10 once; it becomes 10, then 11, then 13."
+    },
+    {
+     "type": "pitfall",
+     "text": "A `static` variable's initializer must be a **constant** that the compiler can work out, because it is applied before the program runs. `static int value = start;` (with `start` a parameter) is a compile error:\n\n```\nnonconst.c:4:24: error: initializer element is not constant\n```"
+    },
+    {
+     "type": "md",
+     "text": "### `static` at file scope, and a common bug\n\nWriting `static` in front of a **file scope** variable (or function) does not change its lifetime (it already lives for the whole run). It changes its **linkage**: the name is visible only inside this one source file, so another `.c` file linked into the same program cannot use it. The notebook compares it to a `private static` field in Java. (Linkage between several files comes up again later in the course.)\n\nThe notebook's `sum_of2_fails.c` shows the danger of keeping a result in a long-lived variable:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstatic unsigned int sum = 0;\n\nvoid sum_of(unsigned int n) {\n    for (unsigned int i = 0; i <= n; i++) {\n        sum += i;\n    }\n}\n\nvoid print_sum() {\n    printf(\"sum_of(10) = %u\\n\", sum);\n}\n\nint main(void) {\n    sum_of(10);\n    print_sum();\n    \n    // call sum_of a second time\n    sum_of(10);\n    print_sum();\n    \n    return 0;\n} ",
+     "caption": "sum_of2_fails.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o sum_of2_fails sum_of2_fails.c\n$ ./sum_of2_fails\nsum_of(10) = 55\nsum_of(10) = 110"
+    },
+    {
+     "type": "md",
+     "text": "The second call starts from the 55 that the first call left in `sum`, so it prints 110. The notebook's advice: do not use a static variable here at all. Use a local running total and **return** it, and pass the value to print as a parameter:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nunsigned int sum_of(unsigned int n) {\n    unsigned int sum = 0;                   // local: starts at 0 on every call\n    for (unsigned int i = 0; i <= n; i++) {\n        sum += i;\n    }\n    return sum;\n}\n\nvoid print_sum(unsigned int n, unsigned int sum) {\n    printf(\"sum_of(%u) = %u\\n\", n, sum);\n}\n\nint main(void) {\n    print_sum(10, sum_of(10));\n    print_sum(10, sum_of(10));\n    return 0;\n}",
+     "caption": "sum_fixed.c: the fix the notebook suggests"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o sum_fixed sum_fixed.c\n$ ./sum_fixed\nsum_of(10) = 55\nsum_of(10) = 55"
+    },
+    {
+     "type": "why",
+     "q": "If static locals are so handy, why does the notebook say functions that remember things between calls are uncommon?",
+     "a": "A function whose result depends on hidden history is hard to test and easy to misuse: the same call can give different answers (like `sum_of(10)` giving 110). Parameters and return values make the data flow visible. Use a static local only when remembering *is* the job (a counter, an ID generator). The Standard Library function `strtok` is a famous example."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- **Lifetime** = when the variable exists during the run; it comes from the **storage duration**.\n- **Automatic** (ordinary locals and parameters): created when the block is entered, destroyed when it is left; created again on every call and every loop iteration. Not initialized: always give a starting value.\n- **Static** (all globals, and anything declared `static`): one copy for the whole run, initialized **once** before `main`, to 0 if you give no value.\n- A `static` local keeps its value between calls but can only be *used* inside its function (static changes lifetime, not scope). Its initializer must be a constant.\n- `static` on a file scope name makes it private to that file (internal linkage).\n- Prefer locals + `return` over results kept in globals or statics."
+    }
+   ]
+  },
+  {
+   "id": "c7-traces",
+   "title": "When a lifetime ends too soon, and tracing exam programs",
+   "notebook": "c/scope.ipynb",
+   "priority": "high",
+   "examNote": "April 2022 Q5(a) asks whether data a function saved from one of its own local variables is still valid after the function returns, and wants the reason: the local's lifetime ended. Fall 2014 Q3 asks for a program that remembers the previous number to report a difference; a `static` local (or a variable in `main`) is how you remember.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Returning a local array: the object is dead\n\nOn Day 5 you learned that an array name used as a value turns into the **address** of its first element, and that a function cannot return an array. A tempting trick is to return that address. The notebook shows why it fails. (`int *` means *pointer to `int`*, an address of an `int`, the same type you saw for array parameters on Day 5. Pointers get full lessons on Days 11 and 12.)"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint* intarray(size_t len) {\n    if (len == 0) {\n        len = 1;\n    }\n    int arr[len];\n    return arr;\n}\n\nint main(void) {\n    int *a = intarray(10);\n    printf(\"a[0] = %d\\n\", a[0]);\n    \n    return 0;\n}",
+     "caption": "badarray.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o badarray badarray.c\nbadarray.c: In function 'intarray':\nbadarray.c:8:12: warning: function returns address of local variable [-Wreturn-local-addr]\n    8 |     return arr;\n      |            ^~~\n$ ./badarray\nSegmentation fault"
+    },
+    {
+     "type": "md",
+     "text": "`arr` has **automatic** storage duration: its lifetime begins when `intarray` runs and **ends when `intarray` returns**. `main` receives the address of memory that no longer belongs to any variable (a *dangling* address). Using it is undefined behaviour. On our machine gcc warns (`function returns address of local variable`) and the program crashes, but undefined behaviour has no guaranteed result: it could also print garbage, or even print what you hoped for, by luck.\n\n**Rule:** never let an address of a local variable outlive the function call. If an object must survive after the function returns, it needs **static** or **allocated** storage duration. Day 18 shows the allocated way (`malloc`), which is how a function can really create and hand back an array."
+    },
+    {
+     "type": "check",
+     "q": "Would it help to write `return arr;` as the last line instead of right after the declaration?",
+     "a": "No. Wherever the `return` is, `arr`'s lifetime ends when the function returns, so the caller always gets a dangling address."
+    },
+    {
+     "type": "md",
+     "text": "### How to trace a scope and lifetime program\n\nExam questions give a short program and ask *what does it print?* A reliable method:\n\n1. List the **globals** with their starting values (0 if none is given).\n2. List each function's **static locals** with their starting values. These are set once, not on every call.\n3. Go through `main` statement by statement. On each call, create the function's parameters and ordinary locals fresh; cross them out when it returns.\n4. For every use of a name, find the **nearest** declaration above it (inner block first, then outer blocks, then file scope).\n5. Keep a table: one column per variable, one row per step.\n\nTry it on this program before you look at the output:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint total = 0;                          // global: file scope, static storage\n\nint add(int x) {\n    static int calls = 0;               // set to 0 once, before the program starts\n    calls++;\n    total = total + x;                  // no local total here, so this is the global\n    printf(\"call %d: x = %d, total = %d\\n\", calls, x, total);\n    return calls;\n}\n\nint main(void) {\n    int total = 100;                    // main's own total: hides the global in main\n    add(5);\n    int c = add(total);                 // passes main's total, 100\n    printf(\"main: total = %d, c = %d\\n\", total, c);\n    return 0;\n}",
+     "caption": "trace.c"
+    },
+    {
+     "type": "md",
+     "text": "| Step | global `total` | `calls` (static) | `main`'s `total` | printed |\n|---|---|---|---|---|\n| start | 0 | 0 | not yet | |\n| `int total = 100;` | 0 | 0 | 100 | |\n| `add(5)` | 5 | 1 | 100 | `call 1: x = 5, total = 5` |\n| `add(total)` passes 100 | 105 | 2 | 100 | `call 2: x = 100, total = 105` |\n| final `printf` | 105 | 2 | 100 | `main: total = 100, c = 2` |"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o trace trace.c\n$ ./trace\ncall 1: x = 5, total = 5\ncall 2: x = 100, total = 105\nmain: total = 100, c = 2"
+    },
+    {
+     "type": "md",
+     "text": "The traps here: inside `add`, `total` means the **global** (there is no local `total` in `add`, and `main`'s `total` is out of scope there). In `main`, `total` means `main`'s own 100. And `calls` counts across calls because it is `static`."
+    },
+    {
+     "type": "try",
+     "text": "Make `calls` an ordinary local (delete the word `static`) and predict the output before you run it. Then put `static` back and instead delete `int` from `int total = 100;` in `main`, so it becomes an assignment to the global. Predict, compile, run."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- An automatic variable dies when its function returns; an address of it is **dangling**, and using it is undefined behaviour. gcc warns: `function returns address of local variable`.\n- An object that must outlive the call needs static or allocated (Day 18) storage duration.\n- Tracing: globals and static locals start once (0 by default); ordinary locals restart on every call or iteration.\n- Each use of a name refers to the nearest declaration in scope: inner block, then outer blocks, then the file.\n- Keep a table of every variable's value; cross out locals when their block ends."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c7-fc-01",
+   "topic": "c7-scope",
+   "front": "What is the **scope** of a name?",
+   "back": "The region of the program text where the name can be used."
+  },
+  {
+   "id": "c7-fc-02",
+   "topic": "c7-scope",
+   "front": "Where does a file scope (global) variable's scope start and end?",
+   "back": "From the line where it is declared to the end of the file. A function above that line cannot use it."
+  },
+  {
+   "id": "c7-fc-03",
+   "topic": "c7-scope",
+   "front": "Where does a block scope (local) variable's scope start and end?",
+   "back": "From its declaration to the closing `}` of the block it is declared in. Parameters have the function body as their block."
+  },
+  {
+   "id": "c7-fc-04",
+   "topic": "c7-scope",
+   "front": "`for (int i = 0; i < 3; i++) { ... }` then `printf(\"%d\", i);` after the loop. What happens?",
+   "back": "Compile error: `'i' undeclared`. The loop's `i` exists only inside the loop."
+  },
+  {
+   "id": "c7-fc-05",
+   "topic": "c7-scope",
+   "front": "What does it mean that an inner declaration **hides** (shadows) an outer one?",
+   "back": "Inside the inner block the name refers to the inner variable; the outer one with the same name cannot be reached there. When the inner block ends, the outer one is visible again. They are different variables."
+  },
+  {
+   "id": "c7-fc-06",
+   "topic": "c7-scope",
+   "front": "Which gcc flag warns about hiding (shadowing)?",
+   "back": "`-Wshadow` (it is not part of `-Wall`)."
+  },
+  {
+   "id": "c7-fc-07",
+   "topic": "c7-scope",
+   "front": "Why is `void g(int a[n], int n);` an error?",
+   "back": "Parameters in a prototype have function prototype scope and start at their own declaration, so `n` is used before it is in scope. Write `void g(int n, int a[n]);`."
+  },
+  {
+   "id": "c7-fc-08",
+   "topic": "c7-lifetime",
+   "front": "What is the **lifetime** of a variable?",
+   "back": "The part of the program's run during which the variable exists and holds a value. It is set by the storage duration."
+  },
+  {
+   "id": "c7-fc-09",
+   "topic": "c7-lifetime",
+   "front": "When is an automatic (ordinary local) variable created and destroyed?",
+   "back": "Created when its block is entered, destroyed when the block is left by any means. A function's locals are new on every call; a loop body's are new on every iteration."
+  },
+  {
+   "id": "c7-fc-10",
+   "topic": "c7-lifetime",
+   "front": "What is the value of `int n;` declared inside a function, before you assign it?",
+   "back": "Indeterminate (garbage). Reading it is a bug, and the output cannot be predicted."
+  },
+  {
+   "id": "c7-fc-11",
+   "topic": "c7-lifetime",
+   "front": "Which variables have static storage duration?",
+   "back": "All file scope (global) variables, and every variable declared with `static` (also inside a function)."
+  },
+  {
+   "id": "c7-fc-12",
+   "topic": "c7-lifetime",
+   "front": "Starting value of a global or `static` variable with no initializer?",
+   "back": "Zero: `0` for integers, `0.0` for `double`, a null pointer for pointers. It is set once, before `main` runs."
+  },
+  {
+   "id": "c7-fc-13",
+   "topic": "c7-lifetime",
+   "front": "How does `static int s = 0;` inside a function behave?",
+   "back": "There is one `s` for the whole run, set to 0 once. It keeps its value between calls. Only that function can use the name `s`."
+  },
+  {
+   "id": "c7-fc-14",
+   "topic": "c7-lifetime",
+   "front": "Does `static` on a local variable change its scope or its lifetime?",
+   "back": "Its lifetime (the whole run). The scope is still the function's block."
+  },
+  {
+   "id": "c7-fc-15",
+   "topic": "c7-lifetime",
+   "front": "What does `static` on a file scope variable or function do?",
+   "back": "Gives it internal linkage: visible only in that one source file (like `private static` in Java). Its lifetime was already the whole run."
+  },
+  {
+   "id": "c7-fc-16",
+   "topic": "c7-lifetime",
+   "front": "Why is `static int v = start;` (with `start` a parameter) a compile error?",
+   "back": "A static variable is initialized before the program runs, so its initializer must be a constant: `error: initializer element is not constant`."
+  },
+  {
+   "id": "c7-fc-17",
+   "topic": "c7-traces",
+   "front": "Why is it wrong for a function to `return arr;` where `arr` is its own local array?",
+   "back": "`arr` has automatic storage duration; its lifetime ends when the function returns. The caller gets a dangling address, and using it is undefined behaviour (gcc warns `function returns address of local variable`)."
+  },
+  {
+   "id": "c7-fc-18",
+   "topic": "c7-traces",
+   "front": "An object must still exist after the function that made it returns. What storage duration can it have?",
+   "back": "Static (decided at compile time) or allocated (`malloc`, Day 18). Not automatic."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c7-q-01",
+   "topic": "c7-scope",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int n = 5;\n    {\n        int n = 7;\n        n = n + 1;\n        printf(\"%d\\n\", n);\n    }\n    n = n * 2;\n    printf(\"%d\\n\", n);\n    return 0;\n}",
+   "answer": "8\n10",
+   "explain": "The inner block has its own `n` (7), which becomes 8 and is printed. When the block ends, that `n` is gone; `main`'s `n` is still 5, and `5 * 2` is 10."
+  },
+  {
+   "id": "c7-q-02",
+   "topic": "c7-scope",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int i = 9;\n    for (int i = 0; i < 2; i++) {\n        printf(\"in loop: %d\\n\", i);\n    }\n    printf(\"after: %d\\n\", i);\n    return 0;\n}",
+   "answer": "in loop: 0\nin loop: 1\nafter: 9",
+   "explain": "The loop's `i` hides `main`'s `i` only inside the loop. After the loop, `i` is `main`'s `i`, which was never changed: 9."
+  },
+  {
+   "id": "c7-q-03",
+   "topic": "c7-scope",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint v = 10;\n\nvoid f(int v) {\n    v = v + 1;\n    printf(\"f: v = %d\\n\", v);\n}\n\nvoid g(void) {\n    v = v + 1;\n    printf(\"g: v = %d\\n\", v);\n}\n\nint main(void) {\n    f(v);\n    g();\n    f(v);\n    printf(\"main: v = %d\\n\", v);\n    return 0;\n}",
+   "answer": "f: v = 11\ng: v = 11\nf: v = 12\nmain: v = 11",
+   "explain": "In `f`, the parameter `v` hides the global, so `f` changes only its copy: 10 + 1 = 11, then later 11 + 1 = 12. `g` has no local `v`, so it changes the **global**: 10 to 11. `main` prints the global, 11."
+  },
+  {
+   "id": "c7-q-04",
+   "topic": "c7-scope",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint count;\n\nvoid bump(void) {\n    count = count + 2;\n    printf(\"bump: %d\\n\", count);\n}\n\nint main(void) {\n    printf(\"%d\\n\", count);\n    bump();\n    int count = 50;\n    bump();\n    printf(\"%d\\n\", count);\n    return 0;\n}",
+   "answer": "0\nbump: 2\nbump: 4\n50",
+   "explain": "The global `count` starts at 0 (static storage). `bump` always uses the global: 2, then 4. `main`'s own `count` (50), declared after the first call, hides the global in the rest of `main`, so the last line prints 50."
+  },
+  {
+   "id": "c7-q-05",
+   "topic": "c7-lifetime",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint tick(int step) {\n    static int value = 5;\n    if (step > 0) {\n        value = value + step;\n    }\n    return value;\n}\n\nint main(void) {\n    printf(\"%d\\n\", tick(0));\n    printf(\"%d\\n\", tick(2));\n    printf(\"%d\\n\", tick(3));\n    printf(\"%d\\n\", tick(0));\n    return 0;\n}",
+   "answer": "5\n7\n10\n10",
+   "explain": "`value` is a static local set to 5 once. `tick(0)` returns 5; `tick(2)` makes it 7; `tick(3)` makes it 10; `tick(0)` returns the remembered 10."
+  },
+  {
+   "id": "c7-q-06",
+   "topic": "c7-lifetime",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    for (int i = 1; i <= 3; i++) {\n        int a = 1;\n        static int b = 1;\n        a = a * 2;\n        b = b * 2;\n        printf(\"%d %d\\n\", a, b);\n    }\n    return 0;\n}",
+   "answer": "2 2\n2 4\n2 8",
+   "explain": "`a` is automatic: a new `a` = 1 on every iteration, so it always prints 2. `b` is static: one `b`, set to 1 once, doubled each time: 2, 4, 8."
+  },
+  {
+   "id": "c7-q-07",
+   "topic": "c7-lifetime",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nstatic int total = 0;\n\nint add_up(int n) {\n    for (int i = 1; i <= n; i++) {\n        total += i;\n    }\n    return total;\n}\n\nint main(void) {\n    printf(\"%d\\n\", add_up(3));\n    printf(\"%d\\n\", add_up(3));\n    printf(\"%d\\n\", add_up(1));\n    return 0;\n}",
+   "answer": "6\n12\n13",
+   "explain": "`total` is a static file scope variable that `add_up` never resets. 1+2+3 = 6, then 6 + 6 = 12, then 12 + 1 = 13. This is the notebook's `sum_of2_fails.c` bug."
+  },
+  {
+   "id": "c7-q-08",
+   "topic": "c7-lifetime",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint next_id(void) {\n    static int id = 100;\n    id++;\n    return id;\n}\n\nvoid hello(void) {\n    printf(\"hello %d\\n\", next_id());\n}\n\nint main(void) {\n    hello();\n    printf(\"main %d\\n\", next_id());\n    hello();\n    return 0;\n}",
+   "answer": "hello 101\nmain 102\nhello 103",
+   "explain": "There is only one `id` (static local of `next_id`), shared by every call no matter who calls it: 101, 102, 103."
+  },
+  {
+   "id": "c7-q-09",
+   "topic": "c7-traces",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint calls = 0;\n\nint twice(int x) {\n    static int calls = 0;\n    calls++;\n    printf(\"twice call %d\\n\", calls);\n    return 2 * x;\n}\n\nint main(void) {\n    int a = twice(3);\n    calls++;\n    int b = twice(a);\n    printf(\"a = %d, b = %d, calls = %d\\n\", a, b, calls);\n    return 0;\n}",
+   "answer": "twice call 1\ntwice call 2\na = 6, b = 12, calls = 1",
+   "explain": "Inside `twice`, the static local `calls` hides the global `calls`; it counts 1, 2. `main` uses the global `calls`, which starts at 0 and is incremented once: 1. `a` = 6, `b` = `twice(6)` = 12."
+  },
+  {
+   "id": "c7-q-10",
+   "topic": "c7-lifetime",
+   "type": "mcq",
+   "q": "Which variable does NOT have static storage duration?",
+   "options": [
+    "`int n = 5;` declared inside `main`",
+    "`int n;` declared outside every function",
+    "`static int n;` declared inside a function",
+    "`static int n = 1;` declared outside every function"
+   ],
+   "answer": 0,
+   "explain": "A variable declared inside a block without `static` is automatic. File scope variables and anything declared `static` have static storage duration."
+  },
+  {
+   "id": "c7-q-11",
+   "topic": "c7-scope",
+   "type": "mcq",
+   "q": "A file declares `void f(void) { k = k + 1; }` and then, below `f`, `int k;`. What happens when you compile it?",
+   "options": [
+    "Compile error: `'k' undeclared` in `f`",
+    "It compiles; `k` starts at 0 and `f` adds 1",
+    "It compiles with a warning; `k` is garbage",
+    "It compiles; `f` creates its own local `k`"
+   ],
+   "answer": 0,
+   "explain": "A file scope name is usable only from its declaration to the end of the file. `k` is declared after `f`, so it is not in scope inside `f`."
+  },
+  {
+   "id": "c7-q-12",
+   "topic": "c7-traces",
+   "type": "short",
+   "q": "This function compiles (with a warning). Explain why `main` must not use the result.\n\n```c\nint *make_squares(void) {\n    int sq[5];\n    for (int i = 0; i < 5; i++) {\n        sq[i] = i * i;\n    }\n    return sq;\n}\n```",
+   "answer": "`sq` is a local array with automatic storage duration. Its lifetime ends when `make_squares` returns, so the returned address points to memory that no longer belongs to any variable (a dangling address). Reading through it is undefined behaviour: it may crash, print garbage, or seem to work.",
+   "explain": "gcc says `warning: function returns address of local variable`. The object would need static or allocated (`malloc`, Day 18) storage duration to outlive the call."
+  },
+  {
+   "id": "c7-q-13",
+   "topic": "c7-lifetime",
+   "type": "short",
+   "q": "A student writes `int total;` inside a function and then adds numbers to it in a loop. The program prints the right answer on their laptop. Is the program correct? What would you change?",
+   "answer": "No. `total` is automatic and not initialized, so its starting value is indeterminate; it happened to be 0 by luck and could be anything on another run or machine. Write `int total = 0;`.",
+   "explain": "Only static-duration variables (globals and `static` ones) start at 0 automatically. This is the notebook's `sum_of.c` bug."
+  },
+  {
+   "id": "c7-q-14",
+   "topic": "c7-lifetime",
+   "type": "short",
+   "q": "Explain the difference between scope and lifetime, using a `static` local variable as the example.",
+   "answer": "Scope is where in the program text the name can be used; lifetime is when, during the run, the variable exists. A `static` local has block scope (only its function can use the name) but static lifetime (it exists, and keeps its value, for the whole run).",
+   "explain": "That combination is exactly why static locals are useful: the value is remembered between calls but hidden from every other function."
+  }
+ ],
+ "write": [
+  {
+   "id": "c7-w-01",
+   "topic": "c7-lifetime",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write a function `int next_even(void)` that returns 0 the first time it is called, 2 the second time, then 4, 6, and so on. It must not use a global variable. Write a `main` that calls it 4 times and prints each result on its own line.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// returns 0 on the first call, then 2, 4, 6, ...\nint next_even(void) {\n    static int next = 0;        // set to 0 once, before the program starts\n    int result = next;          // the value to hand back this time\n    next = next + 2;            // remembered for the next call\n    return result;\n}\n\nint main(void) {\n    for (int i = 0; i < 4; i++) {\n        printf(\"%d\\n\", next_even());\n    }\n    return 0;\n}",
+   "explain": "The function must remember something between calls without a global, so it uses a **static local**. `static int next = 0;` is set to 0 once, before the program starts, not on every call. Each call saves the current value in an ordinary local `result`, moves `next` on by 2 for next time, and returns `result`. Output:\n\n```\n$ ./next_even\n0\n2\n4\n6\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "correct header `int next_even(void)`"
+    },
+    {
+     "marks": 1,
+     "item": "a `static` local initialized to 0 (no global)"
+    },
+    {
+     "marks": 1,
+     "item": "returns the current value and adds 2 for the next call (first call returns 0)"
+    },
+    {
+     "marks": 1,
+     "item": "`main` calls it 4 times and prints each result with `\\n`"
+    }
+   ],
+   "pitfalls": [
+    "Forgetting `static`: then `next` is a new 0 on every call and the function always returns 0.",
+    "Adding 2 before saving the value: the first call returns 2 instead of 0."
+   ]
+  },
+  {
+   "id": "c7-w-02",
+   "topic": "c7-lifetime",
+   "stage": "faded",
+   "marks": 3,
+   "prompt": "Complete `average_so_far` so that it returns the average of every value it has been given so far. With the `main` shown, the program prints 4.00, 3.00, 5.00 and 4.00 on separate lines. Do not use global variables.",
+   "starter": "#include <stdio.h>\n\n// returns the average of every value it has been given so far\ndouble average_so_far(double x) {\n    ____ double total = ____;\n    ____ int count = 0;\n    total = total + x;\n    count++;\n    return ____;\n}\n\nint main(void) {\n    printf(\"%.2f\\n\", average_so_far(4.0));\n    printf(\"%.2f\\n\", average_so_far(2.0));\n    printf(\"%.2f\\n\", average_so_far(9.0));\n    printf(\"%.2f\\n\", average_so_far(1.0));\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\n// returns the average of every value it has been given so far\ndouble average_so_far(double x) {\n    static double total = 0.0;\n    static int count = 0;\n    total = total + x;\n    count++;\n    return total / count;\n}\n\nint main(void) {\n    printf(\"%.2f\\n\", average_so_far(4.0));\n    printf(\"%.2f\\n\", average_so_far(2.0));\n    printf(\"%.2f\\n\", average_so_far(9.0));\n    printf(\"%.2f\\n\", average_so_far(1.0));\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "both `total` and `count` declared `static`"
+    },
+    {
+     "marks": 1,
+     "item": "`total` starts at `0.0` (or `0`)"
+    },
+    {
+     "marks": 1,
+     "item": "returns `total / count` (a `double` divided by an `int` gives `double` division)"
+    }
+   ],
+   "pitfalls": [
+    "Leaving out `static`: every call would see total = x and count = 1, so it would just return x.",
+    "Making only one of the two variables `static`: both must survive between calls."
+   ]
+  },
+  {
+   "id": "c7-w-03",
+   "topic": "c7-traces",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a function `int change(int x)` that returns `x` minus the value passed to it on the **previous** call. On the very first call there is no previous value, so it returns 0. Use `static` local variables (no globals). Then write a `main` that converts each command line argument with `atoi` (from `<stdlib.h>`) and prints the number and its change on one line. Example:\n\n```\n$ ./change 2 5 11 9\n2 0\n5 3\n11 6\n9 -2\n```",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// returns x minus the value passed on the previous call; 0 on the first call\nint change(int x) {\n    static int first = 1;       // 1 until the first call has happened\n    static int previous;        // the value from the previous call\n    int d = 0;\n    if (first == 0) {\n        d = x - previous;\n    }\n    first = 0;\n    previous = x;\n    return d;\n}\n\nint main(int argc, char *argv[]) {\n    for (int i = 1; i < argc; i++) {\n        int x = atoi(argv[i]);\n        printf(\"%d %d\\n\", x, change(x));\n    }\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "a `static` local remembers the previous value"
+    },
+    {
+     "marks": 1,
+     "item": "the first call is detected (a `static` flag, or similar) and returns 0"
+    },
+    {
+     "marks": 1,
+     "item": "returns `x - previous` on later calls"
+    },
+    {
+     "marks": 1,
+     "item": "updates the previous value to `x` on every call, after computing the difference"
+    },
+    {
+     "marks": 1,
+     "item": "`main` loops over `argv[1]` to `argv[argc - 1]`, uses `atoi`, prints `x` and the change"
+    }
+   ],
+   "pitfalls": [
+    "Updating `previous = x` before computing `x - previous`: the change is always 0.",
+    "Using `previous == 0` to mean \"first call\": it breaks when an argument really is 0. Use a separate flag.",
+    "Writing `static int previous = x;`: a static initializer must be a constant (compile error)."
+   ]
+  }
+ ]
+}

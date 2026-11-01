@@ -1,0 +1,607 @@
+{
+ "day": 12,
+ "title": "Pointers, part 2, and addressing",
+ "goal": "Picture memory as numbered bytes, move through arrays with pointer arithmetic (arr + i, *(arr + i)), and use pointers to give back results and to return a pointer into an array.",
+ "topics": [
+  {
+   "id": "c12-bytes",
+   "title": "Memory is a row of bytes (and void pointers)",
+   "notebook": "c/addressing.ipynb",
+   "priority": "medium",
+   "examNote": "Short-answer facts: modern computers are **byte addressable**; `sizeof(char)` is 1 by definition; `CHAR_BIT` (in `<limits.h>`) is the number of bits in a byte, at least 8. A `void *` cannot be dereferenced until it is cast.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Every byte has an address\n\nYesterday you learned that a pointer stores an **address**. Today: what exactly is an address?\n\nThink of memory as one very long array. The notebook describes three ways to number it:\n\n| Scheme | Each address names... | Used today? |\n|---|---|---|\n| **bit addressing** | one bit (a single 0 or 1) | only in some small embedded processors |\n| **word addressing** | one *word*, a fixed group of bits the processor works with (e.g. 6 bits on old machines) | historical |\n| **byte addressing** | one **byte** = a group of 8 bits | **yes**: all modern general purpose processors |\n\nSo on your computer, an address is the *index of a byte* in memory. A \"64-bit processor\" has a 64-bit *word length*: it works with 64 bits at a time, and its addresses are 64 bits (8 bytes) long."
+    },
+    {
+     "type": "md",
+     "text": "### Bytes in C\n\nC defines a **byte** as the smallest addressable unit, big enough to hold one character. So `sizeof(char)` is **always 1**: `sizeof` counts in bytes. The number of bits in a byte is the constant `CHAR_BIT` from `<limits.h>`. C only promises it is **at least 8**; on our machines it is exactly 8.\n\nA bigger object takes several **consecutive** bytes. Its address is the address of its **first** byte. The program below prints some sizes and the address of each element of an `int` array (`%p` wants a `void *`, which is why each address is cast with `(void *)`: more on `void *` below)."
+    },
+    {
+     "type": "code",
+     "code": "#include <limits.h>\n#include <stdio.h>\n\nint main(void) {\n    printf(\"1 byte = %d bits\\n\", CHAR_BIT);\n    printf(\"sizeof(char)   = %zu\\n\", sizeof(char));\n    printf(\"sizeof(int)    = %zu\\n\", sizeof(int));\n    printf(\"sizeof(double) = %zu\\n\", sizeof(double));\n\n    int a[3] = {10, 20, 30};\n    printf(\"&a[0] = %p\\n\", (void *) &a[0]);\n    printf(\"&a[1] = %p\\n\", (void *) &a[1]);\n    printf(\"&a[2] = %p\\n\", (void *) &a[2]);\n    return 0;\n}",
+     "caption": "bytes.c: bytes, sizes and addresses"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o bytes bytes.c\n$ ./bytes\n1 byte = 8 bits\nsizeof(char)   = 1\nsizeof(int)    = 4\nsizeof(double) = 8\n&a[0] = 0x7fff0be3f9fc\n&a[1] = 0x7fff0be3fa00\n&a[2] = 0x7fff0be3fa04",
+     "caption": "The addresses are different every time you run it (Linux places memory at a random spot), but the gaps never change: 0x...9fc + 4 = 0x...a00 (hex: c + 4 = 16 = 0x10), and 0x...a00 + 4 = 0x...a04."
+    },
+    {
+     "type": "md",
+     "text": "### A memory diagram\n\nWe draw memory with small, made-up addresses so the arithmetic is easy. Here is `int a[3] = {10, 20, 30};` if `a[0]` started at address 1000. Each `int` uses 4 bytes, and the elements are **next to each other**, with no gaps:\n\n| Bytes (addresses) | 1000–1003 | 1004–1007 | 1008–1011 |\n|---|---|---|---|\n| Element | `a[0]` = 10 | `a[1]` = 20 | `a[2]` = 30 |\n| Its address | `&a[0]` = 1000 | `&a[1]` = 1004 | `&a[2]` = 1008 |\n\nThe address of element `i` is 1000 + 4 × `i`. Keep this picture in mind for the next lesson."
+    },
+    {
+     "type": "check",
+     "q": "A `double` array `d` starts at (made-up) address 2000. What is the address of `d[3]`?",
+     "a": "Each `double` is 8 bytes, so `&d[3]` = 2000 + 8 × 3 = **2024**."
+    },
+    {
+     "type": "md",
+     "text": "### `void *`: a pointer to \"anything\"\n\nA pointer of type `void *` can hold the address of an object of **any** type. But the compiler does not know what type is stored there, so it cannot dereference it: how many bytes should `*p` read, and as what? To use the object, first **cast** the pointer to the right type: `*((int *) p)` means \"treat `p` as a pointer to `int`, then dereference\".\n\nThis is the type Day 11 promised to explain: `%p` expects a `void *`, which is why we write `printf(\"%p\\n\", (void *) ptr);`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 7;\n    double y = 2.5;\n\n    void *p = &x;              // ok: p holds the address of an int\n    int n = *((int *) p);      // cast to int * first, then dereference\n    printf(\"n = %d\\n\", n);\n\n    p = &y;                    // ok: now p holds the address of a double\n    double d = *((double *) p);\n    printf(\"d = %f\\n\", d);\n    return 0;\n}",
+     "caption": "voidp.c: one void pointer, two types"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o voidp voidp.c\n$ ./voidp\nn = 7\nd = 2.500000"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o voidbad voidbad.c\nvoidbad.c: In function 'main':\nvoidbad.c:6:13: warning: dereferencing 'void *' pointer\n    6 |     int n = *p;      // error: what type is *p?\n      |             ^~\nvoidbad.c:6:13: error: void value not ignored as it ought to be\n    6 |     int n = *p;      // error: what type is *p?\n      |             ^",
+     "caption": "voidbad.c is voidp.c with `int n = *p;` (no cast): it does not compile."
+    },
+    {
+     "type": "why",
+     "q": "Why would anyone want a pointer with no type?",
+     "a": "To write code that works for **any** type. Library functions such as `memcpy` take `void *` parameters, and later in the course you will build a *generic* stack that stores `void *` elements, so one stack can hold ints, doubles or strings."
+    },
+    {
+     "type": "pitfall",
+     "text": "The cast must match what is really there. `*((double *) p)` when `p` holds the address of an `int` compiles fine but reads 8 bytes as a `double` from a 4-byte `int`: undefined behaviour."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Modern processors are **byte addressable**: an address is the number of one byte.\n- `sizeof` counts bytes; `sizeof(char)` is 1; `CHAR_BIT` (in `<limits.h>`) is the bits per byte, at least 8 (8 on our machines).\n- An object uses consecutive bytes; its address is the address of its first byte. Array elements sit next to each other: `&a[i]` = start + `i` × `sizeof` element.\n- A `void *` can point at any type, but must be cast (e.g. `*((int *) p)`) before it is dereferenced."
+    }
+   ]
+  },
+  {
+   "id": "c12-arith",
+   "title": "Pointer arithmetic: arr + i and *(arr + i)",
+   "notebook": "c/pointers.ipynb",
+   "priority": "high",
+   "examNote": "Quiz 2 (2023) asked: *create a pointer `p` that points at the third element of `arr`* (answer: `int *p = arr + 2;` or `int *p = &arr[2];`). The Fall 2016 final (Q3) asked for the output of code using `*numbers` and `*(numbers+2)`. Know that `*(a + i)` is `a[i]`, and that `*a + 2` is something else.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### The name of an array is a pointer to its first element\n\nThe pointers notebook says pointer arithmetic is \"useful when working with arrays\" and sends you to the arrays notebook for the details. Here they are.\n\nIn an expression, the name of an array, `arr`, acts as a pointer to `arr[0]`. So `arr == &arr[0]` is true, and `int *p = arr;` makes `p` point at the first element. (You saw this on Day 5: it is why an array argument is not copied.)"
+    },
+    {
+     "type": "md",
+     "text": "### Adding an integer to a pointer\n\nIf `p` points at an element of an array, then:\n\n- `p + 1` points at the **next element**, `p - 1` at the previous one;\n- `p + i` points `i` **elements** further on, `p - i` points `i` elements back.\n\nThe step is one **element**, not one byte: the compiler multiplies `i` by the size of the element type for you. In the diagram from the last lesson (`int`s starting at 1000), `a + 1` is 1004 and `a + 2` is 1008.\n\n```\n            a        a + 1    a + 2    a + 3    a + 4    a + 5\n            |        |        |        |        |        |\n            v        v        v        v        v        v\n         +--------+--------+--------+--------+--------+\n  a:     |   10   |   20   |   30   |   40   |   50   |\n         +--------+--------+--------+--------+--------+\n  address  1000     1004     1008     1012     1016     1020\n```\n\n`a + 5` points just past the last element. It is the **too-far pointer**: C guarantees it exists and you may compare with it, but you must **never dereference** it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int a[3] = {1, 2, 3};\n    double d[3] = {1.0, 2.0, 3.0};\n    int *pa = a;\n    double *pd = d;\n    printf(\"pa     = %p\\n\", (void *) pa);\n    printf(\"pa + 1 = %p\\n\", (void *) (pa + 1));\n    printf(\"pd     = %p\\n\", (void *) pd);\n    printf(\"pd + 1 = %p\\n\", (void *) (pd + 1));\n    return 0;\n}",
+     "caption": "step.c: + 1 moves one element"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o step step.c\n$ ./step\npa     = 0x7ffe7aaac0c4\npa + 1 = 0x7ffe7aaac0c8\npd     = 0x7ffe7aaac0d0\npd + 1 = 0x7ffe7aaac0d8",
+     "caption": "One run (addresses change every run). For the `int *`, + 1 added 4 bytes (c4 → c8). For the `double *`, + 1 added 8 bytes (d0 → d8)."
+    },
+    {
+     "type": "md",
+     "text": "### `*(arr + i)` is `arr[i]`\n\nDereference the moved pointer and you get the element: `*(arr + i)` **is** `arr[i]`. In fact C *defines* `a[i]` to mean `*(a + i)`. That is why square brackets also work on any pointer: if `p` points into an array, `p[1]` means `*(p + 1)`.\n\nSo there are two ways to point at the third element (index 2) of `arr`:\n\n```c\nint *p = arr + 2;     // pointer arithmetic\nint *q = &arr[2];     // address of the element\n```"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int arr[5] = {10, 20, 30, 40, 50};\n\n    int *p = arr;           // same as &arr[0]\n    int *q = arr + 2;       // same as &arr[2]: points at the third element\n\n    printf(\"*p = %d\\n\", *p);\n    printf(\"*q = %d\\n\", *q);\n    printf(\"*(q + 1) = %d\\n\", *(q + 1));   // arr[3]\n    printf(\"*(q - 2) = %d\\n\", *(q - 2));   // arr[0]\n    printf(\"*(arr + 4) = %d\\n\", *(arr + 4)); // arr[4]\n\n    *(arr + 1) = -20;       // same as arr[1] = -20\n    printf(\"arr[1] = %d\\n\", arr[1]);\n\n    if (q == &arr[2]) {\n        puts(\"q equals &arr[2]\");\n    }\n    return 0;\n}",
+     "caption": "arith.c: pointers into an array"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o arith arith.c\n$ ./arith\n*p = 10\n*q = 30\n*(q + 1) = 40\n*(q - 2) = 10\n*(arr + 4) = 50\narr[1] = -20\nq equals &arr[2]"
+    },
+    {
+     "type": "pitfall",
+     "text": "Brackets matter. `*(arr + 2)` is the element at index 2. `*arr + 2` is `(*arr) + 2`: the **value** of `arr[0]` plus 2. With `arr = {10, 20, 30}`, the first is 30 and the second is 12. The `*` binds tighter than `+`."
+    },
+    {
+     "type": "check",
+     "q": "`int a[] = {5, 10, 15, 20};` What are `*(a + 3)`, `*a + 3`, and `*(a + 1) + *(a + 2)`?",
+     "a": "`*(a + 3)` = `a[3]` = 20. `*a + 3` = 5 + 3 = 8. `*(a + 1) + *(a + 2)` = 10 + 15 = 25."
+    },
+    {
+     "type": "md",
+     "text": "### Comparing and subtracting pointers; walking with `p++`\n\nThe notebook's rules for comparing pointers:\n\n- `p == q` is true when both point at the **same object** (or both are `NULL`). Two different variables holding equal values are still different objects, so pointers to them are **not** equal.\n- For two pointers into the **same array**, `<`, `<=`, `>`, `>=` compare positions: `p < q` is true when `p` points at an earlier element.\n- `q - p` (same array) is the number of **elements** from `p` to `q`, not bytes. Its type is `ptrdiff_t` (a signed integer type from `<stddef.h>`), printed with `%td`.\n\n`p++`, `p--`, `p += n`, `p -= n` move a pointer. Together with `<` and the too-far pointer they give a loop with no square brackets:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int arr[5] = {10, 20, 30, 40, 50};\n\n    // forwards: stop at the too-far pointer arr + 5\n    for (int *p = arr; p < arr + 5; p++) {\n        printf(\"%d \", *p);\n    }\n    printf(\"\\n\");\n\n    // how far apart are two pointers? (in elements, not bytes)\n    int *first = &arr[1];\n    int *last = &arr[4];\n    printf(\"last - first = %td\\n\", last - first);\n    return 0;\n}",
+     "caption": "walk.c: a pointer loop and pointer subtraction"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o walk walk.c\n$ ./walk\n10 20 30 40 50 \nlast - first = 3"
+    },
+    {
+     "type": "md",
+     "text": "Memory diagram of `walk.c`'s loop on its third pass:\n\n```\n          arr                         arr + 5 (too far: never *)\n           |                            |\n           v                            v\n        +------+------+------+------+------+\n  arr:  |  10  |  20  |  30  |  40  |  50  |\n        +------+------+------+------+------+\n                       ^\n                       |\n                       p        (*p is 30; then p++ moves it one element right)\n```\n\nThe loop stops when `p` reaches `arr + 5`, before it is ever dereferenced."
+    },
+    {
+     "type": "pitfall",
+     "text": "No bounds checking: `*(arr + 7)` on a 5-element array compiles and is undefined behaviour, exactly like `arr[7]`. And only pointers into the same array may be compared with `<` or subtracted."
+    },
+    {
+     "type": "why",
+     "q": "Why does `p + 1` add 4 (or 8) bytes instead of 1?",
+     "a": "Because `p` has a type. An `int *` points at 4-byte objects, so the next `int` starts 4 bytes later. Scaling by the element size is what makes `*(p + i)` equal `p[i]` for every type."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- An array name acts as a pointer to element 0: `arr == &arr[0]`.\n- `p + i` points `i` **elements** further (the compiler scales by the element size); `p - i` points back.\n- `*(arr + i)` is `arr[i]`; `p[i]` works on pointers too. `*arr + i` is a different thing.\n- Pointer to the third element: `int *p = arr + 2;` or `int *p = &arr[2];`.\n- `arr + n` is the too-far pointer: compare with it, never dereference it. Loop: `for (int *p = arr; p < arr + n; p++)`.\n- `q - p` = number of elements between them (`ptrdiff_t`, `%td`). `==` means same object."
+    }
+   ]
+  },
+  {
+   "id": "c12-results",
+   "title": "Pointers as results: max, bad calls, returning a pointer",
+   "notebook": "c/pointers.ipynb",
+   "priority": "high",
+   "examNote": "The April 2022 final (Q2) gave a function returning the **index** of the maximum and asked how to change only the `return` so it returns a **pointer** to the maximum (`return arr + index;` or `return &arr[index];`), then asked for a version with no square brackets at all. Quiz 2 (2023) asked the same about a minimum. Practise both forms. The blank writing item below is modeled on April 2022 Q2(b) (`ptr2max`), with new details.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Returning two results: one by `return`, one through a pointer\n\nA function returns only one value. Yesterday's `swap` showed the fix: pass the **address** of the caller's variable, and the function stores into it with `*`. The notebook's `max` uses this to give back two answers: the largest value (returned) and its index (stored through the pointer `index`)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// Returns the maximum value in the array a having count elements.\n// The index of the maximum element is stored in the object pointed at\n// by index.\nint max(int a[], size_t count, size_t *index) {\n    int hi = a[0];\n    size_t i_hi = 0;\n    for (size_t i = 1; i < count; i++) {\n        if (a[i] > hi) {\n            hi = a[i];\n            i_hi = i;\n        }\n    }\n    *index = i_hi;\n    return hi;\n}\n\nint main(void) {\n    int arr[] = { 6, 3, 1, 8, 7, 9, 4, 2, 5 };\n\n    // must declare a variable to store the index in\n    size_t i;\n    int big = max(arr, 9, &i);\n\n    printf(\"max = %d, index = %zu\\n\", big, i);\n    return 0;\n}",
+     "caption": "max.c (from c/src/pointers; printed with %zu, the course's conversion for size_t)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o max max.c\n$ ./max\nmax = 9, index = 5"
+    },
+    {
+     "type": "md",
+     "text": "Memory diagram just before `max` returns. The parameter `index` holds the address of `main`'s `i`, so `*index = i_hi;` writes 5 into `main`'s variable:\n\n```\n  main:   arr  [6][3][1][8][7][9][4][2][5]      i: [ 5 ]   <--+\n                ^                                             |\n                |                                             |\n  max:     a ---+    count: [9]   hi: [9]   i_hi: [5]   index: [ &i ]\n```\n\nNote that `a` points at `main`'s array (the array was not copied), and `index` points at `main`'s `i`."
+    },
+    {
+     "type": "why",
+     "q": "Why must `main` declare `size_t i;` and pass `&i`?",
+     "a": "`max` writes to `*index`. That needs a real `size_t` object to write into. `main` creates it (`size_t i;`) and hands over its address. The function cannot create it for you: its own local variables disappear when it returns."
+    },
+    {
+     "type": "md",
+     "text": "### The common mistake: a pointer that points at nothing\n\nThe notebook's `bad_call_to_max.c` declares a **pointer** instead of a `size_t`, and passes the pointer:\n\n```c\nsize_t *i;                   // oops: uninitialized, points nowhere valid\nint big = max(arr, 9, i);    // max does *index = ..., writing to a random address\n```\n\nIt looks like the call passes \"a place for the answer\", but `i` holds garbage, so `*index = i_hi;` writes to an unknown address. That is **undefined behaviour**: it may crash, may seem to work, may corrupt other data. `gcc -Wall` warns you:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o badmax badmax.c\nbadmax.c: In function 'main':\nbadmax.c:21:15: warning: 'i' is used uninitialized [-Wuninitialized]\n   21 |     int big = max(arr, 9, i);\n      |               ^~~~~~~~~~~~~~\nbadmax.c:20:13: note: 'i' was declared here\n   20 |     size_t *i;\n      |             ^",
+     "caption": "badmax.c is the notebook's bad_call_to_max.c (comments shortened, index printed with `%zu`). Treat this warning as an error."
+    },
+    {
+     "type": "pitfall",
+     "text": "When a function wants a pointer \"to store the answer in\", declare a normal variable (`size_t i;`) and pass `&i`. Declaring a pointer variable (`size_t *i;`) creates no place to store anything."
+    },
+    {
+     "type": "md",
+     "text": "### Pointers and large objects\n\nC passes arguments **by value**: the parameter gets a copy. For a big object that copy costs time and memory. Passing a **pointer** copies only the address (8 bytes on our machines), however big the object is. Arrays get this for free: an array argument *decays* to a pointer to its first element (Day 5), so `max` never copies `arr`."
+    },
+    {
+     "type": "md",
+     "text": "### Returning a pointer\n\nA function can also **return** a pointer, for example a pointer to the largest element, instead of its index. If you know the index, the pointer is `a + index` (or `&a[index]`). The caller can then read the element with `*p`, change it, or get the index back with `p - a`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// Returns a pointer to the largest element of a (n >= 1).\nint *ptrmax(int a[], size_t n) {\n    size_t best = 0;\n    for (size_t i = 1; i < n; i++) {\n        if (a[i] > a[best]) {\n            best = i;\n        }\n    }\n    return a + best;          // or: return &a[best];\n}\n\nint main(void) {\n    int arr[] = { 6, 3, 1, 8, 7, 9, 4, 2, 5 };\n    int *p = ptrmax(arr, 9);\n    printf(\"max = %d at index %td\\n\", *p, p - arr);\n    *p = 0;                   // changes arr[5] in main's array\n    printf(\"arr[5] = %d\\n\", arr[5]);\n    return 0;\n}",
+     "caption": "retptr.c: returning a pointer into the caller's array"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o retptr retptr.c\n$ ./retptr\nmax = 9 at index 5\narr[5] = 0"
+    },
+    {
+     "type": "md",
+     "text": "Returning a pointer into the **caller's** array is safe: that array still exists after the function returns. Returning the address of the function's **own local variable** is not. On Day 7 you saw that a local (automatic) variable's lifetime ends when its function returns, so the caller gets a pointer to a dead object (a *dangling pointer*):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint *bad(void) {\n    int x = 42;      // automatic: x dies when bad returns\n    return &x;       // a pointer to a dead object\n}\n\nint main(void) {\n    int *p = bad();\n    printf(\"%d\\n\", *p);\n    return 0;\n}",
+     "caption": "dangle.c: DON'T do this"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o dangle dangle.c\ndangle.c: In function 'bad':\ndangle.c:5:12: warning: function returns address of local variable [-Wreturn-local-addr]\n    5 |     return &x;       // a pointer to a dead object\n      |            ^~",
+     "caption": "Using `*p` in main is undefined behaviour: there is no fixed output (on our machine it crashed)."
+    },
+    {
+     "type": "check",
+     "q": "`size_t maxidx(int arr[], size_t n)` ends with `return index;`. Its return type is changed to `int *`. What should the `return` statement become?",
+     "a": "`return arr + index;` (or `return &arr[index];`)."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- To give back an extra result, take a pointer parameter and store with `*index = ...;`. The caller declares a real variable and passes its address: `size_t i; max(arr, 9, &i);`.\n- Passing an uninitialized pointer (`size_t *i; max(arr, 9, i);`) is undefined behaviour; `-Wall` warns \"used uninitialized\".\n- Passing a pointer copies 8 bytes, not the whole object; arrays are passed this way automatically.\n- Return a pointer into an array with `return a + index;` (or `&a[index]`); the caller gets the index back with `p - a`.\n- Never return the address of a local variable (dangling pointer)."
+    },
+    {
+     "type": "try",
+     "text": "Run `./cdrill.sh start 12` in `~/CISC220_current/c-app/drills`, write the four programs in `~/cisc220_c/day12/`, and test them with `./cdrill.sh check 12`. Task 3 asks for loops with no square brackets: practise exactly the style the 2022 final asked for."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c12-fc-01",
+   "topic": "c12-bytes",
+   "front": "What does it mean that modern processors are *byte addressable*?",
+   "back": "Each byte (8 bits) of memory has its own address; an address is the number of one byte."
+  },
+  {
+   "id": "c12-fc-02",
+   "topic": "c12-bytes",
+   "front": "What is `sizeof(char)` in C?",
+   "back": "Always 1. `sizeof` counts bytes, and a `char` is one byte by definition."
+  },
+  {
+   "id": "c12-fc-03",
+   "topic": "c12-bytes",
+   "front": "What is `CHAR_BIT`, and where is it defined?",
+   "back": "The number of bits in a byte, defined in `<limits.h>`. At least 8; exactly 8 on our machines."
+  },
+  {
+   "id": "c12-fc-04",
+   "topic": "c12-bytes",
+   "front": "An `int` array `a` starts at address 1000 (sizeof(int) is 4). What is `&a[3]`?",
+   "back": "1000 + 4 × 3 = 1012. Elements are next to each other, with no gaps."
+  },
+  {
+   "id": "c12-fc-05",
+   "topic": "c12-bytes",
+   "front": "What can a `void *` point at, and what can't you do with it directly?",
+   "back": "Any type of object. You cannot dereference it: cast first, e.g. `*((int *) p)`."
+  },
+  {
+   "id": "c12-fc-06",
+   "topic": "c12-arith",
+   "front": "Given an array `arr`, what is `arr` in an expression?",
+   "back": "A pointer to its first element: `arr == &arr[0]`."
+  },
+  {
+   "id": "c12-fc-07",
+   "topic": "c12-arith",
+   "front": "Two ways to make `p` point at the third element of `int arr[]`.",
+   "back": "`int *p = arr + 2;` or `int *p = &arr[2];`"
+  },
+  {
+   "id": "c12-fc-08",
+   "topic": "c12-arith",
+   "front": "`*(arr + i)` is the same as...?",
+   "back": "`arr[i]`. C defines `a[i]` as `*(a + i)`, so `p[i]` also works on pointers."
+  },
+  {
+   "id": "c12-fc-09",
+   "topic": "c12-arith",
+   "front": "`p` is a `double *` holding address 2000. What address is `p + 3`?",
+   "back": "2024: `+ 3` moves 3 elements of 8 bytes each."
+  },
+  {
+   "id": "c12-fc-10",
+   "topic": "c12-arith",
+   "front": "`*arr + 2` versus `*(arr + 2)`?",
+   "back": "`*arr + 2` is `arr[0] + 2` (a value plus 2). `*(arr + 2)` is `arr[2]`."
+  },
+  {
+   "id": "c12-fc-11",
+   "topic": "c12-arith",
+   "front": "What is the too-far pointer of an array of length `n`?",
+   "back": "`arr + n`, one element past the end. It exists and can be compared with, but must never be dereferenced."
+  },
+  {
+   "id": "c12-fc-12",
+   "topic": "c12-arith",
+   "front": "`p` and `q` point into the same array. What is `q - p`?",
+   "back": "The number of elements from `p` to `q` (type `ptrdiff_t`, print with `%td`)."
+  },
+  {
+   "id": "c12-fc-13",
+   "topic": "c12-arith",
+   "front": "When are two pointers equal (`p == q`)?",
+   "back": "When both point at the same object, or both are null. Pointers to two different variables with equal values are not equal."
+  },
+  {
+   "id": "c12-fc-14",
+   "topic": "c12-arith",
+   "front": "A loop over `int a[n]` with a pointer and no `[]`.",
+   "back": "`for (int *p = a; p < a + n; p++) { ... *p ... }`"
+  },
+  {
+   "id": "c12-fc-15",
+   "topic": "c12-results",
+   "front": "How does the notebook's `max` return both the maximum and its index?",
+   "back": "It returns the maximum and stores the index through a pointer parameter: `*index = i_hi;`. The caller passes `&i`."
+  },
+  {
+   "id": "c12-fc-16",
+   "topic": "c12-results",
+   "front": "What is wrong with `size_t *i; max(arr, 9, i);`?",
+   "back": "`i` is uninitialized and points at no valid object, so `max` writes to a random address: undefined behaviour. Declare `size_t i;` and pass `&i`."
+  },
+  {
+   "id": "c12-fc-17",
+   "topic": "c12-results",
+   "front": "A function found the right `index` in `arr`. How does it return a pointer to that element?",
+   "back": "`return arr + index;` (or `return &arr[index];`), with return type `int *`."
+  },
+  {
+   "id": "c12-fc-18",
+   "topic": "c12-results",
+   "front": "Why must a function never `return &x;` where `x` is its local variable?",
+   "back": "`x`'s lifetime ends when the function returns, so the pointer dangles. gcc warns: function returns address of local variable."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c12-q-01",
+   "topic": "c12-arith",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 4;\n    int y = 8;\n    int *p = &x;\n    int *q = &y;\n    int *r = p;\n\n    *r = *q + 1;\n    q = p;\n    *q = *q * 2;\n    printf(\"line 1: %d, %d\\n\", x, y);\n\n    int nums[] = {5, 10, 15, 20, 25, 30};\n    printf(\"line 2: %d, %d, %d\\n\", *nums, *(nums + 3), *nums + 3);\n    return 0;\n}",
+   "answer": "line 1: 18, 8\nline 2: 5, 20, 8",
+   "explain": "`r` points at `x`, so `*r = *q + 1` sets `x` to 8 + 1 = 9. Then `q = p` makes `q` point at `x` too, and `*q = *q * 2` sets `x` to 18. `y` never changes. `*nums` is `nums[0]` = 5, `*(nums + 3)` is `nums[3]` = 20, and `*nums + 3` is 5 + 3 = 8."
+  },
+  {
+   "id": "c12-q-02",
+   "topic": "c12-arith",
+   "type": "short",
+   "q": "You have an array `double vals[10]`. Write one declaration that creates a pointer `p` pointing at the **fourth** element of `vals`. Give two different correct answers.",
+   "answer": "`double *p = vals + 3;` or `double *p = &vals[3];`",
+   "explain": "The fourth element has index 3. `vals` acts as a pointer to `vals[0]`, so `vals + 3` points 3 elements further. The pointer type must match the element type (`double *`). Modeled on Quiz 2 (2023), which asked for the third element of an `int` array."
+  },
+  {
+   "id": "c12-q-03",
+   "topic": "c12-results",
+   "type": "short",
+   "q": "This function returns the index of the last negative value in `a` (assume there is one):\n\n```c\nsize_t lastneg(int a[], size_t n) {\n    size_t where = 0;\n    for (size_t i = 0; i < n; i++) {\n        if (a[i] < 0) {\n            where = i;\n        }\n    }\n    return where;\n}\n```\n\nThe return type is changed to `int *`. Change **only** the `return` statement so that it returns a pointer to that value.",
+   "answer": "`return a + where;` (or `return &a[where];`)",
+   "explain": "`a` points at `a[0]`, so `a + where` points at `a[where]`. This is the April 2022 final Q2(a) / Quiz 2 (2023) pattern."
+  },
+  {
+   "id": "c12-q-04",
+   "topic": "c12-arith",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int arr[] = {3, 1, 4, 1, 5, 9};\n    int *p = arr + 1;\n    printf(\"%d\\n\", *p);\n    p = p + 3;\n    printf(\"%d\\n\", *p);\n    printf(\"%d\\n\", *(p - 2) + *(arr + 5));\n    printf(\"%d\\n\", p[1]);\n    return 0;\n}",
+   "answer": "1\n5\n13\n9",
+   "explain": "`p = arr + 1` points at `arr[1]` = 1. `p = p + 3` points at `arr[4]` = 5. `*(p - 2)` is `arr[2]` = 4 and `*(arr + 5)` is 9: 13. `p[1]` means `*(p + 1)` = `arr[5]` = 9."
+  },
+  {
+   "id": "c12-q-05",
+   "topic": "c12-arith",
+   "type": "mcq",
+   "q": "`int *p` holds the address 0x1000, and `sizeof(int)` is 4. What address does `p + 3` hold?",
+   "options": [
+    "0x100c",
+    "0x1003",
+    "0x1012",
+    "0x1030"
+   ],
+   "answer": 0,
+   "explain": "`+ 3` moves 3 `int`s = 12 bytes, and 12 is 0xc in hex: 0x1000 + 0xc = 0x100c."
+  },
+  {
+   "id": "c12-q-06",
+   "topic": "c12-results",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint count_neg(int a[], int n, int *first) {\n    int count = 0;\n    *first = -1;\n    for (int i = 0; i < n; i++) {\n        if (a[i] < 0) {\n            if (count == 0) {\n                *first = i;\n            }\n            count++;\n        }\n    }\n    return count;\n}\n\nint main(void) {\n    int a[] = {4, -2, 7, -5, -1};\n    int f;\n    int c = count_neg(a, 5, &f);\n    printf(\"%d %d\\n\", c, f);\n    c = count_neg(a, 1, &f);\n    printf(\"%d %d\\n\", c, f);\n    return 0;\n}",
+   "answer": "3 1\n0 -1",
+   "explain": "First call: the negatives are −2, −5, −1, so it returns 3, and the first one is at index 1, stored in `main`'s `f` through `*first`. Second call: only `a[0]` = 4 is examined: no negatives, so it returns 0 and `*first` stays −1."
+  },
+  {
+   "id": "c12-q-07",
+   "topic": "c12-results",
+   "type": "mcq",
+   "q": "`max(int a[], size_t count, size_t *index)` stores an index through `index`. Which call is correct?",
+   "options": [
+    "`size_t i; int m = max(arr, 9, &i);`",
+    "`size_t *i; int m = max(arr, 9, i);`",
+    "`size_t i; int m = max(arr, 9, i);`",
+    "`size_t *i = NULL; int m = max(arr, 9, i);`"
+   ],
+   "answer": 0,
+   "explain": "`max` needs the address of a real `size_t` object. Option 2 passes an uninitialized pointer (undefined behaviour, the notebook's `bad_call_to_max.c`), option 3 passes a number where a pointer is needed (gcc 13 warns \"makes pointer from integer without a cast\"; newer gcc refuses to compile it), and option 4 makes `max` dereference a null pointer."
+  },
+  {
+   "id": "c12-q-08",
+   "topic": "c12-bytes",
+   "type": "short",
+   "q": "`void *p = &x;` where `x` is an `int`. Why does `int y = *p;` not compile, and how do you fix it?",
+   "answer": "The compiler does not know what type `p` points at, so it cannot dereference a `void *`. Cast first: `int y = *((int *) p);`",
+   "explain": "A `void *` can hold any address, but to read the object the compiler must know its type (how many bytes, and how to interpret them). gcc says: error: void value not ignored as it ought to be."
+  },
+  {
+   "id": "c12-q-09",
+   "topic": "c12-arith",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    double d[6] = {0.5, 1.5, 2.5, 3.5, 4.5, 5.5};\n    double *p = &d[1];\n    double *q = d + 4;\n    printf(\"%td\\n\", q - p);\n    printf(\"%d\\n\", p < q);\n    printf(\"%d\\n\", p + 3 == q);\n    printf(\"%.1f\\n\", *(q - 1));\n    return 0;\n}",
+   "answer": "3\n1\n1\n3.5",
+   "explain": "`p` points at `d[1]`, `q` at `d[4]`: `q - p` is 3 elements (not 24 bytes). `p < q` is true (1). `p + 3` points at `d[4]`, the same object as `q`, so `==` gives 1. `*(q - 1)` is `d[3]` = 3.5."
+  },
+  {
+   "id": "c12-q-10",
+   "topic": "c12-arith",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int a[] = {7, 2, 9};\n    int *p = a;\n    *(p + 1) = *p + 1;\n    p++;\n    *p = *p * 10;\n    printf(\"%d %d %d\\n\", a[0], a[1], a[2]);\n    return 0;\n}",
+   "answer": "7 80 9",
+   "explain": "`p` points at `a[0]`. `*(p + 1) = *p + 1` sets `a[1]` to 7 + 1 = 8. `p++` moves `p` to `a[1]`, and `*p = *p * 10` makes it 80. `a[0]` and `a[2]` are unchanged."
+  },
+  {
+   "id": "c12-q-11",
+   "topic": "c12-bytes",
+   "type": "mcq",
+   "q": "Which statement about memory in C on a modern computer is **true**?",
+   "options": [
+    "Each byte has its own address, and `sizeof(char)` is 1.",
+    "Each bit has its own address.",
+    "`CHAR_BIT` is always exactly 8 by the C standard.",
+    "An `int` array's elements may have gaps of unused bytes between them."
+   ],
+   "answer": 0,
+   "explain": "Modern processors are byte addressable, and `sizeof(char)` is 1 by definition. C only requires `CHAR_BIT` to be at least 8. Array elements are contiguous."
+  },
+  {
+   "id": "c12-q-12",
+   "topic": "c12-results",
+   "type": "mcq",
+   "q": "Which function returns a pointer that is safe for the caller to use?",
+   "options": [
+    "`int *f(int a[]) { return a + 1; }` (called with a 5-element array)",
+    "`int *f(void) { int x = 3; return &x; }`",
+    "`int *f(void) { int a[3] = {1, 2, 3}; return a; }`",
+    "`int *f(void) { int *p; return p; }`"
+   ],
+   "answer": 0,
+   "explain": "Option 1 points into the caller's array, which still exists. Options 2 and 3 return the address of a local object whose lifetime ends at the return (a dangling pointer). Option 4 returns an uninitialized pointer."
+  },
+  {
+   "id": "c12-q-13",
+   "topic": "c12-arith",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    char s[] = \"pointer\";\n    for (char *p = s; p < s + 7; p += 2) {\n        printf(\"%c\", *p);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+   "answer": "pitr",
+   "explain": "`p` visits `s`, `s + 2`, `s + 4`, `s + 6`: the characters `p`, `i`, `t`, `r`. Then `p` becomes `s + 8`, the too-far pointer of the 8-element array (7 letters plus `'\\0'`); `s + 8 < s + 7` is false, so the loop stops without dereferencing it."
+  },
+  {
+   "id": "c12-q-14",
+   "topic": "c12-results",
+   "type": "short",
+   "q": "C passes arguments by value. Explain why passing a pointer to a large object is better than passing the object itself, and what happens when you pass an array.",
+   "answer": "Passing by value copies the whole object into the parameter, which costs time and memory for a big object. Passing a pointer copies only an address (8 bytes). An array argument automatically decays to a pointer to its first element, so arrays are never copied.",
+   "explain": "This is the notebook's \"Pointers and large objects\" section. The price: the function can change the caller's object through the pointer."
+  }
+ ],
+ "write": [
+  {
+   "id": "c12-w-01",
+   "topic": "c12-arith",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write a function `int *find(int *arr, size_t n, int target)` that returns a pointer to the **first** element of `arr` (length `n`) equal to `target`, or `NULL` if there is none. Walk the array with a pointer (no square brackets). Write a `main` that searches `{4, 8, 15, 16, 23, 42}` for 16 (printing the value and its index) and for 5 (printing that it was not found).",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// Returns a pointer to the first element of arr equal to target,\n// or NULL if no element is equal to target.\nint *find(int *arr, size_t n, int target) {\n    for (int *p = arr; p < arr + n; p++) {\n        if (*p == target) {\n            return p;\n        }\n    }\n    return NULL;\n}\n\nint main(void) {\n    int arr[] = {4, 8, 15, 16, 23, 42};\n    int *p = find(arr, 6, 16);\n    if (p != NULL) {\n        printf(\"found %d at index %td\\n\", *p, p - arr);\n    }\n    p = find(arr, 6, 5);\n    if (p == NULL) {\n        printf(\"5 not found\\n\");\n    }\n    return 0;\n}",
+   "explain": "The loop pointer `p` starts at `arr` (element 0) and stops at the too-far pointer `arr + n`, so `*p` is never evaluated past the end. As soon as `*p == target`, return `p` itself: it already points into the caller's array, so it stays valid after `find` returns. If the loop ends, nothing matched, and `NULL` (\"no object\") tells the caller so. `main` must test for `NULL` before dereferencing, and recovers the index with `p - arr`. Output:\n\n```\n$ ./find\nfound 16 at index 3\n5 not found\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "header returns `int *` and takes the array, length and target"
+    },
+    {
+     "marks": 1,
+     "item": "pointer loop `for (int *p = arr; p < arr + n; p++)`"
+    },
+    {
+     "marks": 1,
+     "item": "compares `*p` with target and returns `p` (not `*p`)"
+    },
+    {
+     "marks": 1,
+     "item": "returns `NULL` after the loop"
+    },
+    {
+     "marks": 1,
+     "item": "main checks for `NULL` before using `*p`; index via `p - arr`"
+    }
+   ],
+   "pitfalls": [
+    "Returning `*p` (the value) when the return type is `int *`.",
+    "Looping with `p <= arr + n`: that dereferences the too-far pointer.",
+    "Dereferencing the result without checking for `NULL`."
+   ]
+  },
+  {
+   "id": "c12-w-02",
+   "topic": "c12-results",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Complete `minmax` so that it stores the smallest element of `a` in the object `lo` points at and the largest in the object `hi` points at (the array has at least one element), and complete the call in `main`. The program should print `min = -3, max = 8`.",
+   "starter": "#include <stdio.h>\n\n// Stores the smallest element of a in *lo and the largest in *hi (n >= 1).\nvoid minmax(int a[], size_t n, int *lo, int *hi) {\n    ____ = a[0];\n    ____ = a[0];\n    for (size_t i = 1; i < n; i++) {\n        if (a[i] < ____) {\n            *lo = a[i];\n        }\n        if (a[i] > ____) {\n            *hi = a[i];\n        }\n    }\n}\n\nint main(void) {\n    int a[] = {6, -3, 1, 8, 7};\n    int small;\n    int big;\n    minmax(a, 5, ____, ____);\n    printf(\"min = %d, max = %d\\n\", small, big);\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\n// Stores the smallest element of a in *lo and the largest in *hi (n >= 1).\nvoid minmax(int a[], size_t n, int *lo, int *hi) {\n    *lo = a[0];\n    *hi = a[0];\n    for (size_t i = 1; i < n; i++) {\n        if (a[i] < *lo) {\n            *lo = a[i];\n        }\n        if (a[i] > *hi) {\n            *hi = a[i];\n        }\n    }\n}\n\nint main(void) {\n    int a[] = {6, -3, 1, 8, 7};\n    int small;\n    int big;\n    minmax(a, 5, &small, &big);\n    printf(\"min = %d, max = %d\\n\", small, big);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "starts both results at `a[0]` through the pointers: `*lo = a[0]; *hi = a[0];`"
+    },
+    {
+     "marks": 1,
+     "item": "compares with `*lo` and `*hi` (the values), not `lo` and `hi` (the addresses)"
+    },
+    {
+     "marks": 1,
+     "item": "call passes addresses: `minmax(a, 5, &small, &big)`"
+    },
+    {
+     "marks": 1,
+     "item": "`small` and `big` are plain `int` variables, not pointers"
+    }
+   ],
+   "pitfalls": [
+    "Writing `lo = a[0];` (assigns to the pointer itself, a compile warning and a bug).",
+    "Passing `small, big` instead of `&small, &big`.",
+    "Declaring `int *small;` in main: it points nowhere (the bad_call_to_max mistake)."
+   ]
+  },
+  {
+   "id": "c12-w-03",
+   "topic": "c12-results",
+   "stage": "blank",
+   "marks": 6,
+   "prompt": "An `int` array holds **positive** values followed by a `0` that marks the end (there is at least one positive value). Write a function\n\n```c\nint *ptr2min(int *arr)\n```\n\nthat returns a pointer to the **smallest** value in the array (the first one if it appears more than once). It does **not** get the length. Your function must not use array indexing (no `[]` anywhere in the function) and must not call another function: use pointers, dereferencing and pointer arithmetic. Add a short `main` that tests it on `{7, 3, 9, 3, 5, 0}` and prints the minimum and its index.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// arr holds positive values followed by a 0 that marks the end\n// (at least one positive value). Returns a pointer to the smallest value.\nint *ptr2min(int *arr) {\n    int *lo = arr;\n    for (int *p = arr + 1; *p != 0; p++) {\n        if (*p < *lo) {\n            lo = p;\n        }\n    }\n    return lo;\n}\n\nint main(void) {\n    int a[] = {7, 3, 9, 3, 5, 0};\n    int *p = ptr2min(a);\n    printf(\"min = %d at index %td\\n\", *p, p - a);\n    int b[] = {12, 0};\n    p = ptr2min(b);\n    printf(\"min = %d at index %td\\n\", *p, p - b);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "header `int *ptr2min(int *arr)`; no `[]` in the function"
+    },
+    {
+     "marks": 1,
+     "item": "keeps a pointer to the best element so far, starting at `arr`"
+    },
+    {
+     "marks": 1,
+     "item": "walks with a pointer (`p++` or `p + 1`) from the second element"
+    },
+    {
+     "marks": 1,
+     "item": "stops at the 0 marker: condition `*p != 0`"
+    },
+    {
+     "marks": 1,
+     "item": "compares values (`*p < *lo`) and updates the pointer (`lo = p`), strict `<` keeps the first minimum"
+    },
+    {
+     "marks": 1,
+     "item": "returns the pointer; main prints `*p` and `p - a`"
+    }
+   ],
+   "pitfalls": [
+    "Tracking the minimum value instead of a pointer, then having no pointer to return.",
+    "Comparing pointers (`p < lo`) instead of values (`*p < *lo`).",
+    "Using `<=`: that returns the last minimum, not the first.",
+    "Starting with `lo = 0` or an int: the result must be a pointer into the array."
+   ]
+  }
+ ]
+}

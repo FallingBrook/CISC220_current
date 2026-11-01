@@ -1,0 +1,602 @@
+{
+ "day": 10,
+ "title": "Bitwise operations, part 2, and floating point",
+ "goal": "Use shifts as multiplication and division, know which shifts are unsafe, extract and replace multi-bit fields with masks, and work with float and double correctly: precision limits, comparing with a tolerance, and printing with %f, %e and %g.",
+ "topics": [
+  {
+   "id": "c10-shifts",
+   "title": "Shifts in depth: multiply, divide, and signed values",
+   "notebook": "c/bitwise_ops.ipynb",
+   "priority": "high",
+   "examNote": "No question on Prof. Ma's list of past C final questions is about bit operations, so expect them, if at all, as short \"what does this print\" items. Know: `<<` multiplies and `>>` divides by powers of 2 for unsigned values, bits fall off the ends, and right-shifting a negative signed value is not portable.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Shifting is multiplying and dividing by 2\n\nOn Day 9 you used `x << k` and `x >> k` to move bits. The bitwise notebook then asks: what does a shift do to the **value**?\n\nIn decimal, writing a 0 at the end of a number multiplies it by 10: 23 becomes 230. In binary, writing a 0 at the end multiplies by **2**. A left shift by `k` writes `k` zeros at the right end, so:\n\n- `x << k` is `x` times 2^k (as long as no 1 bits fall off the left end).\n- `x >> k` drops the `k` rightmost bits. That is `x` divided by 2^k with the fraction thrown away (for unsigned or non-negative values).\n\nThe notebook works one example by hand: 83 is `01010011`. Shift right by 2: the two rightmost bits `11` fall off and two 0s come in on the left, giving `00010100` = 20. And 83 / 4 = 20.75, so the fraction is dropped."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int x = 23;\n    printf(\"x << 1 = %u\\n\", x << 1);   // 23 * 2\n    printf(\"x << 3 = %u\\n\", x << 3);   // 23 * 8\n    printf(\"x >> 1 = %u\\n\", x >> 1);   // 23 / 2, fraction dropped\n    printf(\"x >> 2 = %u\\n\", x >> 2);   // 23 / 4, fraction dropped\n    printf(\"x      = %u\\n\", x);        // x itself is unchanged\n    return 0;\n}",
+     "caption": "shiftmath.c: shifts as arithmetic"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o shiftmath shiftmath.c\n$ ./shiftmath\nx << 1 = 46\nx << 3 = 184\nx >> 1 = 11\nx >> 2 = 5\nx      = 23"
+    },
+    {
+     "type": "check",
+     "q": "Without running it: for `unsigned int x = 100;` what are `x << 2` and `x >> 3`?",
+     "a": "`100 << 2` is 100 × 4 = 400. `100 >> 3` is 100 / 8 = 12.5 with the fraction dropped, so 12."
+    },
+    {
+     "type": "md",
+     "text": "### Bits fall off the end (and where the end is)\n\nA shift never changes `x` itself; it makes a new value. Two things decide which bits survive:\n\n1. **The shift is done in `int` (or wider).** Before doing arithmetic or bit operations, C converts small types such as `uint8_t` and `char` to `int`. This is called **integer promotion**. So `x << 4` on a `uint8_t` is computed with 32 bits, and nothing falls off yet.\n2. **Storing the result in a small variable cuts it back.** Assigning to a `uint8_t` keeps only the low 8 bits. The bits above them are gone.\n\nThe notebook's `lshift_unsigned.c` shows 23 `<< 4` stored in a `uint8_t` giving 112, not 368. This program shows both steps:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\nint main(void) {\n    uint8_t x = 23;           // 00010111\n    printf(\"%d\\n\", x << 4);   // computed as an int: no bits are lost\n    uint8_t y = x << 4;       // stored in 8 bits: the high bits fall off\n    printf(\"%d\\n\", y);\n    return 0;\n}",
+     "caption": "promote.c: where the bits fall off"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o promote promote.c\n$ ./promote\n368\n112"
+    },
+    {
+     "type": "why",
+     "q": "Why 112?",
+     "a": "23 × 16 = 368 = `1 0111 0000` in binary (9 bits). A `uint8_t` keeps the low 8 bits, `0111 0000`, which is 112. For **unsigned** types this wrap-around is well defined: the result is 368 mod 256 = 112."
+    },
+    {
+     "type": "md",
+     "text": "### Logical versus arithmetic right shift\n\nWhen bits move right, something must fill the empty places on the left:\n\n- A **logical shift** fills them with 0s. It treats the value as just a row of bits.\n- An **arithmetic shift** fills them with copies of the **sign bit** (the leftmost bit). It keeps a negative two's complement number negative.\n\nC's rules, from the notebook:\n\n| Shift | Unsigned value | Signed value |\n|---|---|---|\n| `x << k` | always defined (logical) | defined only if the result fits; **overflow is undefined behaviour** |\n| `x >> k` | always defined (logical) | non-negative: same as logical; **negative: implementation-defined** |\n| `k < 0` or `k` ≥ number of bits | **undefined** | **undefined** |\n\n*Implementation-defined* means each compiler chooses and must document its choice. gcc chooses the arithmetic shift. *Undefined* means anything can happen, so never write it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int a = -45;\n    printf(\"a >> 2 = %d\\n\", a >> 2);   // implementation-defined! (gcc: arithmetic shift)\n    printf(\"a / 4  = %d\\n\", a / 4);    // C division rounds toward zero\n    int b = 99;\n    printf(\"~b + 1 = %d\\n\", ~b + 1);   // two's complement negation\n    return 0;\n}",
+     "caption": "signedshift.c: a negative value shifted right (gcc's choice)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o signedshift signedshift.c\n$ ./signedshift\na >> 2 = -12\na / 4  = -11\n~b + 1 = -99"
+    },
+    {
+     "type": "md",
+     "text": "Two lessons from this output:\n\n- An arithmetic shift rounds **down** (towards minus infinity): −45 / 4 = −11.25, rounded down is **−12**. But C's `/` rounds **towards zero** (it *truncates*), giving **−11**. So `x >> 2` and `x / 4` differ for negative `x`.\n- `~b + 1` is `-b`: in two's complement, negating means *flip every bit, then add 1* (Day 5). It fails only for the most negative value, `INT_MIN`, whose negation does not fit in an `int`."
+    },
+    {
+     "type": "pitfall",
+     "text": "For bit work, use **unsigned** types (`unsigned int`, `uint8_t`, `uint32_t`). Right-shifting a negative `int` gives a compiler-dependent answer, and left-shifting a 1 into the sign bit of an `int` is undefined. That is also why masks are written `1u << k` (the `u` makes the 1 an `unsigned int`)."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- For unsigned values, `x << k` is x × 2^k and `x >> k` is x / 2^k with the fraction dropped; bits shifted past either end are lost.\n- Small types are promoted to `int` before shifting; bits are cut only when the result is stored in a smaller type.\n- Logical shift fills with 0s; arithmetic shift copies the sign bit. Unsigned `>>` is logical; negative signed `>>` is implementation-defined (gcc: arithmetic).\n- Shifting by a negative amount or by at least the width, and signed `<<` overflow, are undefined.\n- `x >> k` rounds down but `/` rounds towards zero, so they differ for negative numbers. `~x + 1` equals `-x`."
+    }
+   ]
+  },
+  {
+   "id": "c10-fields",
+   "title": "Multi-bit masks: extracting, packing and replacing fields",
+   "notebook": "c/bitwise_ops.ipynb",
+   "priority": "medium",
+   "examNote": "A good handwritten exercise: given a number, pull out a group of bits with a shift and a mask, or print bits one by one (the notebook's `printb`). The permission bits from the Bash half (`chmod 754`) are a natural example.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### A mask with several 1s\n\nOn Day 9 a mask had a single 1 bit: `1u << k` selects bit `k`. Often you need a **group** of neighbouring bits, called a **field**. For that you need a mask of several 1s.\n\nThe trick: `(1u << n) - 1` is `n` ones at the right end. For example `1u << 4` is `10000` (16), and 16 − 1 = 15 is `01111`. Subtracting 1 turns the single 1 into 0 and every 0 to its right into 1, just as 10000 − 1 = 9999 in decimal."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    for (unsigned int n = 1; n <= 8; n++) {\n        unsigned int mask = (1u << n) - 1;   // n ones at the right\n        printf(\"n = %u  mask = %3u = 0x%02x\\n\", n, mask, mask);\n    }\n    return 0;\n}",
+     "caption": "masks.c: n ones at the right end"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o masks masks.c\n$ ./masks\nn = 1  mask =   1 = 0x01\nn = 2  mask =   3 = 0x03\nn = 3  mask =   7 = 0x07\nn = 4  mask =  15 = 0x0f\nn = 5  mask =  31 = 0x1f\nn = 6  mask =  63 = 0x3f\nn = 7  mask = 127 = 0x7f\nn = 8  mask = 255 = 0xff"
+    },
+    {
+     "type": "md",
+     "text": "### Extract a field: shift right, then mask\n\nTo get the `len` bits that start at bit `pos` (bit 0 is the rightmost):\n\n```c\nfield = (x >> pos) & ((1u << len) - 1);\n```\n\nThe shift moves the field down to the right end; the AND keeps only its `len` bits and clears everything above.\n\n**Packing** goes the other way: shift each piece **left** into its place and combine them with `|`. A colour on the web is often stored as one number `0xRRGGBB`: 8 bits each of red, green and blue. One hex digit is exactly 4 bits, so each pair of hex digits is one 8-bit field."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int color = 0x3366CC;           // red 0x33, green 0x66, blue 0xCC\n    unsigned int red   = (color >> 16) & 0xFF;\n    unsigned int green = (color >> 8) & 0xFF;\n    unsigned int blue  = color & 0xFF;\n    printf(\"red %u, green %u, blue %u\\n\", red, green, blue);\n\n    unsigned int packed = (red << 16) | (green << 8) | blue;\n    printf(\"packed again: 0x%06X\\n\", packed);\n    return 0;\n}",
+     "caption": "color.c: unpack and pack three 8-bit fields"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o color color.c\n$ ./color\nred 51, green 102, blue 204\npacked again: 0x3366CC"
+    },
+    {
+     "type": "check",
+     "q": "For `unsigned int x = 0xABCD;` what is `(x >> 4) & 0xF`?",
+     "a": "`x >> 4` is `0xABC`. `& 0xF` keeps the last hex digit: `0xC`, which is 12."
+    },
+    {
+     "type": "md",
+     "text": "### Example from the Bash half: permission bits\n\n`chmod 754` used three **octal** digits (Bash Day 2). Each octal digit is exactly 3 bits (`r` = 4, `w` = 2, `x` = 1), so the mode is 9 bits: user `rwx` in bits 8–6, group in bits 5–3, other in bits 2–0.\n\nIn C, an integer constant that **starts with 0** is octal: `0754` is 7×64 + 5×8 + 4 = 492. (So never write `010` when you mean ten: it is eight!) `%o` prints a number in octal.\n\nTo **replace** a field, do two steps: clear it with `& ~(mask << pos)`, then put the new value in with `| (value << pos)`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int mode = 0754;              // leading 0: an octal literal\n    unsigned int user  = (mode >> 6) & 07;\n    unsigned int group = (mode >> 3) & 07;\n    unsigned int other = mode & 07;\n    printf(\"user %u, group %u, other %u\\n\", user, group, other);\n\n    if (mode & 0004) {                     // test one bit: other read\n        printf(\"others may read\\n\");\n    }\n    if ((mode & 0002) == 0) {              // other write\n        printf(\"others may not write\\n\");\n    }\n\n    // like chmod g=w: clear the 3 group bits, then put 2 (w) there\n    mode = (mode & ~(07u << 3)) | (2u << 3);\n    printf(\"new mode %o\\n\", mode);\n    return 0;\n}",
+     "caption": "perms.c: read, test and change permission fields"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o perms perms.c\n$ ./perms\nuser 7, group 5, other 4\nothers may read\nothers may not write\nnew mode 724"
+    },
+    {
+     "type": "why",
+     "q": "Why must the field be cleared before the OR?",
+     "a": "OR can only turn bits **on**. Group was `101` (r-x). OR-ing in `010` would give `111`, not `010`. Clearing first makes the field `000`, so after the OR it holds exactly the new value."
+    },
+    {
+     "type": "md",
+     "text": "### Now you can read `printb`\n\nThe notebook promised you would understand its `printb` function by the end. It uses the **conditional operator** `cond ? a : b`: the value is `a` if `cond` is true (non-zero) and `b` otherwise. So `(y > 0) ? '1' : '0'` is the character `'1'` or `'0'`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdint.h>\n#include <stdio.h>\n\nvoid printb(uint8_t x) {\n    char buf[9];\n    for (size_t i = 0; i < 8; i++) {\n        uint8_t y = x & (1 << i);          // keep only bit i\n        buf[7 - i] = (y > 0) ? '1' : '0';  // bit 0 goes at the right end\n    }\n    buf[8] = '\\0';\n    printf(\"%s\\n\", buf);\n}\n\nint main(void) {\n    printb(18);\n    printb(255);\n    printb(128);\n    return 0;\n}",
+     "caption": "printb.c: the notebook's function, with comments"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o printb printb.c\n$ ./printb\n00010010\n11111111\n10000000"
+    },
+    {
+     "type": "md",
+     "text": "How it works: for each bit number `i` from 0 to 7, `x & (1 << i)` keeps only bit `i`, so `y` is non-zero exactly when that bit is 1. Bit 0 is the **rightmost** bit, so it is written at the **end** of the string, `buf[7 - i]`. Finally `buf[8] = '\\0'` ends the string. Another way to get bit `i` as 0 or 1 is `(x >> i) & 1`."
+    },
+    {
+     "type": "try",
+     "text": "Change `printb` to print 16 bits (`uint16_t`, a 17-element buffer, `buf[15 - i]`) and print 1000. You should see `0000001111101000`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `(1u << n) - 1` is a mask of `n` ones at the right end.\n- Extract: `(x >> pos) & mask`. Pack: `(a << 16) | (b << 8) | c`.\n- Replace a field: `x = (x & ~(mask << pos)) | (value << pos)`: clear first, then OR.\n- A leading `0` makes an octal constant (`0754`); `%o` prints octal; one octal digit = 3 bits, one hex digit = 4 bits.\n- `printb` tests bit `i` with `x & (1 << i)` and writes it at `buf[7 - i]`; `c ? a : b` picks `a` when `c` is true."
+    }
+   ]
+  },
+  {
+   "id": "c10-floats",
+   "title": "Floating point: precision, comparing, and printing",
+   "notebook": "c/floats.ipynb",
+   "priority": "high",
+   "examNote": "Past finals use floating point inside bigger questions: April 2022 Q4(a) stores a weight as a floating-point member of a struct, Q3(a)(ii) allocates an array of `float`, and Q5(c) asks for an `is_zero` test on a `double`. Know `float` vs `double`, why `==` is risky, and the `%f`/`%e`/`%g` conversions.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Three floating-point types\n\nC has `float`, `double` and `long double` (notebook). On our machines they use the IEEE 754 formats, like Java's `float` and `double`:\n\n| Type | Size here | Reliable decimal digits | Constant |\n|---|---|---|---|\n| `float` | 4 bytes | about 6 (`FLT_DIG`) | `0.1f` (suffix `f`) |\n| `double` | 8 bytes | about 15 (`DBL_DIG`) | `0.1` (no suffix) |\n| `long double` | 16 bytes on x86-64 | more | `0.1L` |\n\nThe limits are constants in `<float.h>`. **Use `double`** unless you have a reason not to: it is the type of plain constants like `0.1`, and the math functions (`sqrt`, `pow`, `fabs`) take and return it. A `float` passed to `printf` is converted to `double`, so `%f` prints both."
+    },
+    {
+     "type": "code",
+     "code": "#include <float.h>\n#include <stdio.h>\n\nint main(void) {\n    printf(\"float:       %zu bytes, about %d digits\\n\", sizeof(float), FLT_DIG);\n    printf(\"double:      %zu bytes, about %d digits\\n\", sizeof(double), DBL_DIG);\n    printf(\"long double: %zu bytes\\n\", sizeof(long double));\n\n    float f = 1.0f / 3.0f;     // the f suffix makes a float constant\n    double d = 1.0 / 3.0;      // no suffix: a double constant\n    printf(\"%.20f\\n\", f);\n    printf(\"%.20f\\n\", d);\n    return 0;\n}",
+     "caption": "sizes.c: float versus double"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o sizes sizes.c\n$ ./sizes\nfloat:       4 bytes, about 6 digits\ndouble:      8 bytes, about 15 digits\nlong double: 16 bytes\n0.33333334326744079590\n0.33333333333333331483"
+    },
+    {
+     "type": "md",
+     "text": "The `float` is wrong after 7 digits; the `double` after 16. A floating-point number stores a fixed number of **binary** digits (24 for `float`, 53 for `double`) plus an exponent, so every value is rounded to the nearest number it *can* store."
+    },
+    {
+     "type": "md",
+     "text": "### Why 0.1 + 0.2 is not 0.3\n\nIn decimal, 1/3 = 0.3333... never ends, so any fixed number of digits is a little wrong. In **binary**, 1/10 never ends either (0.000110011001100...). So `0.1`, `0.2` and `0.3` are each stored as the *nearest* double, and the tiny errors do not cancel:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    double a = 0.1 + 0.2;\n    printf(\"%f\\n\", a);          // 6 digits: looks fine\n    printf(\"%.17f\\n\", a);       // 17 digits: the truth\n    printf(\"%.17f\\n\", 0.3);\n    if (a == 0.3) {\n        printf(\"equal\\n\");\n    } else {\n        printf(\"not equal\\n\");\n    }\n    return 0;\n}",
+     "caption": "point3.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o point3 point3.c\n$ ./point3\n0.300000\n0.30000000000000004\n0.29999999999999999\nnot equal"
+    },
+    {
+     "type": "md",
+     "text": "`%f` rounds to 6 digits and hides the problem. The sum and the constant `0.3` are two *different* doubles, so `==` says no. Errors also build up in loops. Adding 0.1 ten times does not give exactly 1.0:"
+    },
+    {
+     "type": "code",
+     "code": "#include <math.h>\n#include <stdio.h>\n\nint main(void) {\n    double sum = 0.0;\n    for (int i = 0; i < 10; i++) {\n        sum += 0.1;\n    }\n    printf(\"sum = %.17f\\n\", sum);\n    printf(\"sum == 1.0 ? %d\\n\", sum == 1.0);\n    printf(\"close to 1.0 ? %d\\n\", fabs(sum - 1.0) < 1e-9);\n    return 0;\n}",
+     "caption": "tenths.c: compare with a tolerance"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o tenths tenths.c -lm\n$ ./tenths\nsum = 0.99999999999999989\nsum == 1.0 ? 0\nclose to 1.0 ? 1"
+    },
+    {
+     "type": "md",
+     "text": "### Comparing with a tolerance\n\nDo not ask \"are they equal?\". Ask \"are they **close enough**?\": is the distance between them at most a small **tolerance** (also called *epsilon*)?\n\n```c\nif (fabs(a - b) <= 1e-9) { ... }   // fabs = absolute value of a double, <math.h>\n```\n\n`1e-9` is C's scientific notation for 1 × 10^−9. Choose the tolerance to suit your numbers: 1e-9 is fine for values near 1, but for values near a billion the rounding error alone is bigger than that. Then a **relative** test works better: `fabs(a - b) <= 1e-9 * fmax(fabs(a), fabs(b))`. You can put the test in a function:"
+    },
+    {
+     "type": "code",
+     "code": "#include <math.h>\n#include <stdbool.h>\n#include <stdio.h>\n\n// true if a and b differ by at most tol\nbool close_enough(double a, double b, double tol) {\n    return fabs(a - b) <= tol;\n}\n\nint main(void) {\n    double a = 0.1 + 0.2;\n    printf(\"%d\\n\", a == 0.3);\n    printf(\"%d\\n\", close_enough(a, 0.3, 1e-9));\n    printf(\"%d\\n\", close_enough(1.0, 1.001, 1e-9));\n    return 0;\n}",
+     "caption": "close.c: a reusable test (bool comes from <stdbool.h>)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o close close.c -lm\n$ ./close\n0\n1\n0"
+    },
+    {
+     "type": "check",
+     "q": "`float f = 16777217;` (that is 2^24 + 1). What does `printf(\"%f\\n\", f);` print, and why?",
+     "a": "`16777216.000000`. A `float` has only 24 binary digits, and 2^24 + 1 needs 25, so it is rounded to the nearest float, 2^24. A `double` (53 binary digits) prints `16777217.000000`. Large whole numbers lose precision too, not only fractions."
+    },
+    {
+     "type": "pitfall",
+     "text": "Never control a loop with `==` or `!=` on a double: `for (double x = 0.0; x != 1.0; x += 0.1)` never stops, because `x` jumps from 0.99999999999999989 to 1.09999999999999987. Count with an `int` and compute `x = i / 10.0`, or test `x < 1.0`."
+    },
+    {
+     "type": "md",
+     "text": "### Printing: `%f`, `%e`, `%g`\n\n| Conversion | Style | 1234.5678 prints |\n|---|---|---|\n| `%f` | fixed point, 6 digits after the point | `1234.567800` |\n| `%e` | scientific: one digit, point, 6 digits, `e`, exponent | `1.234568e+03` |\n| `%g` | the shorter of the two styles, 6 **significant** digits, trailing zeros removed | `1234.57` |\n\nA precision `.n` means *n digits after the point* for `%f` and `%e`, but *n significant digits* for `%g`. `%g` switches to `e` style when the exponent is below −4 or at least the precision."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    double x = 1234.5678;\n    printf(\"%f | %e | %g\\n\", x, x, x);\n    printf(\"%.2f | %.2e | %.2g\\n\", x, x, x);\n    double y = 0.000012;\n    printf(\"%f | %e | %g\\n\", y, y, y);\n    double z = 2.5;\n    printf(\"%f | %e | %g\\n\", z, z, z);\n    return 0;\n}",
+     "caption": "formats.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o formats formats.c\n$ ./formats\n1234.567800 | 1.234568e+03 | 1234.57\n1234.57 | 1.23e+03 | 1.2e+03\n0.000012 | 1.200000e-05 | 1.2e-05\n2.500000 | 2.500000e+00 | 2.5"
+    },
+    {
+     "type": "check",
+     "q": "What do `printf(\"%.1e\\n\", 0.00456);` and `printf(\"%g\\n\", 3.0);` print?",
+     "a": "`4.6e-03` (one digit after the point, rounded) and `3` (`%g` drops the trailing zeros and the point)."
+    },
+    {
+     "type": "md",
+     "text": "### Infinity and not-a-number\n\nFloating-point division by zero does not crash. The notebook's `special_floats.c` shows the special values from `<math.h>`: `1.0 / 0.0` is `INFINITY` (printed `inf`), and `0.0 / 0.0` is **NaN**, *not a number* (printed `nan` or `-nan`). Test them with `isinf(x)` and `isnan(x)`. A NaN is not equal to anything, **not even itself**, so `d == NAN` is always false (message 3 is never printed):"
+    },
+    {
+     "type": "code",
+     "code": "#include <math.h>\n#include <stdio.h>\n\nint main(void) {\n    double d = 1.0 / 0.0;\n    if (d == INFINITY) {\n        puts(\"1. d is infinite\");\n    }\n    if (isinf(d)) {\n        puts(\"2. d is infinite\");\n    }\n    \n    d = 0.0 / 0.0;\n    if (d == NAN) {\n        // d == NAN is never true according to IEEE754\n        puts(\"3. d is not a number\");\n    }\n    if (isnan(d)) {\n        puts(\"4. d is not a number\");\n    }\n    printf(\"%f %f\\n\", 1.0 / 0.0, -1.0 / 0.0);\n    return 0;\n}",
+     "caption": "special_floats.c (notebook), plus one printf"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o special_floats special_floats.c -lm\n$ ./special_floats\n1. d is infinite\n2. d is infinite\n4. d is not a number\ninf -inf"
+    },
+    {
+     "type": "pitfall",
+     "text": "This is only for floating point. Integer division by zero (`1 / 0` with `int`s) is **undefined behaviour**; on our machines it usually kills the program."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `float` (4 bytes, ~6 digits, constant `0.1f`), `double` (8 bytes, ~15 digits, constant `0.1`), `long double`. Prefer `double`.\n- Most decimal fractions (0.1, 0.2, 0.3) cannot be stored exactly in binary, so `0.1 + 0.2 != 0.3`.\n- Compare with a tolerance: `fabs(a - b) <= tol` (relative: `tol * fmax(fabs(a), fabs(b))`). Never loop with `!=` on a double.\n- `%f` fixed, `%e` scientific, `%g` shorter of the two; `.n` is digits after the point (`f`, `e`) or significant digits (`g`).\n- `1.0/0.0` is `inf`, `0.0/0.0` is NaN; use `isinf`, `isnan` (`<math.h>`, compile with `-lm` last). `NAN == NAN` is false."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c10-fc-01",
+   "topic": "c10-shifts",
+   "front": "For an unsigned `x`, what are `x << k` and `x >> k` as arithmetic?",
+   "back": "`x << k` is x × 2^k (bits that go past the left end are lost); `x >> k` is x / 2^k with the fraction dropped."
+  },
+  {
+   "id": "c10-fc-02",
+   "topic": "c10-shifts",
+   "front": "`uint8_t x = 23;` What do `printf(\"%d\", x << 4)` and `uint8_t y = x << 4;` give?",
+   "back": "368, because `x` is promoted to `int` before the shift. `y` is 112: storing into 8 bits keeps only the low 8 bits (368 mod 256)."
+  },
+  {
+   "id": "c10-fc-03",
+   "topic": "c10-shifts",
+   "front": "Logical vs arithmetic right shift?",
+   "back": "Logical fills the left with 0s. Arithmetic fills it with copies of the sign bit, so negative numbers stay negative."
+  },
+  {
+   "id": "c10-fc-04",
+   "topic": "c10-shifts",
+   "front": "What does C say about `x >> k` when `x` is a negative `int`?",
+   "back": "The result is **implementation-defined** (gcc does an arithmetic shift). Not portable: use unsigned types for bit work."
+  },
+  {
+   "id": "c10-fc-05",
+   "topic": "c10-shifts",
+   "front": "Which shifts are undefined behaviour?",
+   "back": "Shifting by a negative amount or by at least the number of bits in the (promoted) value, and a signed `<<` whose result overflows."
+  },
+  {
+   "id": "c10-fc-06",
+   "topic": "c10-shifts",
+   "front": "Why are `-45 >> 2` (gcc) and `-45 / 4` different?",
+   "back": "The arithmetic shift rounds down: −12. C's `/` rounds towards zero: −11."
+  },
+  {
+   "id": "c10-fc-07",
+   "topic": "c10-fields",
+   "front": "How do you make a mask of `n` ones at the right end?",
+   "back": "`(1u << n) - 1`. For n = 4: 16 − 1 = 15 = `1111`."
+  },
+  {
+   "id": "c10-fc-08",
+   "topic": "c10-fields",
+   "front": "Extract the `len` bits of `x` starting at bit `pos`.",
+   "back": "`(x >> pos) & ((1u << len) - 1)`: shift the field down, then mask off everything above it."
+  },
+  {
+   "id": "c10-fc-09",
+   "topic": "c10-fields",
+   "front": "Replace a field of `x` with `value`.",
+   "back": "Clear, then OR: `x = (x & ~(mask << pos)) | (value << pos);`"
+  },
+  {
+   "id": "c10-fc-10",
+   "topic": "c10-fields",
+   "front": "What is `0754` in C? What does `%o` do?",
+   "back": "A leading 0 makes an **octal** constant: 7×64 + 5×8 + 4 = 492. `%o` prints a number in octal."
+  },
+  {
+   "id": "c10-fc-11",
+   "topic": "c10-fields",
+   "front": "What does `cond ? a : b` evaluate to?",
+   "back": "`a` if `cond` is true (non-zero), otherwise `b`. Example: `(y > 0) ? '1' : '0'`."
+  },
+  {
+   "id": "c10-fc-12",
+   "topic": "c10-floats",
+   "front": "`float` vs `double`: size and precision?",
+   "back": "`float`: 4 bytes, about 6–7 significant digits. `double`: 8 bytes, about 15–16. Plain constants like `0.1` are `double`; `0.1f` is `float`."
+  },
+  {
+   "id": "c10-fc-13",
+   "topic": "c10-floats",
+   "front": "Why is `0.1 + 0.2 == 0.3` false?",
+   "back": "0.1, 0.2 and 0.3 have no exact binary form, so each is rounded to the nearest double. The rounded sum is 0.30000000000000004, a different double from 0.3's 0.29999999999999999."
+  },
+  {
+   "id": "c10-fc-14",
+   "topic": "c10-floats",
+   "front": "How should you compare two doubles?",
+   "back": "With a tolerance: `fabs(a - b) <= 1e-9` (or a relative tolerance for large values). Not with `==`."
+  },
+  {
+   "id": "c10-fc-15",
+   "topic": "c10-floats",
+   "front": "`%f`, `%e`, `%g` for 1234.5678?",
+   "back": "`1234.567800`, `1.234568e+03`, `1234.57`."
+  },
+  {
+   "id": "c10-fc-16",
+   "topic": "c10-floats",
+   "front": "What are `1.0 / 0.0` and `0.0 / 0.0`, and how do you test for them?",
+   "back": "`inf` (`INFINITY`) and NaN (not a number). Use `isinf(x)` and `isnan(x)` from `<math.h>`. `x == NAN` is always false."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c10-q-01",
+   "topic": "c10-shifts",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int x = 40;\n    printf(\"%u %u %u\\n\", x << 2, x >> 3, x >> 6);\n    return 0;\n}",
+   "answer": "160 5 0",
+   "explain": "40 × 4 = 160. 40 / 8 = 5. 40 / 64 = 0.625, fraction dropped: 0. (40 is `101000`, six bits, so a shift right by 6 drops them all.)"
+  },
+  {
+   "id": "c10-q-02",
+   "topic": "c10-shifts",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdint.h>\n#include <stdio.h>\n\nint main(void) {\n    uint8_t a = 200;\n    printf(\"%d\\n\", a << 1);\n    uint8_t b = a << 1;\n    printf(\"%d\\n\", b);\n    return 0;\n}",
+   "answer": "400\n144",
+   "explain": "`a` is promoted to `int`, so `a << 1` is 400. Stored in a `uint8_t`, only the low 8 bits remain: 400 − 256 = 144."
+  },
+  {
+   "id": "c10-q-03",
+   "topic": "c10-shifts",
+   "type": "short",
+   "q": "With gcc, `-45 >> 2` is −12 but `-45 / 4` is −11. Explain the difference, and say why the course discourages right-shifting negative `int`s.",
+   "answer": "gcc does an arithmetic shift, which copies the sign bit in and rounds down (towards minus infinity): −11.25 becomes −12. C's integer division truncates (rounds towards zero): −11. The C standard leaves the right shift of a negative signed value implementation-defined, so another compiler may give a different answer; it is not portable.",
+   "explain": "Use unsigned types when you work with bits."
+  },
+  {
+   "id": "c10-q-04",
+   "topic": "c10-shifts",
+   "type": "mcq",
+   "q": "Which of these has **undefined** behaviour if `x` is an `unsigned int` (32 bits)?",
+   "options": [
+    "`x << 32`",
+    "`x >> 31`",
+    "`x << 31`",
+    "`x >> 0`"
+   ],
+   "answer": 0,
+   "explain": "A shift by at least the number of bits (32) is undefined. Shifts by 0 to 31 of an unsigned value are always defined (bits that fall off are simply lost)."
+  },
+  {
+   "id": "c10-q-05",
+   "topic": "c10-fields",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int x = 0xABCD;\n    printf(\"%x %x\\n\", (x >> 8) & 0xF, (x >> 4) & 0xFF);\n    return 0;\n}",
+   "answer": "b bc",
+   "explain": "`x >> 8` is `0xAB`; `& 0xF` keeps one hex digit, `b`. `x >> 4` is `0xABC`; `& 0xFF` keeps two hex digits, `bc`. `%x` prints lowercase hex."
+  },
+  {
+   "id": "c10-q-06",
+   "topic": "c10-fields",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned int mode = 0640;\n    printf(\"%u %u %u\\n\", (mode >> 6) & 7, (mode >> 3) & 7, mode & 7);\n    mode = mode | 0004;\n    printf(\"%o\\n\", mode);\n    return 0;\n}",
+   "answer": "6 4 0\n644",
+   "explain": "`0640` is octal: the three 3-bit fields are 6, 4 and 0. OR-ing in `0004` turns on the other-read bit, and `%o` prints 644."
+  },
+  {
+   "id": "c10-q-07",
+   "topic": "c10-fields",
+   "type": "mcq",
+   "q": "Which expression is a mask with exactly the low `n` bits set (for 1 ≤ n ≤ 31)?",
+   "options": [
+    "`(1u << n) - 1`",
+    "`1u << n`",
+    "`~(1u << n)`",
+    "`(1u << (n - 1))`"
+   ],
+   "answer": 0,
+   "explain": "`1u << n` is a single 1 followed by n zeros; subtracting 1 gives n ones. `~(1u << n)` has every bit set except bit n."
+  },
+  {
+   "id": "c10-q-08",
+   "topic": "c10-fields",
+   "type": "short",
+   "q": "Write one statement that sets bits 4 to 7 of `unsigned int x` to the 4-bit value `v` (0 to 15), leaving every other bit unchanged. Why can't you just write `x = x | (v << 4);`?",
+   "answer": "`x = (x & ~(0xFu << 4)) | (v << 4);` The OR alone can only turn bits on: any 1 bits already in positions 4 to 7 would stay 1. Clearing the field first makes it 0000, so after the OR it holds exactly `v`.",
+   "explain": "Clear with AND and the complemented mask, then set with OR."
+  },
+  {
+   "id": "c10-q-09",
+   "topic": "c10-floats",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    double a = 0.1 + 0.2;\n    printf(\"%.1f %d\\n\", a, a == 0.3);\n    return 0;\n}",
+   "answer": "0.3 0",
+   "explain": "Rounded to 1 decimal place the sum prints as 0.3, but it is 0.30000000000000004, a different double from 0.3, so `==` gives 0 (false)."
+  },
+  {
+   "id": "c10-q-10",
+   "topic": "c10-floats",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    double x = 0.00042;\n    double y = 5000000.0;\n    printf(\"%e\\n%g\\n%g\\n%.2e\\n\", x, x, y, y);\n    return 0;\n}",
+   "answer": "4.200000e-04\n0.00042\n5e+06\n5.00e+06",
+   "explain": "`%e` always uses 6 digits after the point. `%g` uses fixed style for 0.00042 (exponent −4 is not below −4) and drops zeros; for 5000000 the exponent 6 is at least the precision 6, so it uses `e` style. `%.2e` shows 2 digits after the point."
+  },
+  {
+   "id": "c10-q-11",
+   "topic": "c10-floats",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    float f = 0.1f;\n    double d = 0.1;\n    printf(\"%d %d\\n\", f == d, f == 0.1f);\n    return 0;\n}",
+   "answer": "0 1",
+   "explain": "`0.1f` is 0.1 rounded to 24 binary digits; `0.1` is rounded to 53. They are different numbers, so `f == d` is 0. Comparing `f` with the same float constant gives 1."
+  },
+  {
+   "id": "c10-q-12",
+   "topic": "c10-floats",
+   "type": "short",
+   "q": "Why can a `double` store 0.5 exactly but not 0.1?",
+   "answer": "A double stores a binary fraction with a fixed number of bits. 0.5 is 1/2 = 0.1 in binary, which fits exactly. 0.1 = 1/10 is the repeating binary fraction 0.000110011..., which never ends, so it must be rounded to the nearest value that fits.",
+   "explain": "Same reason 1/3 cannot be written exactly in decimal."
+  },
+  {
+   "id": "c10-q-13",
+   "topic": "c10-floats",
+   "type": "output",
+   "q": "What does this program print? (It is compiled with `-lm`.)",
+   "code": "#include <math.h>\n#include <stdio.h>\n\nint main(void) {\n    double big = 1.0 / 0.0;\n    double bad = 0.0 / 0.0;\n    printf(\"%f\\n\", big);\n    printf(\"%d %d %d\\n\", isinf(big) != 0, bad == bad, isnan(bad) != 0);\n    return 0;\n}",
+   "answer": "inf\n1 0 1",
+   "explain": "`1.0 / 0.0` is infinity, printed `inf`; `isinf` reports it (on infinity `isinf` may return 1 or −1, so the code tests `!= 0`). A NaN is not equal to anything, even itself, so `bad == bad` is 0; `isnan` detects it."
+  },
+  {
+   "id": "c10-q-14",
+   "topic": "c10-floats",
+   "type": "short",
+   "q": "What is wrong with `for (double x = 0.0; x != 1.0; x += 0.1) { ... }`? Give a fix.",
+   "answer": "0.1 is not exact, so after ten additions `x` is 0.99999999999999989, not 1.0; the next value is about 1.1. `x` is never equal to 1.0 and the loop never ends. Fix: loop with an int, `for (int i = 0; i < 10; i++) { double x = i / 10.0; ... }`, or use `x < 0.95` style tests instead of `!=`.",
+   "explain": "Never use `==` or `!=` on doubles to stop a loop."
+  }
+ ],
+ "write": [
+  {
+   "id": "c10-w-01",
+   "topic": "c10-fields",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write a function `unsigned int setfield(unsigned int x, unsigned int pos, unsigned int len, unsigned int value)` that returns `x` with its `len` bits starting at bit `pos` (bit 0 is the rightmost) replaced by the low `len` bits of `value`. Assume 1 ≤ len and pos + len ≤ 31. Test it on `0754` (set the group field to 2) and on `0x3366CC` (set bits 8 to 15 to `0xFF`).",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// returns x with its len bits starting at bit pos replaced by value\nunsigned int setfield(unsigned int x, unsigned int pos, unsigned int len, unsigned int value) {\n    unsigned int mask = (1u << len) - 1;      // len ones at the right\n    x = x & ~(mask << pos);                   // 1. clear the field\n    x = x | ((value & mask) << pos);          // 2. put the new value there\n    return x;\n}\n\nint main(void) {\n    printf(\"%o\\n\", setfield(0754, 3, 3, 2));          // group bits become w only\n    printf(\"%X\\n\", setfield(0x3366CC, 8, 8, 0xFF));   // green becomes FF\n    printf(\"%u\\n\", setfield(0, 0, 4, 9));             // 0 with 9 in the low 4 bits\n    return 0;\n}",
+   "explain": "Build a mask of `len` ones with `(1u << len) - 1`. `~(mask << pos)` has 0s exactly in the field and 1s everywhere else, so the AND clears the field and keeps the rest. Then `(value & mask) << pos` moves the new value into place (the `& mask` stops a too-big value from spilling into neighbouring bits), and the OR puts it in. `x` is a copy, so changing it inside the function is fine. Output:\n\n```\n$ ./setfield\n724\n33FFCC\n9\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "mask of len ones: `(1u << len) - 1`"
+    },
+    {
+     "marks": 1,
+     "item": "clears the field with `x & ~(mask << pos)`"
+    },
+    {
+     "marks": 1,
+     "item": "ORs in `value << pos` (value masked to len bits)"
+    },
+    {
+     "marks": 1,
+     "item": "returns the new value; unsigned types throughout"
+    }
+   ],
+   "pitfalls": [
+    "OR-ing without clearing first: old 1 bits in the field stay on.",
+    "Writing `~mask << pos` instead of `~(mask << pos)`: `~` binds tighter than `<<`, so the 1s below `pos` become 0s and the low bits of `x` are wiped."
+   ]
+  },
+  {
+   "id": "c10-w-02",
+   "topic": "c10-floats",
+   "stage": "faded",
+   "marks": 3,
+   "prompt": "Complete `count_near`, which returns how many elements of `a` are within `tol` of `target` (the distance is at most `tol`). `main` shows that `==` finds only one value equal to 0.3, while `count_near` with tolerance 1e-9 finds three. Expected output: `== 0.3: 1` then `near 0.3: 3`. Compile with `-lm`.",
+   "starter": "#include <math.h>\n#include <stdio.h>\n\n// counts the elements of a that are within tol of target\nsize_t count_near(const double a[], size_t n, double target, double tol) {\n    size_t count = ____;\n    for (size_t i = 0; i < n; i++) {\n        if (____ <= tol) {\n            ____;\n        }\n    }\n    return count;\n}\n\nint main(void) {\n    double a[5] = {0.1 + 0.2, 0.3, 0.30001, 3 * 0.1, 1.0};\n    size_t exact = 0;\n    for (size_t i = 0; i < 5; i++) {\n        if (a[i] == 0.3) {\n            exact++;\n        }\n    }\n    printf(\"== 0.3: %zu\\n\", exact);\n    printf(\"near 0.3: %zu\\n\", count_near(a, 5, 0.3, 1e-9));\n    return 0;\n}",
+   "solution": "#include <math.h>\n#include <stdio.h>\n\n// counts the elements of a that are within tol of target\nsize_t count_near(const double a[], size_t n, double target, double tol) {\n    size_t count = 0;\n    for (size_t i = 0; i < n; i++) {\n        if (fabs(a[i] - target) <= tol) {\n            count++;\n        }\n    }\n    return count;\n}\n\nint main(void) {\n    double a[5] = {0.1 + 0.2, 0.3, 0.30001, 3 * 0.1, 1.0};\n    size_t exact = 0;\n    for (size_t i = 0; i < 5; i++) {\n        if (a[i] == 0.3) {\n            exact++;\n        }\n    }\n    printf(\"== 0.3: %zu\\n\", exact);\n    printf(\"near 0.3: %zu\\n\", count_near(a, 5, 0.3, 1e-9));\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "count starts at 0"
+    },
+    {
+     "marks": 1,
+     "item": "distance computed as `fabs(a[i] - target)` (absolute value, either order)"
+    },
+    {
+     "marks": 1,
+     "item": "`count++` inside the if"
+    }
+   ],
+   "pitfalls": [
+    "`abs` instead of `fabs`: `abs` is for `int` and would cut the difference to 0.",
+    "Forgetting the absolute value: every element below the target would count."
+   ]
+  },
+  {
+   "id": "c10-w-03",
+   "topic": "c10-fields",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a function `void print_perms(unsigned int mode)` that prints the 9 permission bits of `mode` the way `ls -l` shows them, followed by a newline: `print_perms(0754)` prints `rwxr-xr--`, `print_perms(0640)` prints `rw-r-----`. Bit 8 (`0400`) is user read and bit 0 (`0001`) is other execute. Use shifts and masks, not division. Include a short `main` that tests it.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// prints mode's 9 permission bits like ls -l, e.g. 0754 prints rwxr-xr--\nvoid print_perms(unsigned int mode) {\n    char letters[] = \"rwxrwxrwx\";\n    for (int i = 8; i >= 0; i--) {             // bit 8 (0400) down to bit 0 (0001)\n        if ((mode >> i) & 1u) {\n            printf(\"%c\", letters[8 - i]);\n        } else {\n            printf(\"-\");\n        }\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    print_perms(0754);\n    print_perms(0640);\n    print_perms(0);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "loops over the 9 bits from bit 8 down to bit 0 (or uses 9 masks 0400 ... 0001)"
+    },
+    {
+     "marks": 1,
+     "item": "tests one bit with a shift and `& 1` (or `mode & mask`)"
+    },
+    {
+     "marks": 1,
+     "item": "prints the right letter r, w or x for the bit's position"
+    },
+    {
+     "marks": 1,
+     "item": "prints `-` when the bit is 0"
+    },
+    {
+     "marks": 1,
+     "item": "newline at the end; main calls it with octal constants such as `0754`"
+    }
+   ],
+   "pitfalls": [
+    "Writing `754` instead of `0754`: without the leading 0 it is decimal 754, a different bit pattern.",
+    "Looping from bit 0 upwards prints the letters backwards.",
+    "Testing `(mode & mask) == 1`: the AND gives the mask's value (e.g. 256), not 1; test for non-zero instead."
+   ]
+  }
+ ]
+}
