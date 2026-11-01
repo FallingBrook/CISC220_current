@@ -1,0 +1,574 @@
+{
+ "day": 1,
+ "title": "Your first C program",
+ "goal": "Write, compile and run a small C program, read gcc's messages, and know what gcc does to turn hello.c into ./hello.",
+ "topics": [
+  {
+   "id": "c1-structure",
+   "title": "What a C program looks like",
+   "notebook": "c/a_simple_c_program.ipynb",
+   "priority": "high",
+   "examNote": "On the exam you write C by hand. Every program you write needs `#include <stdio.h>` (if it prints), `int main(void) { ... }`, a `;` after each statement, and usually `return 0;`. Losing marks for a missing `;` or brace is easy to avoid.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Bash script vs C program\n\nA Bash script is **interpreted**: when you run `bash script.sh`, the program `bash` reads your file one line at a time and carries out each line as it goes. There is no separate translation step, so an error on line 20 is only noticed when Bash reaches line 20.\n\nA C program is **compiled**. *Compiling* means transforming code written in one language into another language. A *compiler* (we use `gcc`) reads your whole C *source code file* (plain text, usually ending in `.c`) and turns it into **machine code**, the language the computer's processor runs directly. The result is a separate file, an *executable program*, that you then run. If your C code has a mistake the compiler can see, you find out *before* anything runs.\n\n| | Bash script | C program |\n|---|---|---|\n| you write | `greet.sh` | `hello.c` |\n| before running | nothing (maybe `chmod +x`) | compile: `gcc -Wall -o hello hello.c` |\n| you run | `bash greet.sh` or `./greet.sh` | `./hello` (the compiled file) |\n| after editing | just run again | **compile again**, then run |"
+    },
+    {
+     "type": "md",
+     "text": "### The smallest useful program\n\nThis is the course's *Hello, world!* program, with every part labelled below."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n/* hello.c: my first C program */\n\nint main(void) {\n    printf(\"Hello, world!\\n\");\n    return 0;\n}",
+     "caption": "hello.c"
+    },
+    {
+     "type": "md",
+     "text": "- `#include <stdio.h>` is a **preprocessor directive** (any line starting with `#`). It inserts the *header file* `stdio.h` into your program. That file *declares* `printf` and `puts`: it tells the compiler these functions exist and what they accept. Without it the compiler does not know them.\n- `/* ... */` is a **comment**. The compiler ignores it. It may span many lines. Since C99 you can also write `// comment` to the end of a line.\n- `int main(void)` starts the definition of the **`main` function**. Every C program needs exactly one `main`: the program starts running there. `int` means `main` gives back (returns) an integer. `(void)` means it takes no command line arguments. (The other form, `int main(int argc, char *argv[])`, accepts command line arguments; it comes on a later day.)\n- `{` and `}` (**braces**) surround the *body* of `main`: the statements that run, top to bottom.\n- `printf(\"Hello, world!\\n\");` is a **statement**: it *calls* the function `printf` with one argument, the *string* `\"Hello, world!\\n\"` (text in double quotes). **Every statement ends with a semicolon `;`.** In Bash a new line ends a command; in C the `;` does.\n- `return 0;` ends `main` and hands the integer `0` back to the operating system. You will see where it goes in the next lesson.\n\nSpaces, blank lines and indentation do not matter to the compiler. We indent the body by 4 spaces so people can read it."
+    },
+    {
+     "type": "md",
+     "text": "### printf and puts\n\nBoth are declared in `stdio.h` and both write text to *standard output* (`stdout`, the terminal unless you redirect it, exactly as in Bash).\n\n- `printf(\"text\")` prints **exactly** the characters you give it. To end the line you must write `\\n` (backslash n, the *newline character*) yourself. Inside a string, `\\n` is one character, not two.\n- `puts(\"text\")` prints the string **and then adds a newline itself**. It takes exactly one string.\n\nSo these two lines print the same thing:"
+    },
+    {
+     "type": "code",
+     "code": "printf(\"Hello, world!\\n\");\nputs(\"Hello, world!\");",
+     "caption": "two ways to print one full line"
+    },
+    {
+     "type": "md",
+     "text": "Forgetting `\\n` with `printf` glues the next output onto the same line. Here is a complete program that shows it:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"one\");\n    printf(\"two\\n\");\n    puts(\"three\");\n    puts(\"\");\n    puts(\"four\");\n    return 0;\n}",
+     "caption": "lines.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o lines lines.c\n$ ./lines\nonetwo\nthree\n\nfour",
+     "caption": "real output: `puts(\"\")` prints an empty line"
+    },
+    {
+     "type": "md",
+     "text": "`printf` can do much more: its first argument is a *formatting string* that may contain *conversion specifiers* starting with `%` (the notebook's `hello2.c` uses `printf(\"%s\\n\", \"Hello, world!\");`). You will learn those on a later day. For today, use `printf` only with plain text and `\\n`, and do not put a `%` in your strings."
+    },
+    {
+     "type": "check",
+     "q": "Which line ends a statement in C, and which ends a command in Bash?",
+     "a": "In C a semicolon `;` ends a statement (the line break does not matter). In Bash the end of the line (or a `;`) ends a command."
+    },
+    {
+     "type": "why",
+     "q": "Why do we need `#include <stdio.h>` at the top?",
+     "a": "`printf` and `puts` are not built into the C language; they live in the C standard library. `stdio.h` declares them, so the compiler knows they exist and what arguments they take. The preprocessor pastes that header into your file before compiling."
+    },
+    {
+     "type": "pitfall",
+     "text": "Using single quotes for text: `puts('Hello');` is wrong in C. Text (a *string*) always goes in **double quotes**: `puts(\"Hello\");`. Single quotes mean something different in C (one character), unlike Bash where both kinds of quotes make strings."
+    },
+    {
+     "type": "pitfall",
+     "text": "Writing `puts(\"Hello\\n\");` prints `Hello` **and then an empty line**, because `puts` adds its own newline after yours."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Bash is interpreted line by line; C is **compiled** into machine code first, and you run the compiled file.\n- Shape of every program today: `#include <stdio.h>`, then `int main(void) { statements }` ending with `return 0;`.\n- Each statement ends with `;`. Braces `{ }` hold the body. Comments are `/* ... */` or `// ...`.\n- `printf` prints exactly what you give it, so add `\\n`. `puts` adds the newline for you.\n- Strings use double quotes."
+    }
+   ]
+  },
+  {
+   "id": "c1-cycle",
+   "title": "Compile, run, fix: the cycle",
+   "notebook": "c/a_simple_c_program.ipynb",
+   "priority": "high",
+   "examNote": "Know the exact command `gcc -Wall -o hello hello.c`, what `-o` and `-Wall` mean, that `./hello` runs it, and that `return n;` in `main` becomes the exit status shown by `echo $?`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### The cycle\n\n1. **Edit** the source file: `nano hello.c` (save with Ctrl+O, Enter; exit with Ctrl+X).\n2. **Compile** it: `gcc -Wall -o hello hello.c`\n3. If the compiler reports errors, go back to step 1.\n4. **Run** the program: `./hello`\n5. If the output is wrong, go back to step 1. **Every change needs a new compile**: `./hello` runs the old machine code until you compile again.\n\nWhat the parts of the compile command mean:\n\n- `gcc` is the GNU C compiler.\n- `-Wall` turns on (almost) **all warnings**: messages about code that compiles but is probably a mistake. Always use it.\n- `-o hello` names the **output** file `hello`. The argument right after `-o` is the name. Without `-o`, gcc calls the program `a.out`.\n- `hello.c` is the source file to compile.\n\nThe order of `-o hello` and `hello.c` does not matter (the notebook writes `gcc hello1.c -o hello1`). The lab checker also adds `-std=c17`, which tells gcc to follow the C17 standard, the version of C this course uses."
+    },
+    {
+     "type": "try",
+     "text": "Make a folder and your first program: `mkdir -p ~/cisc220_c/day1 && cd ~/cisc220_c/day1`, then `nano hello.c` and type the hello.c program from the first lesson exactly. Save, exit, then run `gcc -Wall -o hello hello.c` and `./hello`. Use `ls -l` to see that `hello` is a new file with `x` (execute) permission, just like a script after `chmod +x`."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o hello hello.c\n$ ./hello\nHello, world!",
+     "caption": "no news is good news: gcc prints nothing when there are no errors or warnings"
+    },
+    {
+     "type": "pitfall",
+     "text": "Why `./hello` and not `hello`? Same reason as for scripts: the shell only looks in the folders listed in `PATH` for commands, and your current folder is not one of them. `./` says \"the file in this folder\"."
+    },
+    {
+     "type": "md",
+     "text": "### Reading a compiler error\n\nDelete the `;` after the `printf(...)` line, save, and compile again. gcc 13 (Ubuntu) prints:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o hello hello.c\nhello.c: In function 'main':\nhello.c:6:30: error: expected ';' before 'return'\n    6 |     printf(\"Hello, world!\\n\")\n      |                              ^\n      |                              ;\n    7 |     return 0;\n      |     ~~~~~~",
+     "caption": "a missing semicolon"
+    },
+    {
+     "type": "md",
+     "text": "Read it from the left: **file : line : column : kind : message**. `hello.c:6:30` means file `hello.c`, line 6, column 30 (the 30th character on the line). `error` means gcc could not make a program, so **no new `hello` file is written**. The `^` points at the spot, and gcc even suggests the fix (`;`).\n\nNotice the message mentions `return`, the next statement: gcc only noticed the problem when it reached the word after the missing `;`. So when an error makes no sense on its line, **look at the line before it**.\n\nFix the line (put the `;` back), save, compile again, run again. When there are several errors, fix the **first** one first: one mistake can cause a pile of follow-on messages."
+    },
+    {
+     "type": "try",
+     "text": "Break hello.c on purpose, one mistake at a time, compile after each, read the line:column, then fix it: (1) remove the `;` after `printf(...)`; (2) delete the final `}`; (3) misspell `printf` as `prinft`. Compare what gcc says for each (the next lessons explain the third one)."
+    },
+    {
+     "type": "md",
+     "text": "### Warnings vs errors\n\n- An **error** stops compiling. No program is produced (or the old one is left unchanged).\n- A **warning** still produces a program, but gcc thinks something is probably wrong. Treat warnings as bugs and fix them; the lab checker shows them to you.\n\nExample: this program declares an integer *variable* `x` (a named box holding an `int`, more on a later day) and never uses it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 5;\n    puts(\"Hello\");\n    return 0;\n}",
+     "caption": "warn.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o warn warn.c\nwarn.c: In function 'main':\nwarn.c:4:9: warning: unused variable 'x' [-Wunused-variable]\n    4 |     int x = 5;\n      |         ^\n$ ./warn\nHello",
+     "caption": "a warning: the program was still built and runs"
+    },
+    {
+     "type": "md",
+     "text": "The `[-Wunused-variable]` at the end names the warning; it is one of the ones `-Wall` turns on. Without `-Wall`, gcc would have said nothing."
+    },
+    {
+     "type": "md",
+     "text": "### return 0 is the exit status\n\nIn Bash, every command finishes with an **exit status**: `0` means success, anything else means failure, and `$?` holds the last one. A C program is a command too. **The value `main` returns becomes the program's exit status.** That is why a program that worked should `return 0;`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    puts(\"about to exit with status 3\");\n    return 3;\n}",
+     "caption": "status.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o status status.c\n$ ./status\nabout to exit with status 3\n$ echo $?\n3\n$ ./status && echo ok || echo failed\nabout to exit with status 3\nfailed",
+     "caption": "Bash sees status 3 as failure, so `||` runs"
+    },
+    {
+     "type": "md",
+     "text": "- If `main` reaches its closing `}` without a `return`, it returns `0` automatically (special rule for `main` only). Writing `return 0;` is still the course style.\n- On Linux only the lowest 8 bits are kept, so an exit status is always 0 to 255 (`return 300;` shows up as `44`). Use small numbers.\n- `echo $?` reports the **last** command. Run it straight after `./status`, or you will see the status of whatever ran in between."
+    },
+    {
+     "type": "try",
+     "text": "Compile and run status.c, then `echo $?`. Change `return 3;` to `return 0;`, run `./status` **without recompiling** and check `echo $?` (still 3: you ran the old program). Now recompile and check again."
+    },
+    {
+     "type": "check",
+     "q": "You compile, get one `warning:` and no `error:`. Does `./prog` exist and run?",
+     "a": "Yes. Warnings still produce the program. But read the warning: it usually points at a real bug."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Cycle: `nano prog.c` → `gcc -Wall -o prog prog.c` → `./prog`. Recompile after every edit.\n- `-o name` names the output (default `a.out`); `-Wall` turns on warnings.\n- Error messages read `file:line:column: error: message`. If the line looks fine, check the line before. Fix the first error first.\n- Error: no program made. Warning: program made, but probably buggy.\n- `return n;` in `main` sets the exit status; see it with `echo $?`. `0` means success."
+    }
+   ]
+  },
+  {
+   "id": "c1-stages",
+   "title": "What gcc actually does",
+   "notebook": "c/compiling.ipynb",
+   "priority": "medium",
+   "examNote": "Be able to name the four stages in order (preprocessing, compiling, assembling, linking), say what each produces, and say which stage reports `undefined reference`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Four stages\n\n`gcc hello.c -o hello` looks like one step, but gcc runs four in a row:\n\n1. **Preprocessing.** The *preprocessor* handles the lines starting with `#`. `#include <stdio.h>` is replaced by the whole text of `stdio.h`, and comments are removed. Your file plus the headers it includes is called a *translation unit*. Stop here with `gcc -E hello.c > hello.i`.\n2. **Compiling.** The translation unit is turned into **assembly language**, a human-readable language whose lines map closely to the processor's machine instructions. Stop here with `gcc -S hello.c` (writes `hello.s`).\n3. **Assembling.** The assembly is turned into **object code** (`hello.o`): machine code for *this one file only*. It contains a *call* to `printf`, but not `printf` itself. Stop here with `gcc -c hello.c`.\n4. **Linking.** The *linker* (`ld`) joins the object code with the code of the functions it calls, here from the **C standard library**, where the machine code for `printf` and `puts` lives. The result is the executable `hello`. The standard library is linked automatically."
+    },
+    {
+     "type": "try",
+     "text": "In your day1 folder run `gcc -E hello.c > hello.i`, then `wc -l hello.i` (over 800 lines from a 7-line file: that is `stdio.h` pasted in) and `tail -5 hello.i` (your `main` is at the end, and your comment is gone). Then `gcc -S hello.c` and `cat hello.s`: look for a line `call` with `printf` or `puts` (gcc may swap a simple `printf` ending in `\\n` for `puts`). Finally `gcc -c hello.c` and `ls`."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -E hello.c | tail -5\nint main(void) {\n    printf(\"Hello, world!\\n\");\n    return 0;\n}\n$ gcc -E hello.c | wc -l\n821",
+     "caption": "the end of the preprocessor output (the line count depends on your system)"
+    },
+    {
+     "type": "md",
+     "text": "### Errors from different stages\n\nKnowing the stages tells you what kind of mistake you made. Here `printf` is misspelled as `prinft`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    prinft(\"Hello\\n\");\n    return 0;\n}",
+     "caption": "typo.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o typo typo.c\ntypo.c: In function 'main':\ntypo.c:4:5: warning: implicit declaration of function 'prinft'; did you mean 'printf'? [-Wimplicit-function-declaration]\n    4 |     prinft(\"Hello\\n\");\n      |     ^~~~~~\n      |     printf\n/usr/bin/ld: /tmp/cc3XZNQe.o: in function `main':\ntypo.c:(.text+0x18): undefined reference to `prinft'\ncollect2: error: ld returned 1 exit status",
+     "caption": "a compiler warning, then a linker error (the /tmp name changes every time)"
+    },
+    {
+     "type": "md",
+     "text": "- The **compiler** only warns: no header declares `prinft`, but it lets the call through, hoping it is defined somewhere else.\n- The **linker** (`ld`) then searches your object code and the standard library for a function named `prinft`, finds none, and fails: **`undefined reference to`** always means a *linking* problem. Note there is no line:column here, because the linker works on object code, not on your source text.\n\n(Forgetting `#include <stdio.h>` gives a similar `implicit declaration of function 'puts'` warning. On our gcc 13 the program still links, because `puts` really is in the library, but newer gcc versions make it an error. Always include the header.)"
+    },
+    {
+     "type": "md",
+     "text": "### -lm goes after the source file\n\nMath functions such as `sin` and `pow` (declared in `math.h`) are in a separate *math library* that is **not** linked automatically. You ask for it with `-lm` (\"link library m\"). You will need this for Assignment 4's `sin.c`.\n\n**Where you put `-lm` matters.** The linker reads its inputs **left to right**. When it reaches a library, it only takes the functions that the files *before it* still need. If `-lm` comes first, nothing needs `pow` yet, so nothing is taken; then your file asks for `pow` and it is too late. On Ubuntu, with a file `m.c` that calls `pow` (the code itself does not matter today):"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -o m -lm m.c\n/usr/bin/ld: /tmp/ccyj9svi.o: in function `main':\nm.c:(.text+0x3f): undefined reference to `pow'\ncollect2: error: ld returned 1 exit status\n$ gcc -o m m.c -lm\n$",
+     "caption": "same files, different order: the second one works"
+    },
+    {
+     "type": "pitfall",
+     "text": "The Assignment 4 handout writes `gcc -o sin -lm sin.c`. On Ubuntu that fails with `undefined reference to 'pow'` even if your code is perfect. Use `gcc -Wall -o sin sin.c -lm`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Mixing up names after `-o` destroys files: `gcc -o first.c second.c` silently **replaces your source file `first.c`** with machine code. (gcc refuses only when the two names are identical.) Always write the program name, with no `.c`, right after `-o`."
+    },
+    {
+     "type": "why",
+     "q": "Why does a typo in a function name give no line number in the final error?",
+     "a": "Because the final error comes from the linker. The linker works on object code, after your source text has been compiled, so it only knows which function was missing (`undefined reference to 'prinft'`), not the line in your file. The compiler's warning just above it does have the line:column."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- gcc's four stages: **preprocess** (`#include`, remove comments; `-E`), **compile** to assembly (`-S`, `.s`), **assemble** to object code (`-c`, `.o`), **link** with the library to make the executable.\n- Object code for your file contains calls to `printf`/`puts` but not their code; the linker brings that in from the C standard library.\n- `undefined reference to` = linker error: a misspelled function or a missing library.\n- The math library needs `-lm`, written **after** the `.c` file, because the linker reads left to right."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c1-fc-01",
+   "topic": "c1-structure",
+   "front": "Compiled vs interpreted: which is C, which is Bash?",
+   "back": "C is compiled: gcc translates the whole file into machine code, then you run the result. Bash is interpreted: bash reads and runs the script line by line."
+  },
+  {
+   "id": "c1-fc-02",
+   "topic": "c1-structure",
+   "front": "What does `#include <stdio.h>` do?",
+   "back": "A preprocessor directive that inserts the header file stdio.h, which declares `printf` and `puts` so the compiler knows them."
+  },
+  {
+   "id": "c1-fc-03",
+   "topic": "c1-structure",
+   "front": "Where does a C program start running?",
+   "back": "At the `main` function. Every program needs exactly one."
+  },
+  {
+   "id": "c1-fc-04",
+   "topic": "c1-structure",
+   "front": "What does `int main(void)` say?",
+   "back": "`main` returns an `int` (the exit status) and takes no command line arguments."
+  },
+  {
+   "id": "c1-fc-05",
+   "topic": "c1-structure",
+   "front": "What ends a statement in C?",
+   "back": "A semicolon `;`. Line breaks and indentation do not matter to the compiler."
+  },
+  {
+   "id": "c1-fc-06",
+   "topic": "c1-structure",
+   "front": "Two kinds of comments in C?",
+   "back": "`/* ... */` (can span lines) and `// ...` to the end of the line (since C99)."
+  },
+  {
+   "id": "c1-fc-07",
+   "topic": "c1-structure",
+   "front": "`printf` vs `puts` and newlines?",
+   "back": "`printf(\"hi\")` prints exactly `hi`, no newline; you add `\\n`. `puts(\"hi\")` prints `hi` and adds a newline itself."
+  },
+  {
+   "id": "c1-fc-08",
+   "topic": "c1-structure",
+   "front": "What does `puts(\"\");` print?",
+   "back": "An empty line (just a newline)."
+  },
+  {
+   "id": "c1-fc-09",
+   "topic": "c1-cycle",
+   "front": "Command to compile hello.c into a program named hello, with warnings?",
+   "back": "`gcc -Wall -o hello hello.c` (then run it with `./hello`)."
+  },
+  {
+   "id": "c1-fc-10",
+   "topic": "c1-cycle",
+   "front": "What does `-o` do? What if you leave it out?",
+   "back": "Names the output file (the next argument). Without it gcc writes `a.out`."
+  },
+  {
+   "id": "c1-fc-11",
+   "topic": "c1-cycle",
+   "front": "What does `-Wall` do?",
+   "back": "Turns on (almost) all warnings: messages about code that compiles but is probably wrong."
+  },
+  {
+   "id": "c1-fc-12",
+   "topic": "c1-cycle",
+   "front": "How to read `hello.c:6:30: error: expected ';' before 'return'`?",
+   "back": "File hello.c, line 6, column 30, an error (no program made). The `;` is missing at the end of line 6, just before `return`."
+  },
+  {
+   "id": "c1-fc-13",
+   "topic": "c1-cycle",
+   "front": "Error vs warning?",
+   "back": "Error: compiling stops and no program is made. Warning: the program is made but is probably buggy; fix it anyway."
+  },
+  {
+   "id": "c1-fc-14",
+   "topic": "c1-cycle",
+   "front": "Where does `return 3;` in `main` go?",
+   "back": "It becomes the program's exit status; `echo $?` right after running prints 3."
+  },
+  {
+   "id": "c1-fc-15",
+   "topic": "c1-cycle",
+   "front": "You edited prog.c but `./prog` still behaves the old way. Why?",
+   "back": "You did not recompile. `./prog` runs the old machine code until you run gcc again."
+  },
+  {
+   "id": "c1-fc-16",
+   "topic": "c1-stages",
+   "front": "gcc's four stages in order?",
+   "back": "Preprocessing, compiling (to assembly), assembling (to object code), linking (to the executable)."
+  },
+  {
+   "id": "c1-fc-17",
+   "topic": "c1-stages",
+   "front": "What stage gives `undefined reference to 'xyz'`?",
+   "back": "Linking: no object code or library defines a function named xyz (typo, or missing library like `-lm`)."
+  },
+  {
+   "id": "c1-fc-18",
+   "topic": "c1-stages",
+   "front": "Where does `-lm` go and why?",
+   "back": "After the source file: `gcc -o sin sin.c -lm`. The linker reads left to right and only takes from a library what earlier files need."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c1-q-01",
+   "topic": "c1-structure",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"ab\");\n    printf(\"cd\\n\");\n    puts(\"ef\");\n    return 0;\n}",
+   "answer": "abcd\nef",
+   "explain": "The first `printf` has no `\\n`, so `cd` continues the same line. `puts` adds its own newline after `ef`."
+  },
+  {
+   "id": "c1-q-02",
+   "topic": "c1-structure",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    puts(\"top\");\n    puts(\"\");\n    printf(\"bottom\\n\");\n    return 0;\n}",
+   "answer": "top\n\nbottom",
+   "explain": "`puts(\"\")` prints only a newline, which shows as an empty line."
+  },
+  {
+   "id": "c1-q-03",
+   "topic": "c1-structure",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    puts(\"x\\n\");\n    puts(\"y\");\n    return 0;\n}",
+   "answer": "x\n\ny",
+   "explain": "`puts` prints `x`, then your `\\n`, then its own newline: so there is an empty line between `x` and `y`."
+  },
+  {
+   "id": "c1-q-04",
+   "topic": "c1-structure",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"1\\n2\\n\");\n    // puts(\"3\");\n    /* puts(\"4\"); */\n    printf(\"5\\n\");\n    return 0;\n}",
+   "answer": "1\n2\n5",
+   "explain": "One `printf` can print several lines: each `\\n` ends one. The two `puts` calls are inside comments, so they never run."
+  },
+  {
+   "id": "c1-q-05",
+   "topic": "c1-structure",
+   "type": "mcq",
+   "q": "Which line correctly prints `Hi` followed by a newline?",
+   "options": [
+    "puts('Hi');",
+    "printf(\"Hi\");",
+    "puts(\"Hi\")",
+    "printf(\"Hi\\n\");"
+   ],
+   "answer": 3,
+   "explain": "Strings need double quotes (not single), `printf` needs `\\n` for the newline, and every statement needs a `;`."
+  },
+  {
+   "id": "c1-q-06",
+   "topic": "c1-structure",
+   "type": "short",
+   "q": "In one or two sentences: how is running a C program different from running a Bash script?",
+   "answer": "A Bash script is interpreted: bash reads and runs it line by line. A C program must first be compiled by gcc into a machine-code executable, and then you run that executable (e.g. `./hello`); after every edit you must compile again.",
+   "explain": "Compiled vs interpreted is the key difference. The compiler checks the whole file before anything runs."
+  },
+  {
+   "id": "c1-q-07",
+   "topic": "c1-cycle",
+   "type": "short",
+   "q": "Write the command that compiles `pattern.c` into a program named `pattern` with all warnings on, and the command that runs it.",
+   "answer": "`gcc -Wall -o pattern pattern.c` then `./pattern`",
+   "explain": "`-o pattern` names the output; `-Wall` enables warnings; `./` runs a file in the current folder."
+  },
+  {
+   "id": "c1-q-08",
+   "topic": "c1-cycle",
+   "type": "short",
+   "q": "gcc prints `prog.c:5:5: error: expected ';' before 'return'`. What do the two numbers mean, and where is the mistake most likely?",
+   "answer": "Line 5, column 5. The `;` is missing at the end of the statement before `return`, most likely on line 4.",
+   "explain": "gcc only notices a missing `;` when it reaches the next word, so look at the line before."
+  },
+  {
+   "id": "c1-q-09",
+   "topic": "c1-cycle",
+   "type": "output",
+   "q": "You compile this as `prog`. What does `./prog; echo $?` print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    puts(\"done\");\n    return 2;\n}",
+   "answer": "done\n2",
+   "explain": "The program prints `done`; `main` returns 2, which is the exit status that `echo $?` shows."
+  },
+  {
+   "id": "c1-q-10",
+   "topic": "c1-cycle",
+   "type": "output",
+   "q": "You compile this as `prog`. What does `./prog && echo yes || echo no` print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    puts(\"checking\");\n    return 1;\n}",
+   "answer": "checking\nno",
+   "explain": "Exit status 1 means failure in Bash, so `&&` skips `echo yes` and `||` runs `echo no`."
+  },
+  {
+   "id": "c1-q-11",
+   "topic": "c1-cycle",
+   "type": "mcq",
+   "q": "gcc prints one `warning:` line and nothing else. What happened?",
+   "options": [
+    "No program was made",
+    "The program was made, but gcc thinks some code is probably wrong",
+    "The old program was deleted",
+    "The program will crash"
+   ],
+   "answer": 1,
+   "explain": "Warnings do not stop compiling. Errors do. A warning is still worth fixing."
+  },
+  {
+   "id": "c1-q-12",
+   "topic": "c1-stages",
+   "type": "mcq",
+   "q": "Which gcc stage replaces `#include <stdio.h>` with the contents of the header?",
+   "options": [
+    "Preprocessing",
+    "Compiling",
+    "Assembling",
+    "Linking"
+   ],
+   "answer": 0,
+   "explain": "Lines starting with `#` are preprocessor directives, handled first. `gcc -E` shows the result."
+  },
+  {
+   "id": "c1-q-13",
+   "topic": "c1-stages",
+   "type": "short",
+   "q": "`gcc -o area -lm area.c` fails with `undefined reference to 'sqrt'`, but the code is correct. Fix the command and explain why it works.",
+   "answer": "`gcc -o area area.c -lm`. The linker reads left to right and only takes functions from a library that earlier inputs still need; with `-lm` first nothing needed `sqrt` yet, so it was skipped.",
+   "explain": "`undefined reference` is a linker error. Put libraries after the source files."
+  }
+ ],
+ "write": [
+  {
+   "id": "c1-w-01",
+   "topic": "c1-structure",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write a complete C program `menu.c` that prints these three lines exactly, then ends successfully:\n\n```\nMenu\n1. Soup\n2. Salad\n```\n\nUse `puts` for the first line and a single `printf` for the other two.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\nint main(void) {\n    puts(\"Menu\");\n    printf(\"1. Soup\\n2. Salad\\n\");\n    return 0;\n}",
+   "explain": "`#include <stdio.h>` declares `puts` and `printf`. The program starts at `main`. `puts` adds the newline after `Menu` itself. One `printf` prints two lines because the string contains two `\\n`; the last `\\n` is needed so the output ends with a newline. `return 0;` gives exit status 0 (success).",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`#include <stdio.h>` and `int main(void) { ... }`"
+    },
+    {
+     "marks": 1,
+     "item": "`puts(\"Menu\");` with no extra `\\n`"
+    },
+    {
+     "marks": 1,
+     "item": "one `printf` with both lines and both `\\n`"
+    },
+    {
+     "marks": 1,
+     "item": "`return 0;` and every statement ends with `;`"
+    }
+   ],
+   "pitfalls": [
+    "`puts(\"Menu\\n\")` adds a blank line",
+    "forgetting the final `\\n` in printf",
+    "single quotes around strings"
+   ]
+  },
+  {
+   "id": "c1-w-02",
+   "topic": "c1-cycle",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Fill in the blanks so the program prints `not found` on its own line and exits with status 1. Then write the command that compiles it as `find1` with warnings, and the command that shows the exit status after running it.",
+   "starter": "#include ____\n\nint ____(void) {\n    printf(\"not found____\");\n    return ____;\n}",
+   "solution": "#include <stdio.h>\n\nint main(void) {\n    printf(\"not found\\n\");\n    return 1;\n}\n\n/* gcc -Wall -o find1 find1.c\n   ./find1\n   echo $? */",
+   "explain": "",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`<stdio.h>` and `main`"
+    },
+    {
+     "marks": 1,
+     "item": "`\\n` at the end of the printf string"
+    },
+    {
+     "marks": 1,
+     "item": "`return 1;`"
+    },
+    {
+     "marks": 1,
+     "item": "`gcc -Wall -o find1 find1.c`, then `./find1` and `echo $?`"
+    }
+   ],
+   "pitfalls": [
+    "writing `exit status` text instead of returning it",
+    "running `echo $?` after another command, which reports that command instead"
+   ]
+  },
+  {
+   "id": "c1-w-03",
+   "topic": "c1-structure",
+   "stage": "blank",
+   "marks": 4,
+   "prompt": "Write a complete C program that prints this arrow exactly (no spaces at the ends of lines) and exits with status 0. Use any mix of `printf` and `puts`.\n\n```\n  ^\n /|\n  |\n  |\n```\n\nHint: the second line is a space, a slash and a bar.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\nint main(void) {\n    puts(\"  ^\");\n    puts(\" /|\");\n    puts(\"  |\");\n    puts(\"  |\");\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "correct program structure (`#include <stdio.h>`, `int main(void)`, braces)"
+    },
+    {
+     "marks": 2,
+     "item": "four lines exactly right, including leading spaces, each ending in a newline"
+    },
+    {
+     "marks": 1,
+     "item": "`return 0;` and semicolons"
+    }
+   ],
+   "pitfalls": [
+    "a `/` is a normal character in a string, but a backslash `\\` is not (it starts an escape like `\\n`), which is why this arrow avoids it",
+    "losing the leading spaces"
+   ]
+  }
+ ]
+}
