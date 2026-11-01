@@ -1,0 +1,667 @@
+{
+ "day": 17,
+ "title": "Strings, part 2",
+ "goal": "Search strings with strchr, strrchr and strstr, copy and shift bytes with memcpy and memmove, build strings with sprintf, and read values out of strings with sscanf while checking its return value.",
+ "topics": [
+  {
+   "id": "c17-search",
+   "title": "Searching a string: strchr, strrchr and strstr",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "The Fall 2015 final (Q4) asked for a function that walks an array of strings ending with `NULL` and builds a new string from one character of each. The blank writing item below is modeled on it (new details, no heap yet: you write into an array the caller gives you). Searching functions are handy in such questions, and markers check that you test the result for `NULL` before you use it.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Finding a character\n\nDay 16 covered `strlen`, `strcpy`, `strcat` and `strcmp`. `<string.h>` also has functions that **search**. The first two are like Java's `indexOf(char)` and `lastIndexOf(char)`:\n\n```c\nchar *strchr(const char *str, int ch);    // find the first occurrence\nchar *strrchr(const char *str, int ch);   // find the last occurrence (the extra r means \"reverse\")\n```\n\nThe character parameter is an `int` only so that old C code still compiles; you pass a `char` like `'C'`.\n\nThe big difference from Java: they do not return an index. They return a **pointer** to the character they found, or the **null pointer** `NULL` (Day 11) if the character is not in the string. If you want the index, subtract (Day 12): `found - str` is the number of chars between the start and the found char. The type of a pointer difference is `ptrdiff_t` (from `<stddef.h>`), printed with `%td`."
+    },
+    {
+     "type": "code",
+     "code": "// indexes.c\n\n#include <stddef.h>\n#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char str[] = \"CISC220\";\n    \n    char *first = strchr(str, 'C');\n    char *last = strrchr(str, 'C');\n    \n    ptrdiff_t i_first = first - str;\n    ptrdiff_t i_last = last - str;\n    \n    printf(\"index of first C = %td\\n\", i_first);\n    printf(\"index of last C  = %td\\n\", i_last);\n    \n    // change C to c\n    *first = 'c';\n    *last = 'c';\n    printf(\"%s\\n\", str);\n    \n    return 0;\n}",
+     "caption": "indexes.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o indexes indexes.c\n$ ./indexes\nindex of first C = 0\nindex of last C  = 3\ncISc220"
+    },
+    {
+     "type": "md",
+     "text": "Because `first` and `last` point **into** `str` (an array, so we may change it), `*first = 'c';` changes the string itself. The search did not make a copy."
+    },
+    {
+     "type": "md",
+     "text": "### Always check for `NULL`\n\nIf the character is missing you get `NULL`, and using `*p` or `p + 1` or `p - str` on a null pointer is undefined behaviour (usually a segmentation fault). So the pattern is: search, test, then use. Here is a file-name example with `strrchr` (the extension is after the **last** dot):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\n// Prints the extension of a file name: the part after the LAST '.'.\nvoid print_ext(const char *name) {\n    const char *dot = strrchr(name, '.');\n    if (dot == NULL) {\n        printf(\"%s: no extension\\n\", name);\n    }\n    else {\n        printf(\"%s: %s\\n\", name, dot + 1);\n    }\n}\n\nint main(void) {\n    print_ext(\"notes.txt\");\n    print_ext(\"archive.tar.gz\");\n    print_ext(\"README\");\n    return 0;\n}",
+     "caption": "ext.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o ext ext.c\n$ ./ext\nnotes.txt: txt\narchive.tar.gz: gz\nREADME: no extension"
+    },
+    {
+     "type": "md",
+     "text": "`dot + 1` is a pointer to the char just after the dot, so `%s` prints the rest of the string from there. Notice that the pointer is `const char *dot`: `name` is `const`, so what we find inside it must not be changed either."
+    },
+    {
+     "type": "md",
+     "text": "### Finding every occurrence\n\nTo find the next one, search again starting **one char after** the last one found. The loop stops when the search gives `NULL`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"banana\";\n    // start at the first 'a'; then search again from just after the last one found\n    for (char *p = strchr(s, 'a'); p != NULL; p = strchr(p + 1, 'a')) {\n        printf(\"'a' at index %td\\n\", p - s);\n    }\n    return 0;\n}",
+     "caption": "allpos.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o allpos allpos.c\n$ ./allpos\n'a' at index 1\n'a' at index 3\n'a' at index 5"
+    },
+    {
+     "type": "md",
+     "text": "### Finding a substring: `strstr`\n\n```c\nchar *strstr(const char *str, const char *sub);\n```\n\n`strstr` is like Java's `indexOf(String)`: it returns a pointer to the first place where the whole string `sub` starts inside `str`, or `NULL` if `sub` does not occur. The notebook's `substr.c`:"
+    },
+    {
+     "type": "code",
+     "code": "// substr.c\n\n#include <stdio.h>\n#include <stddef.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 3) {\n        fprintf(stderr, \"Usage: substr str sub\\n\");\n        exit(1);\n    }\n    char *str = argv[1];\n    char *sub = argv[2];\n    char *p = strstr(str, sub);\n    if (!p) {\n        printf(\"%s does not occur in %s\\n\", sub, str);\n    }\n    else {\n        ptrdiff_t index = p - str;\n        printf(\"%s starts at index %td in %s\\n\", sub, index, str);\n    }\n    \n    return 0;\n}",
+     "caption": "substr.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o substr substr.c\n$ ./substr CISC220 220\n220 starts at index 4 in CISC220\n$ ./substr CISC220 C\nC starts at index 0 in CISC220\n$ ./substr CISC220 x\nx does not occur in CISC220"
+    },
+    {
+     "type": "md",
+     "text": "`if (!p)` means `if (p == NULL)`: a null pointer counts as false. Two facts that show up in tricky questions: `strchr(s, '\\0')` finds the terminator (it counts as part of the string), so `strchr(s, '\\0') - s` is `strlen(s)`; and `strstr(s, \"\")` returns `s` itself (the empty string occurs at the start)."
+    },
+    {
+     "type": "pitfall",
+     "text": "`printf(\"%s\\n\", strchr(email, '@') + 1);` crashes (or worse) when there is no `'@'`: `NULL + 1` is undefined behaviour. Store the result, test it against `NULL`, and only then use it."
+    },
+    {
+     "type": "check",
+     "q": "`char s[] = \"a,b,c\";` What are `strchr(s, ',') - s` and `strrchr(s, ',') - s`? What does `printf(\"%s\", strrchr(s, ',') + 1)` print?",
+     "a": "1 and 3 (the commas are at indexes 1 and 3). It prints `c`: the string starting just after the last comma."
+    },
+    {
+     "type": "why",
+     "q": "Why do these functions return a pointer instead of an index like Java does?",
+     "a": "A pointer is more useful in C: you can print the rest of the string from it (`%s`), change the char it points at, or search again from `p + 1`. And `NULL` gives a clear \"not found\" value. If you need the index, one subtraction (`p - str`) gives it."
+    },
+    {
+     "type": "try",
+     "text": "Type in substr.c and try `./substr banana ana`, `./substr banana nab` and `./substr banana \"\"`. Predict each answer first. Then change it to print every place `sub` occurs (hint: search again from `p + 1`)."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `strchr(s, c)` / `strrchr(s, c)`: pointer to the first / last `c` in `s`, or `NULL`. `strstr(s, sub)`: pointer to the first place `sub` starts, or `NULL`.\n- They return pointers into the original string; the index is `p - s` (`ptrdiff_t`, `%td`).\n- Always test the result against `NULL` before using it.\n- To find the next occurrence, search again from just after the last one (`p + 1`, or `p + strlen(sub)` to skip a whole match)."
+    }
+   ]
+  },
+  {
+   "id": "c17-mem-sprintf",
+   "title": "memcpy, memmove and sprintf: writing into a buffer",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "Fall 2014 Q4 asked for a safe alternative to `strcat`. `sprintf(dest, \"%s%s\", a, b)` is another way to join strings, with exactly the same rule: check that `strlen(a) + strlen(b) + 1` fits **before** you call it. Expect short answers on when `memmove` is needed instead of `memcpy`, and on the missing `'\\0'` after a `memcpy`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `memcpy` and strings\n\nYou met `memcpy` on Day 14:\n\n```c\nvoid *memcpy(void *dest, const void *src, size_t count);\n```\n\nIt copies `count` **bytes** from `src` to `dest` and returns `dest`. The `void *` parameters (Day 12) mean it works on any type, so it knows nothing about strings: it does not stop at a `'\\0'` and it does not add one. For `char` the count of bytes is just the count of chars (a `char` is 1 byte).\n\nThe notebook's `memcpy.c` ends by copying 4 chars into the middle of a string:"
+    },
+    {
+     "type": "code",
+     "code": "// the last part of memcpy.c (from the notebook); count is 4\nchar src[] = \"this that then\";\nchar dest[] = \"why what when\";\nmemcpy(dest + 4, src + 5, count);\nprintf(\"destination : %s\\n\", dest);",
+     "caption": "prints `destination : why that when`: \"that\" replaced \"what\", and the rest of `dest` (with its '\\0') was left alone"
+    },
+    {
+     "type": "md",
+     "text": "To make a **new** string from part of another, copy the chars and then write the `'\\0'` yourself, or count the `'\\0'` in what you copy:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"CISC220\";\n    char dept[5];\n    memcpy(dept, s, 4);      // copies 'C', 'I', 'S', 'C': no '\\0'!\n    dept[4] = '\\0';          // so we add it ourselves\n    printf(\"dept = %s\\n\", dept);\n\n    char num[4];\n    memcpy(num, s + 4, 4);   // 3 digits AND the '\\0' of s\n    printf(\"num  = %s\\n\", num);\n    return 0;\n}",
+     "caption": "substring.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o substring substring.c\n$ ./substring\ndept = CISC\nnum  = 220"
+    },
+    {
+     "type": "pitfall",
+     "text": "After `memcpy(dept, s, 4);` the array `dept` holds 4 chars and **no** terminator. Printing it with `%s` before you write `dept[4] = '\\0';` is undefined behaviour (Day 16's missing terminator)."
+    },
+    {
+     "type": "md",
+     "text": "### `memmove`: when the two areas overlap\n\nThe behaviour of `memcpy` is undefined if the memory it copies **from** overlaps the memory it copies **into** (or if it goes outside either object, or a pointer is `NULL`). That happens whenever you shift elements inside **one** array. For that there is\n\n```c\nvoid *memmove(void *dest, const void *src, size_t count);\n```\n\nIt has the same parameters and also returns `dest`, but it works correctly even when the areas overlap (as if it copied through a temporary buffer). Despite its name it **copies**: the source bytes stay where they were unless they are overwritten. The notebook's `memmove.c` removes element 4 from an array by shifting the elements after it one place left:"
+    },
+    {
+     "type": "code",
+     "code": "// memmove.c\n\n#include <stdio.h>\n#include <string.h>\n\nvoid print_iarr(const int *a, size_t n) {\n    printf(\"%d\", a[0]);\n    for (size_t i = 1; i < n; i++) {\n        printf(\", %d\", a[i]);\n    }\n}\n\n\nint main(void) {\n    \n    int x[] = {1, 2, 3, 4, 5, 6};\n    \n    printf(\"before : \");\n    print_iarr(x, 6);\n    printf(\"\\n\");\n\n    size_t index = 4;\n    int *dest = x + index;\n    int *src = dest + 1;\n    size_t count = 6 - index - 1;\n    memmove(dest, src, count * sizeof(int));\n    \n    printf(\"after  : \");\n    print_iarr(x, 6);\n    printf(\"\\n\");\n    \n    return 0;\n}",
+     "caption": "memmove.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o memmove memmove.c\n$ ./memmove\nbefore : 1, 2, 3, 4, 5, 6\nafter  : 1, 2, 3, 4, 6, 6"
+    },
+    {
+     "type": "md",
+     "text": "`count` is `6 - 4 - 1 = 1` element: only the 6 moves left, onto the 5. The last element is still 6 because `memmove` copies; the array does not get shorter (arrays never change size). With strings that is easy to handle: move the `'\\0'` along with the chars, and the string gets shorter by one."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\n// Removes the char at index i from the string s (i must be < strlen(s)).\nvoid remove_at(char *s, size_t i) {\n    size_t len = strlen(s);\n    // move s[i + 1] ... s[len] (that is the '\\0') one place to the left\n    memmove(s + i, s + i + 1, len - i);\n}\n\nint main(void) {\n    char word[] = \"strings\";\n    remove_at(word, 0);\n    printf(\"%s\\n\", word);\n    remove_at(word, 5);\n    printf(\"%s\\n\", word);\n    remove_at(word, 2);\n    printf(\"%s (length %zu)\\n\", word, strlen(word));\n    return 0;\n}",
+     "caption": "remove_char.c: remove one char from a string"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o remove_char remove_char.c\n$ ./remove_char\ntrings\ntring\ntrng (length 4)"
+    },
+    {
+     "type": "md",
+     "text": "From index `i + 1` to index `len` (the `'\\0'`) there are `len - i` chars, so that is the count. The source `s + i + 1` and the destination `s + i` overlap, so this **must** be `memmove`.\n\n**Which one?** Use `memcpy` when you copy between two different arrays (or two parts of one array that cannot overlap): it is the fastest copy in the library. Use `memmove` when the areas might overlap, which means almost always when you shift data inside one array."
+    },
+    {
+     "type": "md",
+     "text": "### `sprintf`: `printf` into an array\n\n`<stdio.h>` declares\n\n```c\nint sprintf(char *buffer, const char *format, ...);\n```\n\n(the `...` means \"any number of further arguments\", like `printf`). It formats exactly like `printf`, but writes the characters into `buffer` instead of to the screen, **always** followed by a `'\\0'`. It returns the number of chars written, **not** counting the `'\\0'`.\n\nThe notebook first uses it to copy strings (like `strcpy`), with `sprintf(dest1, \"%s\", src)`: it gives the same results as Day 16's copy.c, and returns 5, 5 and 3 for the three copies. Its real use is building a string from values of **different types**, the way Java's `+` and `toString` do:"
+    },
+    {
+     "type": "code",
+     "code": "// concat_with_sprintf.c\n\n#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    // format into Queen's course code\n    char dept[] = \"CISC\";\n    unsigned int num = 220;\n    char section = 'A';\n    char course[9];\n    sprintf(course, \"%s%u%c\", dept, num, section);\n    puts(course);\n    \n    // format into yyyy-mm-dd, ensure leading zeros\n    unsigned int year = 2023;\n    unsigned int month = 10;\n    unsigned int day = 3;\n    char date[11];\n    sprintf(date, \"%04u-%02u-%02u\", year, month, day);\n    puts(date);\n    \n    // format a space into a postal code\n    char pcode[] = \"A1B2C3\";\n    char formatted[8];\n    sprintf(formatted, \"%.3s %.3s\", pcode, pcode + 3);\n    puts(formatted);\n    \n    return 0;\n}",
+     "caption": "concat_with_sprintf.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o concat_with_sprintf concat_with_sprintf.c\n$ ./concat_with_sprintf\nCISC220A\n2023-10-03\nA1B 2C3"
+    },
+    {
+     "type": "md",
+     "text": "Three formats worth knowing here: `%04u` pads with zeros to width 4 (`%02u` gives `03`), `%.3s` prints **at most 3** chars of a string, and `%%` prints one `%`. `puts(s)` prints a string and a newline. Check the sizes: `course` needs 4 + 3 + 1 = 8 chars plus `'\\0'` = 9; `date` needs 10 + 1 = 11; `formatted` needs 7 + 1 = 8.\n\nThe behaviour of `sprintf` is undefined if what it writes (with the `'\\0'`) does not fit in the buffer, if the format has an invalid conversion, or if the buffer overlaps one of the arguments. Just like `strcpy`, it cannot check the size. Count the characters before you choose the buffer size."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    char label[20];\n    int n = sprintf(label, \"%s-%03d\", \"room\", 7);\n    printf(\"%s (%d chars)\\n\", label, n);\n\n    double price = 4.5;\n    char line[30];\n    sprintf(line, \"total: $%.2f (%d%%)\", price, 13);\n    puts(line);\n    return 0;\n}",
+     "caption": "fmt.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o fmt fmt.c\n$ ./fmt\nroom-007 (8 chars)\ntotal: $4.50 (13%)"
+    },
+    {
+     "type": "check",
+     "q": "`char buf[20] = \"id:\";` What is in `buf` after `sprintf(buf + strlen(buf), \"%d-%c\", 42, 'z');`, and what does the call return?",
+     "a": "`buf` holds \"id:42-z\". Writing at `buf + strlen(buf)` (the old '\\0') appends, like `strcat`. The call returns 4 (the chars `42-z`, not counting the '\\0')."
+    },
+    {
+     "type": "why",
+     "q": "Why does `char s[] = \"abc\"; sprintf(s, \"%s%s\", s, s);` not work, even if `s` were big enough?",
+     "a": "The buffer overlaps the arguments (it reads from `s` while writing into `s`), which is undefined behaviour for `sprintf`, just like `strcat(s, s)`. (Here `s` is also too small: it has room for 3 chars.)"
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `memcpy(dest, src, n)` copies `n` bytes; it neither stops at nor adds a `'\\0'`. Add the terminator yourself, or include it in the count.\n- If the areas overlap (shifting inside one array), `memcpy` is undefined behaviour: use `memmove`, which has the same parameters. Use `memcpy` otherwise; it is faster.\n- To remove index `i` from a string: `memmove(s + i, s + i + 1, strlen(s) - i);` (this moves the `'\\0'` too).\n- `sprintf(buf, format, ...)` is `printf` into `buf`, always adds `'\\0'`, and returns the number of chars written (without the `'\\0'`). The buffer must be big enough: count first."
+    }
+   ]
+  },
+  {
+   "id": "c17-sscanf",
+   "title": "Reading values out of a string: sscanf",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "Exam code that reads numbers from text (command line arguments now, file lines on Days 26 and 27) is marked on two things: the **return value is checked** against the number of values expected, and `%s` / `%[` have a **width** that fits the array. `sscanf` is a good tool for parsing a date, a time or a comma-separated line in handwritten answers.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### The idea\n\n`sprintf` turns values into text. `sscanf` (also in `<stdio.h>`) goes the other way: it reads text and converts pieces of it into values.\n\n```c\nint sscanf(const char *buffer, const char *format, ...);\n```\n\n- `buffer` is the string to read.\n- `format` describes what the string should look like, with conversions like `printf`'s: `%u` means \"an `unsigned int` goes here\".\n- The remaining arguments are **pointers** to the variables that receive the values (the notebook calls them *receiving arguments*). `sscanf` must write into **your** variables, so you pass their addresses with `&` (Day 11). A `char` array name is already a pointer, so it gets no `&`.\n\nIt reads `buffer` from left to right, and **stops at the first thing that does not match**."
+    },
+    {
+     "type": "code",
+     "code": "// sscanf_date.c\n\n#include <stdio.h>\n\nint main(void) {\n    char data[] = \"2023-01-29\";\n    char fmt[] = \"%u-%u-%u\";\n    unsigned int year;\n    unsigned int month;\n    unsigned int day;\n    \n    int num_conversions = sscanf(data, fmt, &year, &month, &day);\n    if (num_conversions == EOF) {\n        printf(\"Reached end of string before attempting a conversion\\n\");\n    }\n    else if (num_conversions == 0) {\n        printf(\"No successful conversions\\n\");\n    }\n    else if (num_conversions >= 1) {\n        printf(\"year = %u\\n\", year);\n        if (num_conversions >= 2) {\n            printf(\"month = %u\\n\", month);\n        }\n        if (num_conversions == 3) {\n            printf(\"day = %u\\n\", day);\n        }\n    }\n    return 0;\n}",
+     "caption": "sscanf_date1.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o sscanf_date1 sscanf_date1.c\n$ ./sscanf_date1\nyear = 2023\nmonth = 1\nday = 29"
+    },
+    {
+     "type": "md",
+     "text": "### The return value\n\n`sscanf` returns the **number of receiving arguments it assigned to**:\n\n- 3 here means all three values were read;\n- fewer means it stopped early: the variables after that point were **not** changed (they keep whatever they held, maybe garbage);\n- 0 means the very first conversion failed;\n- `EOF` (a negative constant from `<stdio.h>`, -1 on our machines) means the string ended (or held only spaces) before the first conversion was even tried.\n\nSo the program above tests how many values it may use. In your own code the usual check is simply `if (n != 3) { error }`."
+    },
+    {
+     "type": "md",
+     "text": "### How the format matches\n\n- Most conversions (`%d`, `%u`, `%lf`, `%s`) first **skip any whitespace**.\n- Any other character in the format must appear **exactly there** in the string: the `-` must come right after the number.\n- A **space** in the format matches zero or more whitespace characters.\n\nThis program tries several strings and formats (it prints the variables, which start at 0, so you can see which were assigned):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// Tries to read year-month-day from s with the format fmt.\nvoid show(const char *s, const char *fmt) {\n    unsigned int y = 0;\n    unsigned int m = 0;\n    unsigned int d = 0;\n    int n = sscanf(s, fmt, &y, &m, &d);\n    printf(\"\\\"%s\\\" with \\\"%s\\\": n = %d, %u %u %u\\n\", s, fmt, n, y, m, d);\n}\n\nint main(void) {\n    show(\"2026-11-17\", \"%u-%u-%u\");\n    show(\"  2026- 11-17\", \"%u-%u-%u\");\n    show(\"2026 -11-17\", \"%u-%u-%u\");\n    show(\"2026 -11-17\", \"%u -%u -%u\");\n    show(\"Nov 17\", \"%u-%u-%u\");\n    show(\"\", \"%u-%u-%u\");\n    show(\"20261117\", \"%4u%2u%2u\");\n    return 0;\n}",
+     "caption": "dates.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o dates dates.c\n$ ./dates\n\"2026-11-17\" with \"%u-%u-%u\": n = 3, 2026 11 17\n\"  2026- 11-17\" with \"%u-%u-%u\": n = 3, 2026 11 17\n\"2026 -11-17\" with \"%u-%u-%u\": n = 1, 2026 0 0\n\"2026 -11-17\" with \"%u -%u -%u\": n = 3, 2026 11 17\n\"Nov 17\" with \"%u-%u-%u\": n = 0, 0 0 0\n\"\" with \"%u-%u-%u\": n = -1, 0 0 0\n\"20261117\" with \"%4u%2u%2u\": n = 3, 2026 11 17"
+    },
+    {
+     "type": "md",
+     "text": "Line 3: after 2026 comes a space, but the format wants `-`: matching stops, n = 1. Line 4: the space in the format allows it. Line 5: `N` cannot start a number: n = 0. Line 6: empty string: `EOF`. The last line uses a **width** (next section)."
+    },
+    {
+     "type": "md",
+     "text": "### The common conversions\n\n| conversion | reads | receiving argument |\n|---|---|---|\n| `%d` | a base-10 integer, maybe with a sign | `int *` |\n| `%u` | a base-10 unsigned integer | `unsigned int *` |\n| `%ld` | a base-10 integer | `long *` |\n| `%lf` | a floating-point number | `double *` (note: `%lf`, not `%f`!) |\n| `%s` | a word: chars up to the next whitespace; adds `'\\0'` | `char` array |\n| `%c` | exactly one char, **without** skipping whitespace | `char *` |\n\nWatch the difference from `printf`: `printf` prints a `double` with `%f`, but `sscanf` needs `%lf` for a `double` (`%f` is for `float`). The notebook's `sscanf_examples.c` tries them out:"
+    },
+    {
+     "type": "code",
+     "code": "// sscanf_examples.c\n\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    char str1[100];\n    char str2[100];\n    unsigned int x1;\n    int y1;\n    double z1;\n    char c1;\n\n    // scan empty string\n    int n = sscanf(\"\", \"%s\", str1);\n    printf(\"n = %d\\n\", n);\n\n    // scan blank string\n    n = sscanf(\"    \", \"%s\", str1);\n    printf(\"n = %d\\n\", n);\n    \n    // scan string with unmatched conversion\n    n = sscanf(\"abc\", \"%d\", &y1);\n    printf(\"n = %d\\n\", n);\n\n    // scan non-blank string\n    n = sscanf(\"abc\", \"%s\", str1);\n    printf(\"n = %d, str1 = %s\\n\", n, str1);\n\n    // scan non-blank string containing a space\n    n = sscanf(\"abc xyz\", \"%s\", str1);\n    printf(\"n = %d, str1 = %s\\n\", n, str1);\n\n    // scan non-blank strings and unsigned int\n    n = sscanf(\"abc 1 xyz\", \"%s%u%s\", str1, &x1, str2);\n    printf(\"n = %d, str1 = %s, str2 = %s, x1 = %u\\n\", n, str1, str2, x1);\n\n    // scan non-blank string for int\n    n = sscanf(\"-99abc\", \"%d\", &y1);\n    printf(\"n = %d, y1 = %d\\n\", n, y1);\n    \n    // scan non-blank string for int, double\n    n = sscanf(\"-99 ,   -1.5\", \"%d , %lf\", &y1, &z1);\n    printf(\"n = %d, y1 = %d, z1 = %f\\n\", n, y1, z1);\n    \n    // scan non-blank string for single char\n    n = sscanf(\"-99abc\", \"%c\", &c1);\n    printf(\"n = %d, c1 = %c\\n\", n, c1);\n\n    return 0;\n}",
+     "caption": "sscanf_examples.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o sscanf_examples sscanf_examples.c\n$ ./sscanf_examples\nn = -1\nn = -1\nn = 0\nn = 1, str1 = abc\nn = 1, str1 = abc\nn = 3, str1 = abc, str2 = xyz, x1 = 1\nn = 1, y1 = -99\nn = 2, y1 = -99, z1 = -1.500000\nn = 1, c1 = -"
+    },
+    {
+     "type": "md",
+     "text": "Read each line: an empty or blank string gives `EOF`; `%d` cannot read `abc` (0); `%s` stops at the space, so it reads only `abc`; `%d` reads `-99` and stops at `a` (that is still 1 success); the spaces around `,` in `\"%d , %lf\"` allow the spaces in the data; `%c` takes the very first char, `-`."
+    },
+    {
+     "type": "md",
+     "text": "### Widths: never overflow the array\n\nA number between `%` and the letter is the **maximum number of characters** to read for that conversion: `%4u` reads at most 4 digits. For `%s` this is essential: `%s` alone copies a whole word, however long, into your array, which is undefined behaviour if it does not fit (like `strcpy`). With an array of `N` chars, use width `N - 1` (room for the `'\\0'`)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    char word[6];                       // room for 5 chars + '\\0'\n    int n = sscanf(\"elephant seal\", \"%5s\", word);\n    printf(\"n = %d, word = %s\\n\", n, word);\n\n    char name[8];\n    int age;\n    double gpa;\n    n = sscanf(\"Lisa 8 3.95\", \"%7s %d %lf\", name, &age, &gpa);\n    printf(\"n = %d: %s is %d, gpa %.2f\\n\", n, name, age, gpa);\n\n    n = sscanf(\"Bart eight 1.2\", \"%7s %d %lf\", name, &age, &gpa);\n    printf(\"n = %d: name = %s\\n\", n, name);\n    return 0;\n}",
+     "caption": "width.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o width width.c\n$ ./width\nn = 1, word = eleph\nn = 3: Lisa is 8, gpa 3.95\nn = 1: name = Bart"
+    },
+    {
+     "type": "md",
+     "text": "### Comma-separated fields: `%[^,]`\n\n`%s` stops only at whitespace, so it cannot split `\"Hopper,Grace,1906\"`. The notebook's answer is `%[^,]`: \"one or more chars that are **not** a comma\" (`%[abc]` would mean \"one or more of a, b, c\"). Like `%s` it adds a `'\\0'`, and it needs a width too. Unlike `%s` it does **not** skip leading whitespace."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    char data[] = \"Hopper,Grace,1906\";\n    char last[10];      // at most 9 chars + '\\0'\n    char first[10];\n    int year;\n    int n = sscanf(data, \"%9[^,],%9[^,],%d\", last, first, &year);\n    printf(\"n = %d: %s %s, born %d\\n\", n, first, last, year);\n    return 0;\n}",
+     "caption": "csv.c (in the style of the notebook's sscanf_student1.c)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o csv csv.c\n$ ./csv\nn = 3: Grace Hopper, born 1906"
+    },
+    {
+     "type": "md",
+     "text": "The notebook's `sscanf_student4.c` uses `\"%9[^,]%n,%9[^,]%n,%u\"` on `\"Nahasapeemapetilon,Apu,345678\"`. (`%n` stores how many chars have been read so far into an `int`; it does not count in the return value.) The last name has 18 letters, so `%9[^,]` stops after 9 of them: the array is safe. Then the format wants `,` but the next char is `p`, so `sscanf` stops and returns 1, and the program prints `Failed to extract all three fields`. The width turned a buffer overflow into an error you can detect.\n\n(The notebook also shows `*` to read a field without storing it, as in `%*[^,]`; that is good to recognise but you can always just store the field.)"
+    },
+    {
+     "type": "md",
+     "text": "### Values that do not fit\n\nThe notebook's `sscanf_integer.c` reads `\"3000000000\"` with `%d` into an `int` and with `%ld` into a `long`. The value is bigger than the largest `int` (Day 8), and the C standard says converting a value the type cannot hold is **undefined behaviour**. On our machine `j` was 3000000000 and `i` was the negative number -1294967296, but you must not rely on that. Use a type that is big enough (`long` and `%ld`)."
+    },
+    {
+     "type": "pitfall",
+     "text": "Forgetting `&`: `sscanf(s, \"%d\", n);` passes the *value* of `n` where an address is needed (gcc -Wall warns: format '%d' expects argument of type 'int *'). Arrays for `%s` / `%[` take no `&`: `sscanf(s, \"%9s\", word);`."
+    },
+    {
+     "type": "check",
+     "q": "`int a = 7, b = 7; int n = sscanf(\"42 apples\", \"%d %d\", &a, &b);` What are `n`, `a` and `b`?",
+     "a": "`n` is 1, `a` is 42, `b` is still 7: the second `%d` failed at `apples`, so `b` was never assigned."
+    },
+    {
+     "type": "try",
+     "text": "Copy dates.c and add your own lines: `\"2026-11\"`, `\"2026--11-17\"`, `\"  \"` and `\"17/11/2026\"` with the format `\"%u/%u/%u\"`. Predict `n` and the three values first."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `sscanf(str, format, &x, &y, ...)` reads values out of a string; receiving arguments are pointers (`&x`; arrays without `&`).\n- It returns the number of values assigned (stops at the first mismatch), 0 if the first conversion fails, `EOF` if the string ends first. Always check it: `if (n != 3)`.\n- Conversions skip leading whitespace (not `%c` or `%[`); other format chars must match exactly; a space matches any amount of whitespace.\n- `%d` int, `%u` unsigned, `%ld` long, `%lf` double (not `%f`), `%s` word, `%c` one char, `%[^,]` up to a comma.\n- Give `%s` and `%[` a width of capacity - 1 (`char w[10]` → `%9s`). A value too big for its type is undefined behaviour."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c17-fc-01",
+   "topic": "c17-search",
+   "front": "What do `strchr(s, c)` and `strrchr(s, c)` return?",
+   "back": "A pointer to the first (strchr) or last (strrchr) occurrence of `c` in `s`, or `NULL` if `c` does not occur."
+  },
+  {
+   "id": "c17-fc-02",
+   "topic": "c17-search",
+   "front": "How do you get the index of the char that `p = strchr(s, c)` found?",
+   "back": "`p - s` (pointer subtraction). Its type is `ptrdiff_t`; print it with `%td`. Check `p != NULL` first."
+  },
+  {
+   "id": "c17-fc-03",
+   "topic": "c17-search",
+   "front": "What does `strstr(str, sub)` return?",
+   "back": "A pointer to the first place where `sub` starts inside `str`, or `NULL` if `sub` does not occur."
+  },
+  {
+   "id": "c17-fc-04",
+   "topic": "c17-search",
+   "front": "Write a loop header that visits every `'a'` in `s` with `strchr`.",
+   "back": "`for (char *p = strchr(s, 'a'); p != NULL; p = strchr(p + 1, 'a'))`"
+  },
+  {
+   "id": "c17-fc-05",
+   "topic": "c17-search",
+   "front": "Why must you test the result of `strchr` before using it?",
+   "back": "It may be `NULL` (not found). `*p`, `p + 1` or `p - s` on a null pointer is undefined behaviour (usually a crash)."
+  },
+  {
+   "id": "c17-fc-06",
+   "topic": "c17-search",
+   "front": "`char *p = strchr(s, '\\0');` Where does `p` point?",
+   "back": "At the terminator of `s`: the `'\\0'` counts as part of the string, so `p - s` is `strlen(s)`."
+  },
+  {
+   "id": "c17-fc-07",
+   "topic": "c17-mem-sprintf",
+   "front": "Does `memcpy(d, s, 4)` write a `'\\0'` after the 4 chars?",
+   "back": "No. `memcpy` copies exactly 4 bytes and knows nothing about strings. Add `d[4] = '\\0';` yourself (or copy the terminator as part of the count)."
+  },
+  {
+   "id": "c17-fc-08",
+   "topic": "c17-mem-sprintf",
+   "front": "When must you use `memmove` instead of `memcpy`?",
+   "back": "When the source and destination areas may overlap, e.g. shifting elements inside one array. `memcpy` with overlap is undefined behaviour."
+  },
+  {
+   "id": "c17-fc-09",
+   "topic": "c17-mem-sprintf",
+   "front": "Remove the char at index `i` from the string `s` with one call.",
+   "back": "`memmove(s + i, s + i + 1, strlen(s) - i);` It moves the chars after `i` and the `'\\0'` one place left."
+  },
+  {
+   "id": "c17-fc-10",
+   "topic": "c17-mem-sprintf",
+   "front": "What do `memcpy` and `memmove` return, and what is their count measured in?",
+   "back": "Both return `dest`. The count is in **bytes**: for `n` ints use `n * sizeof(int)`."
+  },
+  {
+   "id": "c17-fc-11",
+   "topic": "c17-mem-sprintf",
+   "front": "What does `sprintf(buf, fmt, ...)` do and return?",
+   "back": "Formats like `printf` but writes into `buf`, always adding `'\\0'`. Returns the number of chars written, not counting the `'\\0'`. `buf` too small is undefined behaviour."
+  },
+  {
+   "id": "c17-fc-12",
+   "topic": "c17-mem-sprintf",
+   "front": "How do you append formatted text to a string `buf` with `sprintf`?",
+   "back": "Write at its terminator: `sprintf(buf + strlen(buf), \"%d\", x);` (buf must have room)."
+  },
+  {
+   "id": "c17-fc-13",
+   "topic": "c17-sscanf",
+   "front": "What does `sscanf` return?",
+   "back": "The number of receiving arguments it assigned to (it stops at the first mismatch); 0 if the first conversion failed; `EOF` if the string ended (or was blank) before the first conversion."
+  },
+  {
+   "id": "c17-fc-14",
+   "topic": "c17-sscanf",
+   "front": "Which conversion reads a `double` with `sscanf`?",
+   "back": "`%lf` (`%f` is for `float`). For `printf`, `%f` prints a `double`."
+  },
+  {
+   "id": "c17-fc-15",
+   "topic": "c17-sscanf",
+   "front": "Why write `%9s` instead of `%s` for `char word[10]`?",
+   "back": "`%s` copies a whole word however long: overflow is undefined behaviour. `%9s` reads at most 9 chars, leaving room for the `'\\0'`."
+  },
+  {
+   "id": "c17-fc-16",
+   "topic": "c17-sscanf",
+   "front": "What do a space and a `-` in an sscanf format match?",
+   "back": "A space matches zero or more whitespace chars. `-` (any other ordinary char) must appear exactly there, or sscanf stops."
+  },
+  {
+   "id": "c17-fc-17",
+   "topic": "c17-sscanf",
+   "front": "What does `%[^,]` match?",
+   "back": "One or more chars that are not a comma (it adds `'\\0'`; does not skip leading whitespace). Use a width: `%19[^,]` for a 20-char array."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c17-q-01",
+   "topic": "c17-search",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"Mississippi\";\n    char *p = strchr(s, 's');\n    char *q = strrchr(s, 's');\n    printf(\"%td %td\\n\", p - s, q - s);\n    printf(\"%s\\n\", q);\n    printf(\"%s\\n\", strchr(s, 'p') + 1);\n    return 0;\n}",
+   "answer": "2 6\nsippi\npi",
+   "explain": "\"Mississippi\" has 's' at indexes 2, 3, 5, 6: the first is 2 and the last is 6. From index 6 the string is \"sippi\". The first 'p' is at index 8; one past it is \"pi\"."
+  },
+  {
+   "id": "c17-q-02",
+   "topic": "c17-search",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"one two one three\";\n    char *p = strstr(s, \"one\");\n    char *q = strstr(p + 1, \"one\");\n    printf(\"%td %td\\n\", p - s, q - s);\n    printf(\"%d\\n\", strstr(s, \"four\") == NULL);\n    printf(\"%s\\n\", strstr(s, \"t\"));\n    return 0;\n}",
+   "answer": "0 8\n1\ntwo one three",
+   "explain": "The first \"one\" starts at 0. Searching again from `p + 1` (index 1) finds the second \"one\" at index 8. \"four\" does not occur, so `strstr` returns `NULL` and the comparison is 1 (true). The first \"t\" is the start of \"two\", and `%s` prints from there to the end."
+  },
+  {
+   "id": "c17-q-03",
+   "topic": "c17-search",
+   "type": "short",
+   "q": "This function should print the user name part of an e-mail address (the text before the `'@'`), but it crashes on some inputs. Explain why, and fix it so that it prints `no @` when there is none.\n\n```c\nvoid print_user(const char *email) {\n    const char *at = strchr(email, '@');\n    printf(\"%.*s\\n\", (int) (at - email), email);\n}\n```\n\n(`%.*s` prints at most that many chars of the string.)",
+   "answer": "When there is no '@', `strchr` returns `NULL` and `at - email` subtracts with a null pointer: undefined behaviour. Fix: test first.\n\n```c\nif (at == NULL) {\n    printf(\"no @\\n\");\n    return;\n}\n```\n\nand only then print.",
+   "explain": "Every search function in `<string.h>` returns `NULL` for \"not found\". Search, test, then use."
+  },
+  {
+   "id": "c17-q-04",
+   "topic": "c17-search",
+   "type": "mcq",
+   "q": "`char path[] = \"/home/ma/notes.txt\";` Which expression is the index of the **last** `'/'` (8)?",
+   "options": [
+    "`strrchr(path, '/') - path`",
+    "`strchr(path, '/') - path`",
+    "`strrchr(path, '/')`",
+    "`strstr(path, \"/\") - path`"
+   ],
+   "answer": 0,
+   "explain": "`strrchr` finds the last occurrence; subtracting `path` turns the pointer into an index. `strchr` and `strstr` find the first '/' (index 0). Without the subtraction you have a pointer, not an index."
+  },
+  {
+   "id": "c17-q-05",
+   "topic": "c17-mem-sprintf",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"abcdefgh\";\n    memcpy(s, \"XY\", 2);\n    printf(\"%s\\n\", s);\n    memcpy(s + 4, \"Z\", 2);\n    printf(\"%s\\n\", s);\n    printf(\"%s\\n\", s + 6);\n    return 0;\n}",
+   "answer": "XYcdefgh\nXYcdZ\ngh",
+   "explain": "The first `memcpy` copies only 'X' and 'Y' (no '\\0'), so the rest of `s` remains. The second copies 2 bytes of \"Z\": the 'Z' **and** its '\\0', into indexes 4 and 5. Printing `s` now stops at index 5. Indexes 6 and 7 still hold \"gh\", and the original '\\0' is at index 8."
+  },
+  {
+   "id": "c17-q-06",
+   "topic": "c17-mem-sprintf",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    int a[] = {10, 20, 30, 40, 50};\n    memmove(a + 1, a, 3 * sizeof(int));\n    printf(\"%d\", a[0]);\n    for (int i = 1; i < 5; i++) {\n        printf(\" %d\", a[i]);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+   "answer": "10 10 20 30 50",
+   "explain": "`memmove` copies the 3 ints from indexes 0, 1, 2 to indexes 1, 2, 3 (shifting right). Index 0 keeps 10 (it was only read) and index 4 (50) is not touched. The areas overlap, which is why this is `memmove`."
+  },
+  {
+   "id": "c17-q-07",
+   "topic": "c17-mem-sprintf",
+   "type": "short",
+   "q": "In the previous question, why would `memcpy(a + 1, a, 3 * sizeof(int));` be wrong, even though it has exactly the same arguments?",
+   "answer": "The source (indexes 0 to 2) and the destination (indexes 1 to 3) overlap. The behaviour of `memcpy` with overlapping areas is undefined (a simple front-to-back copy would give 10 10 10 10, for example). `memmove` is guaranteed to work as if it copied through a temporary buffer.",
+   "explain": "Rule: shifting inside one array → `memmove`. Copying between two separate arrays → `memcpy` (faster)."
+  },
+  {
+   "id": "c17-q-08",
+   "topic": "c17-mem-sprintf",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char buf[40] = \"x=\";\n    sprintf(buf + strlen(buf), \"%d\", 42);\n    printf(\"%s\\n\", buf);\n    int n = sprintf(buf, \"%02d:%02d\", 9, 5);\n    printf(\"%s %d\\n\", buf, n);\n    n = sprintf(buf, \"%s%c\", \"CISC\", '!');\n    printf(\"%s %d %zu\\n\", buf, n, strlen(buf));\n    return 0;\n}",
+   "answer": "x=42\n09:05 5\nCISC! 5 5",
+   "explain": "Writing at `buf + strlen(buf)` (the '\\0' after \"x=\") appends \"42\". `%02d` pads with a zero to width 2: \"09:05\" is 5 chars, and `sprintf` returns 5. The last call writes \"CISC!\": 5 chars returned, and `strlen` agrees because `sprintf` adds the '\\0'."
+  },
+  {
+   "id": "c17-q-09",
+   "topic": "c17-mem-sprintf",
+   "type": "short",
+   "q": "Modeled on Fall 2014 Q4. Write the body of `int join2(char *dest, size_t cap, const char *a, const char *b)` that puts `a` followed by `b` into `dest` (an array of `cap` chars) using **one** call to `sprintf`. It must return 0 without writing anything if the result would not fit, and 1 otherwise.",
+   "answer": "```c\nif (strlen(a) + strlen(b) + 1 > cap) {\n    return 0;\n}\nsprintf(dest, \"%s%s\", a, b);\nreturn 1;\n```",
+   "explain": "`sprintf` cannot see the size of `dest`, so the length check (with + 1 for the '\\0') must come first, exactly as with `strcat`."
+  },
+  {
+   "id": "c17-q-10",
+   "topic": "c17-sscanf",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int a = 0;\n    int b = 0;\n    printf(\"%d\\n\", sscanf(\"12 34\", \"%d %d\", &a, &b));\n    printf(\"%d\\n\", sscanf(\"56,78\", \"%d %d\", &a, &b));\n    printf(\"%d\\n\", sscanf(\"x9\", \"%d\", &a));\n    printf(\"%d\\n\", sscanf(\"   \", \"%d\", &a));\n    printf(\"%d %d\\n\", a, b);\n    return 0;\n}",
+   "answer": "2\n1\n0\n-1\n56 34",
+   "explain": "\"12 34\": both read (a = 12, b = 34). \"56,78\": `%d` reads 56 into a; the space in the format matches zero spaces; then `%d` fails at ',': 1. b keeps 34. \"x9\": `%d` cannot start at 'x': 0, a unchanged. \"   \": only whitespace before the first conversion: EOF, which is -1 on our machine."
+  },
+  {
+   "id": "c17-q-11",
+   "topic": "c17-sscanf",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    char w[4];\n    char c;\n    int n = sscanf(\"wonderful day\", \"%3s%c\", w, &c);\n    printf(\"%d [%s] [%c]\\n\", n, w, c);\n    n = sscanf(\"hi there\", \"%3s%c\", w, &c);\n    printf(\"%d [%s] [%c]\\n\", n, w, c);\n    return 0;\n}",
+   "answer": "2 [won] [d]\n2 [hi] [ ]",
+   "explain": "`%3s` reads at most 3 chars: \"won\". `%c` then takes the very next char, 'd'. In \"hi there\", `%3s` stops at the space after \"hi\" (only 2 chars), and `%c` does not skip whitespace, so `c` is the space."
+  },
+  {
+   "id": "c17-q-12",
+   "topic": "c17-sscanf",
+   "type": "mcq",
+   "q": "`char name[16]; int age; double height;` Which call reads `\"Homer 39 1.83\"` correctly and safely?",
+   "options": [
+    "`sscanf(s, \"%15s %d %lf\", name, &age, &height)`",
+    "`sscanf(s, \"%s %d %f\", name, &age, &height)`",
+    "`sscanf(s, \"%15s %d %lf\", &name, age, height)`",
+    "`sscanf(s, \"%16s %d %lf\", name, &age, &height)`"
+   ],
+   "answer": 0,
+   "explain": "`%15s` leaves room for the '\\0' in 16 chars (`%16s` could write 17), a `double` needs `%lf` (not `%f`), and the numbers need their addresses. The array name is already a pointer, so it takes no `&`."
+  },
+  {
+   "id": "c17-q-13",
+   "topic": "c17-sscanf",
+   "type": "short",
+   "q": "The notebook's `sscanf_student4.c` reads `\"Nahasapeemapetilon,Apu,345678\"` with `\"%9[^,]%n,%9[^,]%n,%u\"` into arrays `char last_name[10]` and `char first_name[10]`, and checks `if (n != 3)`. What happens, and what would happen with `%[^,]` (no width) instead?",
+   "answer": "`%9[^,]` stores only the first 9 letters (\"Nahasapee\") plus '\\0', which fits. The format then needs ',', but the next char is 'p', so sscanf stops and returns 1; the program prints \"Failed to extract all three fields\" and exits. Without the width, all 18 letters and the '\\0' would be written into a 10-char array: a buffer overflow, which is undefined behaviour.",
+   "explain": "Widths turn an overflow into a detectable error, and checking the return value catches it."
+  },
+  {
+   "id": "c17-q-14",
+   "topic": "c17-sscanf",
+   "type": "short",
+   "q": "A student reads a date with `int d, m, y; sscanf(argv[1], \"%d/%d/%d\", &d, &m, &y);` and then prints `y`. Running it with `17-11-2026` prints a strange number. Why, and how should the code be fixed?",
+   "answer": "The format wants '/' after the day but finds '-', so sscanf stops after reading `d`: it returns 1 and `m` and `y` are never assigned (they hold garbage; using them is a bug). Fix: store the return value and check it before using the variables: `if (sscanf(argv[1], \"%d/%d/%d\", &d, &m, &y) != 3) { fprintf(stderr, \"bad date\\n\"); exit(1); }`.",
+   "explain": "Uninitialised local variables have indeterminate values (Day 7), and sscanf leaves unassigned receiving arguments alone."
+  }
+ ],
+ "write": [
+  {
+   "id": "c17-w-01",
+   "topic": "c17-search",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write `size_t count_sub(const char *str, const char *sub)` that returns how many times `sub` occurs in `str`, counting only occurrences that do not overlap (so `\"aa\"` occurs twice in `\"aaaa\"`). Use `strstr`; assume `sub` is not empty. Write a `main` that tests it, including a string where `sub` does not occur and the empty string.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <string.h>\n\n// Returns how many times sub occurs in str, counting occurrences that\n// do not overlap. sub must not be the empty string.\nsize_t count_sub(const char *str, const char *sub) {\n    size_t count = 0;\n    size_t len = strlen(sub);\n    const char *p = strstr(str, sub);\n    while (p != NULL) {\n        count++;\n        p = strstr(p + len, sub);   // search again after this occurrence\n    }\n    return count;\n}\n\nint main(void) {\n    printf(\"%zu\\n\", count_sub(\"the cat sat on the mat\", \"at\"));\n    printf(\"%zu\\n\", count_sub(\"aaaa\", \"aa\"));\n    printf(\"%zu\\n\", count_sub(\"banana\", \"nab\"));\n    printf(\"%zu\\n\", count_sub(\"\", \"x\"));\n    return 0;\n}",
+   "explain": "`strstr` finds the first occurrence, or `NULL`. Each time it finds one we count it and search again **after** it: `p + len` skips the whole match, which is what makes the occurrences non-overlapping (searching from `p + 1` would count overlapping ones: 3 in \"aaaa\"). The loop condition `p != NULL` is the \"not found\" test, so we never use a null pointer. `p` is a `const char *` because `str` is `const`. If `sub` were empty, `strstr` would find it at every position and `p + 0` would never move, so the loop would never end: that is why the comment says it must not be empty. Output:\n\n```\n$ ./w1\n3\n2\n0\n0\n```\n\n\"the cat sat on the mat\" contains \"at\" in cat, sat and mat.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`len = strlen(sub)` and a counter starting at 0"
+    },
+    {
+     "marks": 1,
+     "item": "first search `strstr(str, sub)`"
+    },
+    {
+     "marks": 1,
+     "item": "loop while the result is not `NULL`, counting each match"
+    },
+    {
+     "marks": 1,
+     "item": "next search starts after the match: `strstr(p + len, sub)`"
+    },
+    {
+     "marks": 1,
+     "item": "returns the count; never dereferences or moves a `NULL` pointer"
+    }
+   ],
+   "pitfalls": [
+    "Searching again from `str` instead of from after the match: the same occurrence is found forever.",
+    "Using `p + 1` when non-overlapping matches are wanted.",
+    "Testing `if (strstr(...) == 0)` meaning \"not found\" is fine (`NULL` is 0), but testing `== -1` is wrong: these functions never return an index."
+   ]
+  },
+  {
+   "id": "c17-w-02",
+   "topic": "c17-sscanf",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Complete `parse_time` so that it reads a time written as `H:MM` or `HH:MM` with **one** call to `sscanf` (at most 2 digits per number), returns 0 if fewer than 2 numbers were read or the time is invalid, and 1 otherwise. Then complete `main`, which builds each valid line in a char array with `sprintf` (hours and minutes always with 2 digits) before printing it. Expected output:\n\n```\n09:05 is minute 545\n23:59 is minute 1439\nbad time: 24:00\nbad time: noon\nbad time: 7-30\n```",
+   "starter": "#include <stdio.h>\n\n// Reads a time written as H:MM or HH:MM from s into *h and *m.\n// Returns 1 if both numbers were read and the time is valid\n// (0 <= hours <= 23, 0 <= minutes <= 59); otherwise returns 0.\nint parse_time(const char *s, int *h, int *m) {\n    int n = sscanf(s, ____, ____, ____);\n    if (n != ____) {\n        return 0;\n    }\n    return *h >= 0 && *h <= 23 && *m >= 0 && *m <= 59;\n}\n\nint main(void) {\n    const char *times[] = {\"9:05\", \"23:59\", \"24:00\", \"noon\", \"7-30\"};\n    for (int i = 0; i < 5; i++) {\n        int h;\n        int m;\n        if (parse_time(times[i], ____, ____)) {\n            char out[30];\n            ____(out, \"____ is minute %d\", h, m, h * 60 + m);\n            puts(out);\n        }\n        else {\n            printf(\"bad time: %s\\n\", times[i]);\n        }\n    }\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\n// Reads a time written as H:MM or HH:MM from s into *h and *m.\n// Returns 1 if both numbers were read and the time is valid\n// (0 <= hours <= 23, 0 <= minutes <= 59); otherwise returns 0.\nint parse_time(const char *s, int *h, int *m) {\n    int n = sscanf(s, \"%2d:%2d\", h, m);\n    if (n != 2) {\n        return 0;\n    }\n    return *h >= 0 && *h <= 23 && *m >= 0 && *m <= 59;\n}\n\nint main(void) {\n    const char *times[] = {\"9:05\", \"23:59\", \"24:00\", \"noon\", \"7-30\"};\n    for (int i = 0; i < 5; i++) {\n        int h;\n        int m;\n        if (parse_time(times[i], &h, &m)) {\n            char out[30];\n            sprintf(out, \"%02d:%02d is minute %d\", h, m, h * 60 + m);\n            puts(out);\n        }\n        else {\n            printf(\"bad time: %s\\n\", times[i]);\n        }\n    }\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "format `\"%2d:%2d\"` (the ':' must match exactly; widths limit each number to 2 digits)"
+    },
+    {
+     "marks": 1,
+     "item": "passes `h` and `m` as they are inside `parse_time` (they are already pointers), and checks `n != 2`"
+    },
+    {
+     "marks": 1,
+     "item": "calls `parse_time(times[i], &h, &m)` with addresses in `main`"
+    },
+    {
+     "marks": 1,
+     "item": "`sprintf(out, \"%02d:%02d is minute %d\", ...)` so 9:05 prints as 09:05"
+    }
+   ],
+   "pitfalls": [
+    "Writing `&h` inside `parse_time`: `h` is already an `int *`, so `&h` would be an `int **` (gcc -Wall warns).",
+    "Using `h` and `m` after a failed parse: sscanf did not assign them.",
+    "Checking `n == EOF` only: \"7-30\" gives 1, not EOF."
+   ]
+  },
+  {
+   "id": "c17-w-03",
+   "topic": "c17-search",
+   "stage": "blank",
+   "marks": 6,
+   "prompt": "Modeled on Fall 2015 Q4 (which returned a new string on the heap; here the caller provides the array). Write the function\n\n```c\nvoid initials(char *names[], char *dest)\n```\n\n`names` is an array of strings whose **last element is `NULL`**; you may not assume anything about how many names there are. Each name is one or more words separated by single spaces (no name is empty or starts or ends with a space). For each name, write into `dest` its first letter and, if the name has more than one word, the first letter of its **last** word. Separate the initials of different names with one space, and end `dest` with `'\\0'`. Assume `dest` is big enough. For example:\n\n```c\nchar *people[] = {\"Ada Lovelace\", \"Grace Brewster Hopper\", \"Cher\", NULL};\nchar result[10];\ninitials(people, result);\nprintf(\"%s\\n\", result);   // prints AL GH C\n```\n\nIf `names[0]` is `NULL`, `dest` becomes the empty string. (Lab 5 of Day 17 tests this function from a `main` that passes `argv + 1`: `argv[argc]` is always `NULL`.)",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <string.h>\n\n// names is an array of strings whose last element is NULL. Each name is one\n// or more words separated by single spaces. For each name, writes into dest\n// its first letter and, if it has more than one word, the first letter of its\n// last word. The initials of different names are separated by one space.\n// dest must be big enough (3 chars per name is always enough, plus 1).\nvoid initials(char *names[], char *dest) {\n    size_t k = 0;\n    for (int i = 0; names[i] != NULL; i++) {\n        if (i > 0) {\n            dest[k] = ' ';\n            k++;\n        }\n        dest[k] = names[i][0];\n        k++;\n        char *space = strrchr(names[i], ' ');\n        if (space != NULL) {\n            dest[k] = space[1];\n            k++;\n        }\n    }\n    dest[k] = '\\0';\n}\n\nint main(void) {\n    char *people[] = {\"Ada Lovelace\", \"Grace Brewster Hopper\", \"Cher\", NULL};\n    char result[3 * 3 + 1];\n    initials(people, result);\n    printf(\"%s\\n\", result);\n\n    char *nobody[] = {NULL};\n    initials(nobody, result);\n    printf(\"[%s]\\n\", result);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "loop over `names` until the `NULL` element (no count assumed)"
+    },
+    {
+     "marks": 1,
+     "item": "an index (or pointer) into `dest` that advances by one after each char written"
+    },
+    {
+     "marks": 1,
+     "item": "a space before every name's initials except the first (no leading or trailing space)"
+    },
+    {
+     "marks": 1,
+     "item": "writes `names[i][0]`"
+    },
+    {
+     "marks": 1,
+     "item": "`strrchr(names[i], ' ')`, tested against `NULL`, and writes the char after it"
+    },
+    {
+     "marks": 1,
+     "item": "writes the `'\\0'` at the end (also correct when there are no names)"
+    }
+   ],
+   "pitfalls": [
+    "Looping `for (i = 0; i < sizeof(names) / sizeof(names[0]); i++)`: `names` is a pointer inside the function, so that is not the number of names. Stop at `NULL`.",
+    "Using `strchr` instead of `strrchr`: \"Grace Brewster Hopper\" would give GB.",
+    "Using `space[1]` without checking `space != NULL` first (\"Cher\" has no space).",
+    "Forgetting the final `'\\0'`."
+   ]
+  }
+ ]
+}
