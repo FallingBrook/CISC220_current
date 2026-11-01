@@ -1,0 +1,615 @@
+{
+ "day": 16,
+ "title": "Strings, part 1",
+ "goal": "Tell string literals from char arrays, walk a string with a pointer, and use strlen, strcpy, strcat and strcmp safely, with buffers that always have room for the '\\0'.",
+ "topics": [
+  {
+   "id": "c16-literals",
+   "title": "String literals versus char arrays",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "Short answers often ask what `sizeof` and `strlen` give for a string, or what is wrong with a line like `char *p = \"hello\"; p[0] = 'H';` or `s = \"hello\";`. Know the difference between an array that *holds* the characters and a pointer that *points at* a literal.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Quick review from Day 3\n\nA C string is a `char` array whose end is marked by the **null terminator** `'\\0'` (value 0, not the digit `'0'`, which is 48). `strlen` counts the characters before the first `'\\0'`. A string of length `n` needs `n + 1` chars.\n\nToday we look more closely at what the terminator means, at **string literals**, and at the two ways of naming a string: `char s[]` and `char *p`. You will use pointers (Days 11 and 12) all the time: a string is just an array, so `s + 4` and `*p` work exactly as they did on `int` arrays."
+    },
+    {
+     "type": "md",
+     "text": "### Forgetting the terminator\n\nThe notebook's `missing_terminator.c` makes two arrays with `{'a', 'b', 'c', 'd'}`: four characters and **no** `'\\0'`. These are arrays of `char`, but they are **not strings**. When `printf(\"%s\", s1)` reaches the end of `s1` it does not stop; it keeps reading whatever bytes come next in memory until it happens to find a 0. That is **undefined behaviour**: on one run on our machine it printed `s1 = abcdabcd` (it ran on into `s2`), but another compiler or machine can print something else, or crash."
+    },
+    {
+     "type": "md",
+     "text": "### The first `'\\0'` ends the string\n\nThe terminator does not have to be the last element of the array, and an array can hold several. A string runs from where you start to the **first** `'\\0'` after that. Because an array name acts as a pointer to element 0 (Day 12), `s + 4` is a pointer to element 4, and you can print the string that starts there:"
+    },
+    {
+     "type": "code",
+     "code": "// multiple_terminators.c\n\n#include <stdio.h>\n\nint main(void) {\n    \n    char s[] = {'a', 'b', 'c', '\\0', \n                'd', 'e', 'f', '\\0', \n                'g', 'h', 'i', '\\0'};\n    \n    printf(\"s     = %s\\n\", s);\n    printf(\"s + 4 = %s\\n\", s + 4);\n    printf(\"s + 8 = %s\\n\", s + 8);\n    \n    return 0;\n}",
+     "caption": "multiple_terminators.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o multiple_terminators multiple_terminators.c\n$ ./multiple_terminators\ns     = abc\ns + 4 = def\ns + 8 = ghi"
+    },
+    {
+     "type": "md",
+     "text": "### String literals\n\nA **string literal** is characters between double quotes, like `\"abc\"`. The compiler adds a `'\\0'` at the end for you, so the literal is an array of `strlen + 1` chars. It does this even if you write `\\0` inside the quotes yourself (that is the notebook's \"weird\" example):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"abc\";\n    printf(\"size   : %zu\\n\", sizeof(s));\n    printf(\"length : %zu\\n\", strlen(s));\n\n    char s2[] = \"abc\\0def\";   // weird\n    printf(\"size   : %zu\\n\", sizeof(s2));\n    printf(\"length : %zu\\n\", strlen(s2));\n\n    return 0;\n}",
+     "caption": "literal.c (the notebook prints with %lu; we use %zu for size_t)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o literal literal.c\n$ ./literal\nsize   : 4\nlength : 3\nsize   : 8\nlength : 3",
+     "caption": "`\"abc\\0def\"` is 7 characters plus the added '\\0': size 8. strlen stops at the first '\\0': length 3."
+    },
+    {
+     "type": "md",
+     "text": "### Literals are read-only\n\nA literal has **static storage duration** (Day 7): it exists for the whole run of the program, like a global. That is why the notebook's `hello()` may return `\"HELLO\"`: the literal does not die when the function returns (unlike a local array).\n\nBut the C standard says that **changing a literal is undefined behaviour**. Treat every literal as read-only. On Linux, literals are stored in memory the program may not write to, so the notebook's `literal2.c` (with the `str[0] = 'h';` line uncommented) usually crashes:"
+    },
+    {
+     "type": "code",
+     "code": "char *str = \"HELLO\";   // str points at the literal itself\nstr[0] = 'h';          // undefined behaviour: tries to change the literal",
+     "caption": "Compiles with no warning, even with -Wall. On one run on our machine it printed HELLO and then \"Segmentation fault\"."
+    },
+    {
+     "type": "md",
+     "text": "### `char s[] = \"...\"` makes your own copy\n\nWhen a literal **initialises an array**, its characters (with the `'\\0'`) are **copied** into the new array. Now there are two independent copies. The literal is still read-only, but the array is yours, so you may change it (`literal3.c`: `char str[] = \"hello\"; str[0] = 'H';` prints `Hello`).\n\nSo there are two very different declarations:\n\n| | `char arr[] = \"cat\";` | `char *ptr = \"dog\";` |\n|---|---|---|\n| what it is | an array of 4 chars holding a copy | a pointer (8 bytes) to the literal |\n| `sizeof` | 4 (the whole array) | 8 (the size of a pointer) |\n| `strlen` | 3 | 3 |\n| change a char (`[0] = 'b'`) | OK | undefined behaviour |\n| make it name another string (`= \"cow\"`) | compile error: no array assignment | OK: the pointer now points elsewhere |"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char arr[] = \"cat\";   // an array of 4 chars, initialised with a copy of \"cat\"\n    char *ptr = \"dog\";    // a pointer to the literal \"dog\" (read-only)\n\n    printf(\"sizeof(arr) = %zu, strlen(arr) = %zu\\n\", sizeof(arr), strlen(arr));\n    printf(\"sizeof(ptr) = %zu, strlen(ptr) = %zu\\n\", sizeof(ptr), strlen(ptr));\n\n    arr[0] = 'b';         // ok: arr is our own array\n    printf(\"arr = %s\\n\", arr);\n\n    ptr = \"cow\";          // ok: ptr now points at a different literal\n    printf(\"ptr = %s\\n\", ptr);\n    return 0;\n}",
+     "caption": "arr_vs_ptr.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o arr_vs_ptr arr_vs_ptr.c\n$ ./arr_vs_ptr\nsizeof(arr) = 4, strlen(arr) = 3\nsizeof(ptr) = 8, strlen(ptr) = 3\narr = bat\nptr = cow"
+    },
+    {
+     "type": "pitfall",
+     "text": "`sizeof` on a `char *` gives the size of the **pointer** (8 on our machines), not the length of the string. Use `strlen` for the length. The same is true inside a function with a parameter `char s[]` or `char *s`: it is a pointer (Day 5), so `sizeof(s)` is 8."
+    },
+    {
+     "type": "why",
+     "q": "Why does `p = \"cow\";` compile when `arr = \"cow\";` does not?",
+     "a": "`p` is a pointer variable: assigning to it just stores a new address (the address of the literal `\"cow\"`). `arr` is an array, and C has no array assignment (Day 3). To put new characters into an array you must copy them, for example with `strcpy` (next lesson)."
+    },
+    {
+     "type": "check",
+     "q": "`char a[10] = \"hi\";` What are `sizeof(a)` and `strlen(a)`? May you write `a[0] = 'H';`?",
+     "a": "`sizeof(a)` is 10 (the capacity you asked for; the unused chars are set to 0). `strlen(a)` is 2. Yes: `a` is an array initialised with a copy, so it can be changed."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- A string ends at the **first** `'\\0'` from where you start; `s + 4` is the string starting at index 4.\n- A `char` array without a `'\\0'` is not a string; printing it with `%s` is undefined behaviour.\n- A literal `\"abc\"` is a read-only array of 4 chars (the compiler adds `'\\0'`) with static storage duration.\n- `char s[] = \"abc\";` copies the literal into your own array (changeable, `sizeof` 4). `char *p = \"abc\";` only points at the literal (do not change it; `sizeof(p)` is 8).\n- Changing a literal is undefined behaviour (often a segmentation fault). Arrays cannot be assigned; pointers can."
+    }
+   ]
+  },
+  {
+   "id": "c16-strcpy",
+   "title": "Walking a string; strlen and strcpy; buffer sizes",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "Handwritten code often asks you to write a string function yourself (a `strlen` or `strcpy` with a pointer loop), and markers check the `'\\0'`: the loop stops at it, and a copy writes it at the end. Every buffer needs room for `strlen + 1` chars.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Reading the prototypes in `<string.h>`\n\nThe string functions are declared in `<string.h>`. The notebook gives their **prototypes** (declarations):\n\n```c\nsize_t strlen(const char *str);\nchar *strcpy(char *dest, const char *src);\n```\n\n`const char *str` means \"a pointer to `char`s that this function will **not change**\" (Day 2's `const`, now in front of what the pointer points at). You can pass any string: an array, a pointer, a literal, or `argv[i]`. A plain `char *dest` means the function **writes** into that memory, so it must be a real, big-enough, changeable array."
+    },
+    {
+     "type": "md",
+     "text": "### Walking a string with a pointer\n\nOn Day 3 you looped with an index: `for (size_t i = 0; s[i] != '\\0'; i++)`. With a pointer, start `p` at the string and move it one char at a time until `*p` is the terminator. You do **not** need the length first: the `'\\0'` tells you where to stop."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// Returns how many times c appears in the string s.\nsize_t count_char(const char *s, char c) {\n    size_t n = 0;\n    for (const char *p = s; *p != '\\0'; p++) {\n        if (*p == c) {\n            n++;\n        }\n    }\n    return n;\n}\n\nint main(void) {\n    char word[] = \"mississippi\";\n    printf(\"s: %zu\\n\", count_char(word, 's'));\n    printf(\"p: %zu\\n\", count_char(word, 'p'));\n    printf(\"s from index 4: %zu\\n\", count_char(word + 4, 's'));\n    printf(\"z: %zu\\n\", count_char(\"\", 'z'));\n    return 0;\n}",
+     "caption": "walk.c: count a character by walking a pointer"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o walk walk.c\n$ ./walk\ns: 4\np: 2\ns from index 4: 2\nz: 0",
+     "caption": "`word + 4` points at the second \"i\": the function only sees \"issippi\". The empty string \"\" is just a '\\0', so the loop body never runs."
+    },
+    {
+     "type": "md",
+     "text": "### How `strlen` works\n\nThere is no way to ask C how long an array is, so `strlen` must walk to the `'\\0'` and count. The notebook shows three versions. Here is the pointer one: move `p` to the terminator, then the length is `p - str` (pointer subtraction gives the number of elements between, Day 12)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// The third strlen from the notebook: walk p to the '\\0', then subtract.\nsize_t my_strlen(const char *str) {\n    const char *p = str;\n    while (*p != '\\0') {\n        p++;\n    }\n    return p - str;\n}\n\nint main(void) {\n    printf(\"%zu\\n\", my_strlen(\"hello\"));\n    printf(\"%zu\\n\", my_strlen(\"\"));\n    printf(\"%zu\\n\", my_strlen(\"CISC220\" + 4));\n    return 0;\n}",
+     "caption": "mylen.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o mylen mylen.c\n$ ./mylen\n5\n0\n3"
+    },
+    {
+     "type": "md",
+     "text": "Another notebook version is `while (*str++ != '\\0') { i++; }`. `*str++` means `*(str++)`: use the char `str` points at, then move `str` forward. It is short but easy to misread; the longer form above is fine on an exam. Undefined behaviour results if the string has no `'\\0'` or the pointer is `NULL`."
+    },
+    {
+     "type": "md",
+     "text": "### `strcpy`: copying a string\n\nArrays cannot be assigned (`s = \"hello\";` is a compile error), so to copy a string you call\n\n```c\nchar *strcpy(char *dest, const char *src);\n```\n\nIt copies the characters of `src` **including the `'\\0'`** into `dest`, and returns `dest` (so you can pass the result straight to `printf`). `dest` must have room for `strlen(src) + 1` chars. The notebook's `copy.c` shows four uses:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char src[] = \"01234\";\n    size_t len = strlen(src);\n\n    // len + 1 to make sure that there is space for the null terminator\n    char dest1[len + 1];\n    strcpy(dest1, src);\n    printf(\"src   = %s\\n\", src);\n    printf(\"dest1 = %s\\n\", dest1);\n\n    // print the return value instead\n    char dest2[len + 1];\n    printf(\"dest2 = %s\\n\", strcpy(dest2, src));\n\n    // copy into the middle of the destination array\n    char dest3[] = \"abcde-----\";\n    strcpy(dest3 + len, src);\n    printf(\"dest3 = %s\\n\", dest3);\n\n    // copy the end of a string into a destination array\n    char *s = \"CISC220\";\n    char dest4[4];\n    strcpy(dest4, s + 4);\n    printf(\"dest4 = %s\\n\", dest4);\n\n    return 0;\n}",
+     "caption": "copy.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o copy copy.c\n$ ./copy\nsrc   = 01234\ndest1 = 01234\ndest2 = 01234\ndest3 = abcde01234\ndest4 = 220",
+     "caption": "dest3: copying to `dest3 + len` (index 5) overwrites \"-----\" and the copied '\\0' ends the string. dest4: `s + 4` is \"220\", 3 chars plus '\\0' = exactly 4."
+    },
+    {
+     "type": "md",
+     "text": "The behaviour of `strcpy` is **undefined** if:\n\n- `dest` is not large enough, or\n- the two strings overlap, or\n- `dest` is not a char array or `src` is not a null-terminated string.\n\n`strcpy` cannot check the size: it only receives a pointer. Making `dest` big enough is **your** job."
+    },
+    {
+     "type": "md",
+     "text": "### Too small: why `too_small.c` is undefined behaviour\n\n`too_small.c` (the notebook calls it `buffer_overrun.c`) uses a struct (Day 13) holding `char s[4];` and then `int i;`. It stores `'a'`, `'b'`, `'c'`, `'d'` in `s[0]` to `s[3]` and then writes `tmp.s[4] = '\\0';`. But `s` has only indexes 0 to 3: the string \"abcd\" needs **5** chars. Writing to `s[4]` is out of bounds, which is undefined behaviour. One run on our machine:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o too_small too_small.c\n$ ./too_small\ntmp.s = \ntmp.i = 99\ntmp.s = abcd\ntmp.i = 0",
+     "caption": "Nobody assigned to tmp.i, yet it changed from 99 to 0: the '\\0' landed in the first byte of i, which sits right after s in memory. No warning at all with plain -Wall (gcc -Wall -O2 does warn \"array subscript 4 is above array bounds\")."
+    },
+    {
+     "type": "md",
+     "text": "This is the dangerous kind of bug: no crash and no message, just a **different variable** silently changed. Another compiler could place things differently and give a different result. The same thing happens with `strcpy(dest, src)` when `dest` is too small, because `strcpy` always writes the `'\\0'`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Sizing a copy as `char dest[strlen(src)];` forgets the terminator. It must be `char dest[strlen(src) + 1];`. The program may even seem to work, because undefined behaviour does not have to crash."
+    },
+    {
+     "type": "check",
+     "q": "`char *s = \"CISC220\";` How big must `dest` be for `strcpy(dest, s + 2);`? What does `dest` hold afterwards?",
+     "a": "`s + 2` is \"SC220\": 5 chars, so `dest` needs at least 6. Afterwards it holds \"SC220\" followed by '\\0'."
+    },
+    {
+     "type": "try",
+     "text": "Copy `copy.c` into a file, change `char dest4[4];` to `char dest4[3];`, and compile with `gcc -std=c17 -Wall` and then with `gcc -std=c17 -Wall -O2`. Notice when you get a warning. Then put it back: the warning (when you get one) is about real undefined behaviour."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `const char *s` in a prototype: the function reads the string and does not change it.\n- Walk a string with `for (const char *p = s; *p != '\\0'; p++)`; the `'\\0'` tells you when to stop.\n- `strlen` walks to the `'\\0'`; a pointer version returns `p - str`.\n- `strcpy(dest, src)` copies including the `'\\0'` and returns `dest`; `dest` needs `strlen(src) + 1` chars. `strcpy(dest + k, src)` copies into the middle; `src + k` copies the end of a string.\n- Arrays cannot be assigned: use `strcpy`. Writing past the end of an array (too_small.c) is undefined behaviour and can silently change other variables."
+    }
+   ]
+  },
+  {
+   "id": "c16-strcat-strcmp",
+   "title": "strcat and strcmp",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "Fall 2014 Q4 explained the danger of `strcat` (the destination may be too small for the joined string) and asked for a safer alternative. Fall 2016 Q4 asked for a whole program that checks whether lines are in alphabetical order with `strcmp` and prints the first pair out of order. The faded and blank writing items below are modeled on these two (new details, no files or heap yet).",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `strcat`: adding a string to the end of another\n\n```c\nchar *strcat(char *dest, const char *src);\n```\n\n`strcat` (\"string concatenate\") finds the `'\\0'` of `dest`, copies `src` there (including its `'\\0'`), and returns `dest`. Both must already be proper strings. `dest` must be big enough for the **joined** string: `strlen(dest) + strlen(src) + 1` chars."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    // change 11 to a smaller value to see what happens when dest is too small\n    char s[11] = \"01234\";\n    char t[] = \"56789\";\n\n    // concatenate s and t\n    // size of s must be big enough\n    // to hold the final string plus\n    // the null terminator\n    strcat(s, t);\n    printf(\"s = %s\\n\", s);\n\n    return 0;\n}",
+     "caption": "concat.c (from the notebook)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o concat concat.c\n$ ./concat\ns = 0123456789",
+     "caption": "5 + 5 characters + '\\0' = 11: exactly enough."
+    },
+    {
+     "type": "md",
+     "text": "Because `strcat` returns `dest`, calls can be **nested**: the inner call runs first."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char name[20] = \"Ada\";\n    printf(\"%s\\n\", strcat(name, \" \"));\n    strcat(name, \"Lovelace\");\n    printf(\"%s (length %zu, capacity %zu)\\n\", name, strlen(name), sizeof(name));\n    return 0;\n}",
+     "caption": "cat3.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o cat3 cat3.c\n$ ./cat3\nAda \nAda Lovelace (length 12, capacity 20)"
+    },
+    {
+     "type": "md",
+     "text": "The behaviour of `strcat` is undefined if:\n\n- `dest` is not large enough for the joined string, or\n- the strings overlap (so `strcat(s, s)` cannot be used to join a string with itself), or\n- `dest` or `src` is not a null-terminated string.\n\nThis is the danger the Fall 2014 final described: `char s1[10] = \"Happy \";` has room for its own 6 chars, but `strcat(s1, \"Holidays\")` needs 6 + 8 + 1 = 15. It may crash, or silently overwrite other variables, just like too_small.c. A safe program **checks the lengths first** and only then calls `strcat`."
+    },
+    {
+     "type": "pitfall",
+     "text": "`char s[] = \"01234\";` has capacity **6**, exactly enough for itself. There is no room to `strcat` anything onto it. Give the array an explicit, large enough size: `char s[11] = \"01234\";`."
+    },
+    {
+     "type": "md",
+     "text": "### `strcmp`: comparing strings\n\n`==` on two arrays or pointers compares **addresses**, not characters. Two arrays holding \"hi\" are different objects, so `a == b` is false; gcc -Wall even warns:"
+    },
+    {
+     "type": "code",
+     "code": "eq.c:7:11: warning: comparison between two arrays [-Warray-compare]\n    7 |     if (a == b) {\n      |           ^~",
+     "caption": "With `char *` it warns about a literal: `argv[1] == \"yes\"` gives \"comparison with string literal results in unspecified behavior\"."
+    },
+    {
+     "type": "md",
+     "text": "To compare characters use\n\n```c\nint strcmp(const char *lhs, const char *rhs);\n```\n\nIt is like Java's `compareTo`. It compares char by char until two differ (or both end). The result is:\n\n- **negative** if `lhs` comes before `rhs`,\n- **positive** if `lhs` comes after `rhs`,\n- **0** if they are equal.\n\nOnly the **sign** is guaranteed, so test `strcmp(s, t) == 0`, `< 0` or `> 0`; never `== -1` or `== 1`. Equal strings: `strcmp(s, t) == 0`. Different: `strcmp(s, t) != 0`.\n\nThe order is the order of the character codes (Day 5), so:\n\n- all uppercase letters come before all lowercase ones: `\"Zebra\"` comes before `\"apple\"`;\n- a string comes before any longer string that starts with it: `\"car\"` before `\"cart\"` (its `'\\0'`, value 0, is smaller than `'t'`);\n- digits are compared as characters: `\"10\"` comes before `\"9\"` (`'1'` < `'9'`)."
+    },
+    {
+     "type": "code",
+     "code": "// compare.c (from the notebook)\n\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 3) {\n        fprintf(stderr, \"Usage: compare str1 str2\\n\");\n        exit(1);\n    }\n    char *str1 = argv[1];\n    char *str2 = argv[2];\n    int res = strcmp(str1, str2);\n    if (res == 0) {\n        printf(\"%s and %s are equal\\n\", str1, str2);\n    }\n    else if (res < 0) {\n        printf(\"%s comes before %s\\n\", str1, str2);\n    }\n    else {\n        printf(\"%s comes after %s\\n\", str1, str2);\n    }\n\n    return 0;\n}",
+     "caption": "compare.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o compare compare.c\n$ ./compare apple banana\napple comes before banana\n$ ./compare apple Apple\napple comes after Apple\n$ ./compare car cart\ncar comes before cart\n$ ./compare 10 9\n10 comes before 9\n$ ./compare hi hi\nhi and hi are equal"
+    },
+    {
+     "type": "check",
+     "q": "Is each true or false? (a) `strcmp(\"pea\", \"peach\") < 0` (b) `strcmp(\"Bob\", \"alice\") > 0` (c) `strcmp(\"x\", \"x\") == 0`",
+     "a": "(a) true: \"pea\" is a start of \"peach\". (b) false: 'B' (66) is less than 'a' (97), so \"Bob\" comes first and the result is negative. (c) true."
+    },
+    {
+     "type": "try",
+     "text": "Type in compare.c and run it with your own pairs: two words that differ only in case, a word and its plural, `\"\"` and `a`. Predict each answer before you press Enter."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `strcat(dest, src)` appends `src` at `dest`'s `'\\0'` and returns `dest`; `dest` needs `strlen(dest) + strlen(src) + 1` chars. Check lengths first: overflow is undefined behaviour (Fall 2014 Q4).\n- Never `strcat` (or `strcpy`) a string onto itself: overlapping strings are undefined behaviour.\n- `==` compares addresses. Compare characters with `strcmp`: negative (before), 0 (equal), positive (after). Test only the sign.\n- Order follows character codes: uppercase before lowercase, a prefix before the longer string, `\"10\"` before `\"9\"`."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c16-fc-01",
+   "topic": "c16-literals",
+   "front": "What does `printf(\"%s\", s)` do if the char array `s` has no `'\\0'`?",
+   "back": "Undefined behaviour: it keeps reading past the end of the array until it happens to find a 0 byte. The output (or a crash) is not predictable."
+  },
+  {
+   "id": "c16-fc-02",
+   "topic": "c16-literals",
+   "front": "`char s[] = \"ab\\0cd\";` What are `sizeof(s)` and `strlen(s)`?",
+   "back": "`sizeof(s)` is 6 (5 written characters plus the '\\0' the compiler adds). `strlen(s)` is 2 (it stops at the first '\\0')."
+  },
+  {
+   "id": "c16-fc-03",
+   "topic": "c16-literals",
+   "front": "What is a string literal, and how long does it live?",
+   "back": "Characters in double quotes, e.g. `\"abc\"`: a read-only array of `strlen + 1` chars (the compiler adds `'\\0'`). It has static storage duration: it exists for the whole program."
+  },
+  {
+   "id": "c16-fc-04",
+   "topic": "c16-literals",
+   "front": "Is it legal to change a string literal through a pointer: `char *p = \"hi\"; p[0] = 'H';`?",
+   "back": "No: changing a literal is undefined behaviour (on Linux it usually crashes with a segmentation fault). Use an array instead: `char p[] = \"hi\";`."
+  },
+  {
+   "id": "c16-fc-05",
+   "topic": "c16-literals",
+   "front": "Difference between `char a[] = \"cat\";` and `char *p = \"cat\";`?",
+   "back": "`a` is your own 4-char array holding a copy (changeable, `sizeof` 4, cannot be assigned). `p` is a pointer to the read-only literal (`sizeof` 8, do not change the chars, but `p = \"dog\";` is fine)."
+  },
+  {
+   "id": "c16-fc-06",
+   "topic": "c16-literals",
+   "front": "`char s[] = \"abc\\0def\\0\";` What does `printf(\"%s\", s + 4)` print?",
+   "back": "`def`. `s + 4` points at index 4, and the string runs to the next `'\\0'`."
+  },
+  {
+   "id": "c16-fc-07",
+   "topic": "c16-strcpy",
+   "front": "What does `const char *s` mean in a function's parameter list?",
+   "back": "`s` points at chars the function promises not to change. You may pass any string (array, pointer, literal, argv[i])."
+  },
+  {
+   "id": "c16-fc-08",
+   "topic": "c16-strcpy",
+   "front": "Write a loop header that walks a string `s` with a pointer.",
+   "back": "`for (const char *p = s; *p != '\\0'; p++)` (or `char *p` if you will change the chars)."
+  },
+  {
+   "id": "c16-fc-09",
+   "topic": "c16-strcpy",
+   "front": "How can a pointer version of `strlen` compute the length once `p` has reached the `'\\0'`?",
+   "back": "`return p - str;`: pointer subtraction gives the number of chars between the start and the terminator."
+  },
+  {
+   "id": "c16-fc-10",
+   "topic": "c16-strcpy",
+   "front": "What does `strcpy(dest, src)` copy and return?",
+   "back": "All the characters of `src` **including the '\\0'**, into `dest`; it returns `dest`."
+  },
+  {
+   "id": "c16-fc-11",
+   "topic": "c16-strcpy",
+   "front": "How big must `dest` be for `strcpy(dest, src)`?",
+   "back": "At least `strlen(src) + 1` chars. `strcpy` cannot check: too small is undefined behaviour."
+  },
+  {
+   "id": "c16-fc-12",
+   "topic": "c16-strcpy",
+   "front": "Why is `char s[100]; s = \"hello\";` an error, and what is the fix?",
+   "back": "C has no array assignment. Use `strcpy(s, \"hello\");`."
+  },
+  {
+   "id": "c16-fc-13",
+   "topic": "c16-strcpy",
+   "front": "What went wrong in too_small.c (`char s[4]` followed by `int i` in a struct, then `s[4] = '\\0'`)?",
+   "back": "\"abcd\" needs 5 chars but `s` has 4. `s[4]` is out of bounds (undefined behaviour); on our machine the '\\0' overwrote part of `i`, changing it from 99 to 0 with no error."
+  },
+  {
+   "id": "c16-fc-14",
+   "topic": "c16-strcat-strcmp",
+   "front": "What does `strcat(dest, src)` need from `dest`?",
+   "back": "It must already be a string (have a '\\0') and have room for `strlen(dest) + strlen(src) + 1` chars. It must not overlap `src`."
+  },
+  {
+   "id": "c16-fc-15",
+   "topic": "c16-strcat-strcmp",
+   "front": "Why not test two strings with `s == t`?",
+   "back": "`==` compares addresses (are they the same object?), not characters. Use `strcmp(s, t) == 0`."
+  },
+  {
+   "id": "c16-fc-16",
+   "topic": "c16-strcat-strcmp",
+   "front": "What can you rely on about the value of `strcmp(a, b)`?",
+   "back": "Only its sign: negative if `a` comes first, 0 if equal, positive if `a` comes after. Never test `== 1` or `== -1`."
+  },
+  {
+   "id": "c16-fc-17",
+   "topic": "c16-strcat-strcmp",
+   "front": "Does \"Zoo\" come before \"apple\" with `strcmp`? Does \"10\" come before \"9\"?",
+   "back": "Yes to both: strcmp compares character codes, and 'Z' (90) < 'a' (97), '1' (49) < '9' (57)."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c16-q-01",
+   "topic": "c16-literals",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char a[] = \"hello\";\n    char b[10] = \"hi\";\n    char *c = \"world\";\n    printf(\"%zu %zu\\n\", sizeof(a), strlen(a));\n    printf(\"%zu %zu\\n\", sizeof(b), strlen(b));\n    printf(\"%zu\\n\", strlen(c + 2));\n    return 0;\n}",
+   "answer": "6 5\n10 2\n3",
+   "explain": "`a` is an array of 6 chars (5 + '\\0'); its length is 5. `b` has the capacity you asked for, 10, but holds \"hi\" (length 2). `c + 2` points at the \"r\" of \"world\", so the string is \"rld\": length 3."
+  },
+  {
+   "id": "c16-q-02",
+   "topic": "c16-literals",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"one\\0two\\0three\";\n    printf(\"%s\\n\", s);\n    printf(\"%s\\n\", s + 4);\n    printf(\"%s\\n\", s + 8);\n    printf(\"%zu %zu\\n\", sizeof(s), strlen(s + 8));\n    return 0;\n}",
+   "answer": "one\ntwo\nthree\n14 5",
+   "explain": "Each `%s` stops at the first '\\0' after its start. Index 3 and index 7 hold '\\0', so `s + 4` is \"two\" and `s + 8` is \"three\". The literal has 3 + 1 + 3 + 1 + 5 = 13 written chars plus the added '\\0': `sizeof` 14."
+  },
+  {
+   "id": "c16-q-03",
+   "topic": "c16-literals",
+   "type": "short",
+   "q": "A student writes:\n\n```c\nchar *name = \"bart\";\nname[0] = 'B';\nprintf(\"%s\\n\", name);\n```\n\nIt compiles without warnings but crashes. Explain why, and fix the first line so that the program prints `Bart`.",
+   "answer": "`name` points at a string literal, and changing a literal is undefined behaviour (literals are read-only; on Linux it crashes). Fix: `char name[] = \"bart\";` makes an array holding a copy, which may be changed.",
+   "explain": "The notebook's literal2.c and literal3.c show exactly this pair."
+  },
+  {
+   "id": "c16-q-04",
+   "topic": "c16-literals",
+   "type": "mcq",
+   "q": "After `char a[] = \"hello\";` and `char *p = \"hello\";`, which line does **not** compile?",
+   "options": [
+    "`p = \"bye\";`",
+    "`a[0] = 'j';`",
+    "`a = \"bye\";`",
+    "`p = a;`"
+   ],
+   "answer": 2,
+   "explain": "C has no array assignment, so `a = \"bye\";` is a compile error. `p = \"bye\";` and `p = a;` store a new address in the pointer, and `a[0] = 'j';` changes our own array."
+  },
+  {
+   "id": "c16-q-05",
+   "topic": "c16-strcpy",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char buf[] = \"xxxxxxxx\";\n    strcpy(buf + 2, \"ab\");\n    printf(\"%s\\n\", buf);\n    printf(\"%s\\n\", buf + 5);\n    buf[4] = '-';\n    printf(\"%s\\n\", buf);\n    return 0;\n}",
+   "answer": "xxab\nxxx\nxxab-xxx",
+   "explain": "`strcpy(buf + 2, \"ab\")` writes 'a', 'b', '\\0' at indexes 2, 3, 4: buf is \"xxab\\0xxx\". Printing `buf` stops at index 4. `buf + 5` is \"xxx\". Replacing the '\\0' at index 4 with '-' joins the two parts: \"xxab-xxx\"."
+  },
+  {
+   "id": "c16-q-06",
+   "topic": "c16-strcpy",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    char w[] = \"banana\";\n    char *p = w;\n    while (*p != '\\0') {\n        if (*p == 'a') {\n            *p = 'o';\n        }\n        p++;\n    }\n    printf(\"%s %td\\n\", w, p - w);\n    printf(\"%s\\n\", w + 3);\n    return 0;\n}",
+   "answer": "bonono 6\nono",
+   "explain": "The pointer visits every char and changes each 'a' to 'o'. When the loop ends, `p` points at the '\\0' at index 6, so `p - w` is 6 (the length). `w + 3` is the string from index 3: \"ono\"."
+  },
+  {
+   "id": "c16-q-07",
+   "topic": "c16-strcpy",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char word[] = \"stressed\";\n    char *end = word + strlen(word) - 1;\n    for (char *p = end; p >= word + 4; p--) {\n        printf(\"%c\", *p);\n    }\n    printf(\"\\n\");\n    word[3] = '\\0';\n    printf(\"%s %zu\\n\", word, strlen(word));\n    return 0;\n}",
+   "answer": "dess\nstr 3",
+   "explain": "`end` points at the last char (index 7, 'd'). The loop prints indexes 7, 6, 5, 4 backwards: 'd', 'e', 's', 's'. Then `word[3] = '\\0'` cuts the string after \"str\": length 3."
+  },
+  {
+   "id": "c16-q-08",
+   "topic": "c16-strcpy",
+   "type": "short",
+   "q": "Find the bug and fix it:\n\n```c\nchar *src = argv[1];\nchar copy[strlen(src)];\nstrcpy(copy, src);\n```",
+   "answer": "`copy` has no room for the '\\0' that `strcpy` always writes. It must be `char copy[strlen(src) + 1];`.",
+   "explain": "Writing one char past the end is undefined behaviour, like too_small.c: it may seem to work, or silently overwrite another variable."
+  },
+  {
+   "id": "c16-q-09",
+   "topic": "c16-strcpy",
+   "type": "short",
+   "q": "too_small.c has `struct t { char s[4]; int i; };`, sets `tmp.i = 99`, stores 'a', 'b', 'c', 'd' in `tmp.s[0]` to `tmp.s[3]`, then `tmp.s[4] = '\\0';`. Afterwards it printed `tmp.i = 0`. Why, and why can we not say what it *must* print?",
+   "answer": "\"abcd\" needs 5 chars, but `s` only has indexes 0 to 3, so `tmp.s[4]` is outside the array. Here the '\\0' was written into the first byte of `i`, which follows `s` in memory, changing 99 to 0. Writing out of bounds is undefined behaviour, so the C standard does not say what happens; another compiler or layout could give anything (or crash).",
+   "explain": "The fix is a bigger array: `char s[5];` for strings up to length 4."
+  },
+  {
+   "id": "c16-q-10",
+   "topic": "c16-strcat-strcmp",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[12] = \"ab\";\n    char t[] = \"ef\";\n    strcat(s, \"cd\");\n    printf(\"%s\\n\", strcat(strcat(s, t), \"!\"));\n    printf(\"%zu %zu\\n\", strlen(s), sizeof(s));\n    return 0;\n}",
+   "answer": "abcdef!\n7 12",
+   "explain": "After the first `strcat`, `s` is \"abcd\". The inner call in `printf` makes it \"abcdef\" and returns `s`; the outer call adds \"!\". Length 7, capacity still 12 (the declared size)."
+  },
+  {
+   "id": "c16-q-11",
+   "topic": "c16-strcat-strcmp",
+   "type": "mcq",
+   "q": "`char greeting[N] = \"Good \";` and `char who[] = \"morning\";` What is the smallest `N` for which `strcat(greeting, who);` is safe?",
+   "options": [
+    "12",
+    "13",
+    "8",
+    "6"
+   ],
+   "answer": 1,
+   "explain": "5 + 7 = 12 characters, plus 1 for the '\\0': 13. (The Fall 2014 final described this danger: a destination that fits its first string but not the joined one.)"
+  },
+  {
+   "id": "c16-q-12",
+   "topic": "c16-strcat-strcmp",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    printf(\"%d\\n\", strcmp(\"pea\", \"pear\") < 0);\n    printf(\"%d\\n\", strcmp(\"Pear\", \"pea\") < 0);\n    printf(\"%d\\n\", strcmp(\"pear\", \"peach\") < 0);\n    printf(\"%d\\n\", strcmp(\"pear\", \"pear\") == 0);\n    return 0;\n}",
+   "answer": "1\n1\n0\n1",
+   "explain": "\"pea\" is a start of \"pear\": it comes first. 'P' (80) < 'p' (112): \"Pear\" comes first. \"pear\" vs \"peach\": the first difference is 'r' vs 'c', and 'r' is bigger, so the result is positive and `< 0` is false (0). Equal strings give 0."
+  },
+  {
+   "id": "c16-q-13",
+   "topic": "c16-strcat-strcmp",
+   "type": "short",
+   "q": "A program should print `ok` when the first argument is `yes`:\n\n```c\nif (argv[1] == \"yes\") {\n    printf(\"ok\\n\");\n}\n```\n\nWhat is wrong (gcc -Wall warns), and what is the fix?",
+   "answer": "`==` compares the address in `argv[1]` with the address of the literal, not the characters, so it is never reliably true. Use `if (strcmp(argv[1], \"yes\") == 0)` (and `#include <string.h>`).",
+   "explain": "gcc says: \"comparison with string literal results in unspecified behavior\"."
+  },
+  {
+   "id": "c16-q-14",
+   "topic": "c16-strcat-strcmp",
+   "type": "short",
+   "q": "Using the notebook's compare.c, what does `./compare cat Category` print, and why?",
+   "answer": "`cat comes after Category`. The first chars differ: 'c' (99) is greater than 'C' (67), so `strcmp` is positive. The rest of the strings does not matter.",
+   "explain": "strcmp is case sensitive: it compares character codes, and all uppercase letters come before all lowercase letters."
+  }
+ ],
+ "write": [
+  {
+   "id": "c16-w-01",
+   "topic": "c16-strcpy",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write your own `char *my_strcpy(char *dest, const char *src)` that behaves like `strcpy`: copy the characters of `src` and the `'\\0'` into `dest`, and return `dest`. Walk both strings with pointers (no square brackets) and do not call any library function. Write a `main` that shows the copy is independent of the original, and that copies into the middle of an array.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// Copies the string src (including its '\\0') into dest and returns dest.\n// dest must have room for strlen(src) + 1 chars.\nchar *my_strcpy(char *dest, const char *src) {\n    char *d = dest;\n    const char *s = src;\n    while (*s != '\\0') {\n        *d = *s;\n        d++;\n        s++;\n    }\n    *d = '\\0';\n    return dest;\n}\n\nint main(void) {\n    char word[] = \"pointer\";\n    char copy[8];\n    my_strcpy(copy, word);\n    copy[0] = 'P';\n    printf(\"%s %s\\n\", word, copy);\n    char line[] = \"AB-----\";\n    printf(\"%s\\n\", my_strcpy(line + 2, \"cd\"));\n    printf(\"%s\\n\", line);\n    return 0;\n}",
+   "explain": "`d` and `s` start at the two strings and move together. The loop copies one char per pass and stops when `*s` is the terminator, **before** copying it, so the line after the loop must write the `'\\0'` itself (forgetting it is the classic bug). We move copies `d` and `s` so that `dest` still points at the start and can be returned. In `main`, changing `copy[0]` does not change `word`: they are two arrays. `copy` has 8 chars for the 7 of \"pointer\" plus '\\0'. Copying to `line + 2` overwrites from index 2 and the new '\\0' cuts off the dashes. Output:\n\n```\n$ ./w1\npointer Pointer\ncd\nABcd\n```\n\nThe notebook's short version `while (*dest++ = *src++)` does the same thing (the assignment's value is the char copied, and the loop stops after copying the 0); the longer form is clearer to write by hand.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "header `char *my_strcpy(char *dest, const char *src)`"
+    },
+    {
+     "marks": 1,
+     "item": "pointer loop that stops at the `'\\0'` of `src`"
+    },
+    {
+     "marks": 1,
+     "item": "copies `*s` to `*d` and moves both pointers"
+    },
+    {
+     "marks": 1,
+     "item": "writes the `'\\0'` at the end of `dest`"
+    },
+    {
+     "marks": 1,
+     "item": "returns the original `dest` (not the moved pointer)"
+    }
+   ],
+   "pitfalls": [
+    "Not writing the '\\0' after the loop.",
+    "Returning `d` (which points at the end) instead of `dest`.",
+    "Making the destination array `strlen(src)` chars instead of `strlen(src) + 1`."
+   ]
+  },
+  {
+   "id": "c16-w-02",
+   "topic": "c16-strcat-strcmp",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Modeled on Fall 2014 Q4 (the danger of `strcat`), without the heap. Complete `join` so that it puts `a` followed by `b` into `dest`, an array of `cap` chars. If the joined string and its `'\\0'` would not fit, it must return 0 and **not** touch `dest`; otherwise it builds the string with `strcpy` and `strcat` and returns 1. The program should print `Happy Holidays` and then `too long for 16 chars`.",
+   "starter": "#include <stdio.h>\n#include <string.h>\n\n// Puts a followed by b into dest, which has room for cap chars.\n// Returns 1 on success. If the joined string and its '\\0' do not fit,\n// returns 0 and leaves dest unchanged.\nint join(char *dest, size_t cap, const char *a, const char *b) {\n    size_t need = ____;\n    if (need > cap) {\n        return 0;\n    }\n    ____(dest, a);\n    ____(dest, b);\n    return 1;\n}\n\nint main(void) {\n    char greeting[16];\n    if (join(greeting, ____, \"Happy \", \"Holidays\")) {\n        printf(\"%s\\n\", greeting);\n    }\n    if (!join(greeting, sizeof(greeting), \"Happy \", \"New Year's Eve\")) {\n        printf(\"too long for %zu chars\\n\", sizeof(greeting));\n    }\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n#include <string.h>\n\n// Puts a followed by b into dest, which has room for cap chars.\n// Returns 1 on success. If the joined string and its '\\0' do not fit,\n// returns 0 and leaves dest unchanged.\nint join(char *dest, size_t cap, const char *a, const char *b) {\n    size_t need = strlen(a) + strlen(b) + 1;\n    if (need > cap) {\n        return 0;\n    }\n    strcpy(dest, a);\n    strcat(dest, b);\n    return 1;\n}\n\nint main(void) {\n    char greeting[16];\n    if (join(greeting, sizeof(greeting), \"Happy \", \"Holidays\")) {\n        printf(\"%s\\n\", greeting);\n    }\n    if (!join(greeting, sizeof(greeting), \"Happy \", \"New Year's Eve\")) {\n        printf(\"too long for %zu chars\\n\", sizeof(greeting));\n    }\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`need = strlen(a) + strlen(b) + 1` (the + 1 for the '\\0')"
+    },
+    {
+     "marks": 1,
+     "item": "`strcpy(dest, a)` first (dest may hold garbage, so it cannot be `strcat`)"
+    },
+    {
+     "marks": 1,
+     "item": "then `strcat(dest, b)`"
+    },
+    {
+     "marks": 1,
+     "item": "passes the capacity as `sizeof(greeting)` (16), from main where `greeting` is an array"
+    }
+   ],
+   "pitfalls": [
+    "Forgetting the + 1: \"Happy \" + a 10-char word would then overflow by one char.",
+    "Starting with `strcat(dest, a)`: `greeting` is uninitialised, so it is not a string yet.",
+    "Using `sizeof(dest)` inside `join`: `dest` is a pointer there, so that is 8."
+   ]
+  },
+  {
+   "id": "c16-w-03",
+   "topic": "c16-strcat-strcmp",
+   "stage": "blank",
+   "marks": 10,
+   "prompt": "Modeled on Fall 2016 Q4 (which read lines from a file), using command line arguments instead. Write a complete C program `ordered` that decides whether its arguments are in dictionary order (case sensitive: use `strcmp`). Equal neighbours are allowed.\n\n- With no arguments, print a usage message to standard error and exit with a failure status.\n- First check every argument: if any argument is longer than 20 characters, write an error message to standard error and exit with a failure status.\n- If the arguments are in order, print `arguments are in order` and exit successfully.\n- Otherwise print `arguments out of order:` and then the **first** pair that is out of order, each on its own line indented by two spaces, and exit with a failure status.\n\n```\n$ ./ordered apple banana grape grape orange\narguments are in order\n$ ./ordered apple grape banana peach orange\narguments out of order:\n  grape\n  banana\n```\n\n(Lab 5 of Day 16 tests this program: `./cdrill.sh check 16 5`.)",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc < 2) {\n        fprintf(stderr, \"Usage: ordered word...\\n\");\n        exit(1);\n    }\n    for (int i = 1; i < argc; i++) {\n        if (strlen(argv[i]) > 20) {\n            fprintf(stderr, \"ordered: argument %d is longer than 20 characters\\n\", i);\n            exit(1);\n        }\n    }\n    for (int i = 2; i < argc; i++) {\n        if (strcmp(argv[i - 1], argv[i]) > 0) {\n            printf(\"arguments out of order:\\n\");\n            printf(\"  %s\\n\", argv[i - 1]);\n            printf(\"  %s\\n\", argv[i]);\n            exit(1);\n        }\n    }\n    printf(\"arguments are in order\\n\");\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`int main(int argc, char *argv[])` with the right `#include`s (`<stdio.h>`, `<stdlib.h>`, `<string.h>`)"
+    },
+    {
+     "marks": 1,
+     "item": "no arguments: message on `stderr`, non-zero exit"
+    },
+    {
+     "marks": 2,
+     "item": "length check of every argument with `strlen(argv[i]) > 20` before any comparing; error on `stderr`, non-zero exit"
+    },
+    {
+     "marks": 2,
+     "item": "loop over neighbours `argv[i - 1]`, `argv[i]` for `i` from 2 to `argc - 1` (no index past `argc - 1`)"
+    },
+    {
+     "marks": 2,
+     "item": "out of order means `strcmp(argv[i - 1], argv[i]) > 0` (equal is fine); prints the first such pair in the required format and exits with failure at once"
+    },
+    {
+     "marks": 1,
+     "item": "prints the success message only after the loop, exit status 0"
+    },
+    {
+     "marks": 1,
+     "item": "compares with `strcmp`, never with `<` or `==` on the pointers"
+    }
+   ],
+   "pitfalls": [
+    "Comparing `argv[i - 1] > argv[i]`: that compares addresses.",
+    "Using `>= 0` or `!= 0`: equal neighbours (grape, grape) would then count as out of order.",
+    "Printing `arguments are in order` inside the loop.",
+    "Testing `strcmp(...) == 1`: only the sign is guaranteed."
+   ]
+  }
+ ]
+}
