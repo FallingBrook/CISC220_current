@@ -1,0 +1,590 @@
+{
+ "day": 4,
+ "title": "Functions, the math library, and errors",
+ "goal": "Write functions that compute with loops, use <math.h> and <stdlib.h> (linking with -lm last), report errors on standard error with exit status 1, and sum a series: everything Assignment 4's sin.c needs.",
+ "topics": [
+  {
+   "id": "c4-functions",
+   "title": "Functions in more depth",
+   "notebook": "c/declarations.ipynb",
+   "priority": "high",
+   "examNote": "Exam questions often say *write a function that...*: get the header (return type, name, parameter types) exactly right, and remember that a function must be **declared before it is used**.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "On Day 2 you wrote small functions. Today you will write functions that *compute* something with a loop, because that is what Assignment 4's `sin.c` needs.\n\n### Declaration (prototype) and definition\n\nC reads your file from top to bottom. A function must be **declared** before the line that calls it, so the compiler can check the call: the right number of arguments, and what type comes back.\n\n- A **prototype** (also called a *function declaration*) is the header followed by a semicolon: `double cube(double x);`. It says the function exists, what it returns, and what it takes.\n- A **definition** is the header followed by a body in `{ }`. It is the actual code.\n\nYou can either define the function above `main`, or put a prototype above `main` and the definition below it. Both are fine; the prototype style lets `main` come first so it is easy to find."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\ndouble cube(double x);              // prototype: the function's name, return type and parameters\n\nint main(void) {\n    printf(\"%f\\n\", cube(1.5));\n    printf(\"%f\\n\", cube(2.0) + cube(-1.0));\n    return 0;\n}\n\ndouble cube(double x) {             // definition: the header again, plus the body\n    return x * x * x;\n}",
+     "caption": "proto.c: prototype above main, definition below"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o proto proto.c\n$ ./proto\n3.375000\n7.000000"
+    },
+    {
+     "type": "md",
+     "text": "Notice `cube(2.0) + cube(-1.0)`: a function call that returns a value can be used anywhere a value of that type can go, such as inside a bigger expression or directly as a `printf` argument. Here it is 8.0 + (-1.0) = 7.0."
+    },
+    {
+     "type": "pitfall",
+     "text": "If you delete the prototype and keep the definition *below* `main`, gcc does not know `cube` yet. It prints `warning: implicit declaration of function 'cube'` and then `error: conflicting types for 'cube'`, because it guessed that the unknown function returns `int`. Fix: add the prototype, or move the definition above `main`."
+    },
+    {
+     "type": "md",
+     "text": "### Parameters are copies\n\nWhen you call `add_one(n)`, C copies the *value* of `n` into the parameter. The parameter is a **local variable** of the function: it exists only while the function runs, and changing it never changes the caller's variable. (Variables declared inside a function are local too; they are created on each call and must be given a starting value.)"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid add_one(int n) {\n    n = n + 1;                      // changes the copy only\n    printf(\"inside add_one: n = %d\\n\", n);\n}\n\nint main(void) {\n    int n = 5;\n    add_one(n);\n    printf(\"in main: n = %d\\n\", n);\n    return 0;\n}",
+     "caption": "copies.c"
+    },
+    {
+     "type": "code",
+     "code": "$ ./copies\ninside add_one: n = 6\nin main: n = 5"
+    },
+    {
+     "type": "check",
+     "q": "In copies.c, why does main still print 5?",
+     "a": "`add_one` received a copy of the value 5 in its own parameter `n`. It changed the copy to 6. `main`'s `n` is a different variable and was never touched. To get a result *back* from a function, `return` it."
+    },
+    {
+     "type": "md",
+     "text": "### Return types and a loop inside a function\n\nThe return type is written before the name. Use `unsigned int` for a count that is never negative, and `double` for anything with a fractional part. A very common pattern is the **running total**: start a local variable at 0 (or at 1 for a product), update it in a loop, and return it at the end."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nunsigned int sum_squares(unsigned int n);\ndouble harmonic(unsigned int n);\n\nint main(void) {\n    printf(\"%u\\n\", sum_squares(3));\n    printf(\"%u\\n\", sum_squares(3) + sum_squares(4));\n    printf(\"%.6f\\n\", harmonic(4));\n    printf(\"%.6f\\n\", 2.0 * harmonic(1));\n    return 0;\n}\n\n// returns 1*1 + 2*2 + ... + n*n\nunsigned int sum_squares(unsigned int n) {\n    unsigned int total = 0;         // running total starts at 0\n    for (unsigned int i = 1; i <= n; i++) {\n        total = total + i * i;\n    }\n    return total;\n}\n\n// returns 1/1 + 1/2 + ... + 1/n\ndouble harmonic(unsigned int n) {\n    double total = 0.0;\n    for (unsigned int k = 1; k <= n; k++) {\n        total = total + 1.0 / k;    // 1.0 makes this double division\n    }\n    return total;\n}",
+     "caption": "loops.c: two functions that compute a result with a loop"
+    },
+    {
+     "type": "code",
+     "code": "$ ./loops\n14\n44\n2.083333\n2.000000"
+    },
+    {
+     "type": "md",
+     "text": "Check the numbers: 1 + 4 + 9 = 14, and 14 + (1 + 4 + 9 + 16) = 44. `harmonic(4)` is 1 + 0.5 + 0.333... + 0.25 = 2.083333."
+    },
+    {
+     "type": "pitfall",
+     "text": "`double total;` without `= 0.0` leaves `total` holding whatever garbage was in memory (the notebook's `sum_of.c` bug). Always initialize a running total. For a product, start at 1, not 0."
+    },
+    {
+     "type": "pitfall",
+     "text": "Inside `harmonic`, `1 / k` would be **integer division** (Day 2): 1/2 is 0. Writing `1.0 / k` makes it double division."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Prototype = header + `;`. Definition = header + body. Declare before you call.\n- Parameters and local variables are copies that live only during the call; use `return` to send a result back.\n- Return type comes first: `double f(...)`, `unsigned int g(...)`, `void h(...)` (returns nothing).\n- Running total: initialize (0 for sums, 1 for products), update in a loop, return.\n- A call that returns a value can be used inside any expression: `f(2) + f(3)`."
+    }
+   ]
+  },
+  {
+   "id": "c4-libs-errors",
+   "title": "<math.h>, <stdlib.h>, and error messages",
+   "notebook": "c/floats.ipynb",
+   "priority": "high",
+   "examNote": "Know the usage-message pattern by heart: check `argc`, `fprintf(stderr, ...)`, exit status 1. Also know that `atof` gives 0.0 for text that is not a number.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `<math.h>`: pow, sqrt, fabs\n\nThe math library has functions much like Java's `Math` class. All of these take and return `double`:\n\n| Function | Meaning | Example |\n|---|---|---|\n| `sqrt(x)` | square root | `sqrt(2.0)` is 1.414214 |\n| `pow(x, y)` | x to the power y | `pow(2.0, 10)` is 1024.0 |\n| `fabs(x)` | absolute value of a double | `fabs(-3.5)` is 3.5 |\n\nC has no overloading, so `fabs` is for doubles; there is a separate `abs` (in `<stdlib.h>`) for `int`."
+    },
+    {
+     "type": "code",
+     "code": "#include <math.h>\n#include <stdio.h>\n\nint main(void) {\n    double a = 2.0;\n    double b = -3.5;\n    printf(\"%f\\n\", sqrt(a));\n    printf(\"%f\\n\", pow(a, 10));\n    printf(\"%f\\n\", pow(a, 0.5));\n    printf(\"%f\\n\", fabs(b));\n    printf(\"%f\\n\", fabs(a));\n    return 0;\n}",
+     "caption": "mathdemo.c"
+    },
+    {
+     "type": "md",
+     "text": "### Linking with `-lm`, and why it goes LAST\n\n`#include <math.h>` only gives the compiler the *prototypes*. The actual code of `pow` and `sqrt` is in a separate library file, the **math library**. You ask gcc to **link** it (join it into your program) with `-lm` (hyphen, lower-case L, m)."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o mathdemo mathdemo.c -lm\n$ ./mathdemo\n1.414214\n1024.000000\n1.414214\n3.500000\n2.000000"
+    },
+    {
+     "type": "md",
+     "text": "The **order matters** on Ubuntu (the CASLab machines and your VM). The linker reads the command line left to right. When it reaches `-lm` it only takes the functions that the files it has *already* seen are missing. If `-lm` comes before your `.c` file, nothing is missing yet, so it takes nothing; then your file asks for `sqrt` and `pow` and it is too late:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o mathdemo -lm mathdemo.c\n/usr/bin/ld: /tmp/ccshDxlJ.o: in function `main':\nmathdemo.c:(.text+0x30): undefined reference to `sqrt'\n/usr/bin/ld: mathdemo.c:(.text+0x68): undefined reference to `pow'\n/usr/bin/ld: mathdemo.c:(.text+0xa0): undefined reference to `pow'\ncollect2: error: ld returned 1 exit status"
+    },
+    {
+     "type": "pitfall",
+     "text": "The Assignment 4 handout writes `gcc -o sin -lm sin.c`. On Ubuntu that gives exactly this ``undefined reference to `pow'`` error. Use **`gcc -Wall -o sin sin.c -lm`**: libraries after the source file. Forgetting `-lm` completely gives the same error."
+    },
+    {
+     "type": "md",
+     "text": "### `<stdlib.h>`: atof and atoi\n\nCommand line arguments are always **strings** (Day 3): `argv[1]` for `./prog 2.5` is the text `\"2.5\"`, not a number. To do arithmetic you convert it:\n\n- `atof(s)` (*ASCII to float*) converts a string to a `double`.\n- `atoi(s)` (*ASCII to int*) converts a string to an `int`.\n\nThey read as much of the start of the string as looks like a number and ignore the rest. If the string does not start with a number they return **0** (0.0 for `atof`). They never print an error."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    printf(\"%f\\n\", atof(\"3.75\"));\n    printf(\"%f\\n\", atof(\"-0.5\"));\n    printf(\"%f\\n\", atof(\"abc\"));\n    printf(\"%f\\n\", atof(\"12xyz\"));\n    printf(\"%d\\n\", atoi(\"42\"));\n    printf(\"%d\\n\", atoi(\"7.9\"));\n    printf(\"%d\\n\", atoi(\"hello\"));\n    return 0;\n}",
+     "caption": "conv.c"
+    },
+    {
+     "type": "code",
+     "code": "$ ./conv\n3.750000\n-0.500000\n0.000000\n12.000000\n42\n7\n0"
+    },
+    {
+     "type": "check",
+     "q": "What does `atof(\"abc\")` return, and what does that mean for a program run as `./prog abc`?",
+     "a": "It returns 0.0. The program does not crash or complain; it simply computes with x = 0.0. (The Assignment 4 examples rely on this: `./sin abc` behaves like `./sin 0`.)"
+    },
+    {
+     "type": "md",
+     "text": "### Errors: standard error and exit status\n\nEvery program has two output streams. **Standard output** (`stdout`) is for the program's normal results; `printf` and `puts` write there. **Standard error** (`stderr`) is for error messages. `fprintf` is `printf` with one extra first argument, the stream: `fprintf(stderr, \"Usage: circle radius\\n\");`.\n\nThis is the Bash idea you already know: `>` redirects stdout, `2>` redirects stderr, and `$?` is the exit status of the last command. Sending errors to stderr means `./prog > results.txt` still shows the error on the screen, and does not mix it into the results.\n\nThe usual pattern: if `argc` is wrong, print a **usage message** (how to run the program) to stderr and exit with status 1 (any non-zero status means *failure*; 0 means success)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"Usage: circle radius\\n\");\n        return 1;\n    }\n    double r = atof(argv[1]);\n    double pi = 3.141592653589793;\n    printf(\"%.4f\\n\", pi * r * r);\n    return 0;\n}",
+     "caption": "circle.c: area of a circle from a radius on the command line"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o circle circle.c\n$ ./circle 2\n12.5664\n$ echo $?\n0\n$ ./circle\nUsage: circle radius\n$ echo $?\n1\n$ ./circle 1 2 2> err.txt\n$ echo $?\n1\n$ cat err.txt\nUsage: circle radius"
+    },
+    {
+     "type": "md",
+     "text": "`argc` counts the program name too, so *one* argument means `argc == 2`. In the `2> err.txt` run the message went into the file instead of the screen, which proves it was written to stderr.\n\n### `exit(1)` versus `return 1`\n\n`return 1;` ends the *current function*. Only in `main` does that also end the program with status 1. `exit(1);` (from `<stdlib.h>`) ends the **whole program** immediately with status 1, from *any* function. The course notebooks also write `exit(EXIT_FAILURE)`; `EXIT_FAILURE` is a name for a failure status (1 on Linux)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nvoid usage(void) {\n    fprintf(stderr, \"Usage: exitdemo word\\n\");\n    exit(1);                        // ends the WHOLE program, status 1\n}\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        usage();\n    }\n    printf(\"you typed %s\\n\", argv[1]);\n    return 0;\n}",
+     "caption": "exitdemo.c: exit from a helper function"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o exitdemo exitdemo.c\n$ ./exitdemo hi\nyou typed hi\n$ ./exitdemo\nUsage: exitdemo word\n$ echo $?\n1"
+    },
+    {
+     "type": "pitfall",
+     "text": "Writing the usage message with `printf` puts it on standard output. It looks the same on screen, but a checker (and the TAs) can tell: the message is in the wrong stream. Use `fprintf(stderr, ...)`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Printing the message but forgetting `return 1` / `exit(1)`: the program keeps going and uses `argv[1]`, which may not exist. Reading past the end of `argv` is undefined behaviour."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `#include <math.h>` for `pow`, `sqrt`, `fabs`; compile with `-lm` **after** the `.c` file.\n- `#include <stdlib.h>` for `atof`, `atoi`, `exit`. `atof(\"abc\")` is 0.0, no error.\n- Errors go to stderr: `fprintf(stderr, \"Usage: prog x\\n\");`. Bash: `2>` redirects it, `$?` shows the status.\n- Wrong number of arguments: check `argc != 2` (for one argument), print usage, exit status 1.\n- `return 1` leaves the current function; `exit(1)` ends the program from anywhere."
+    }
+   ]
+  },
+  {
+   "id": "c4-series",
+   "title": "Summing a series (and a plan for sin.c)",
+   "notebook": "c/floats.ipynb",
+   "priority": "high",
+   "examNote": "Assignment 4 is graded: this lesson teaches the skills with e^x and ln 2 examples and gives a plan in words. Write `sin.c` yourself.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "A **series** is a sum of many terms that follow a pattern. Computers compute many math functions by adding up the first few terms of a series. In code that is just a running total in a loop.\n\n### Alternating signs\n\nSome series alternate: +, -, +, -, ... For example 1 - 1/2 + 1/3 - 1/4 + ... gets closer and closer to ln 2. The simplest way to get the signs is a `sign` variable that starts at +1.0 and is flipped with `sign = -sign` after each term."
+    },
+    {
+     "type": "code",
+     "code": "#include <math.h>\n#include <stdio.h>\n\n// returns 1 - 1/2 + 1/3 - 1/4 + ... (n terms)\ndouble alt_harmonic(unsigned int n) {\n    double total = 0.0;\n    double sign = 1.0;              // +1.0 for the first term\n    for (unsigned int k = 1; k <= n; k++) {\n        total = total + sign / k;\n        sign = -sign;               // flip: +, -, +, -, ...\n    }\n    return total;\n}\n\nint main(void) {\n    printf(\"%24.17f\\n\", alt_harmonic(10));\n    printf(\"%24.17f\\n\", alt_harmonic(1000));\n    printf(\"%24.17f\\n\", log(2.0));  // the exact limit is ln 2\n    return 0;\n}",
+     "caption": "ln2.c: an alternating series compared with the library's log"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o ln2 ln2.c -lm\n$ ./ln2\n     0.64563492063492067\n     0.69264743055982225\n     0.69314718055994529"
+    },
+    {
+     "type": "md",
+     "text": "`%24.17f` (Day 2) prints 17 digits after the point in a field 24 characters wide, so you can see tiny differences. More terms get closer to ln 2 = 0.69314718..., but a finite number of terms is never exactly equal to it."
+    },
+    {
+     "type": "md",
+     "text": "### Worked example: e to the power x\n\nThe exponential function has the series\n\ne^x = 1 + x + x^2/2! + x^3/3! + x^4/4! + ...\n\nwhere n! (*n factorial*) is 1 × 2 × ... × n, and 0! = 1. Every term has the form x^n / n!.\n\nYou could compute each term from scratch with `pow` and a factorial. This example uses a different trick: **each term is the previous term times x / n**. For example, x^3/3! = (x^2/2!) × x / 3. So the loop keeps one running `term` and one running `total`."
+    },
+    {
+     "type": "code",
+     "code": "#include <math.h>\n#include <stdio.h>\n#include <stdlib.h>\n\n// approximates e to the power x with the terms x^0/0! up to x^last/last!\ndouble my_exp(double x, int last) {\n    double term = 1.0;      // the n = 0 term: x^0 / 0! = 1\n    double total = term;\n    for (int n = 1; n <= last; n++) {\n        term = term * x / n;    // turns x^(n-1)/(n-1)! into x^n/n!\n        total = total + term;\n    }\n    return total;\n}\n\nint main(void) {\n    double x = 1.0;\n    printf(\"%24.17f  (4 terms)\\n\", my_exp(x, 3));\n    printf(\"%24.17f  (11 terms)\\n\", my_exp(x, 10));\n    printf(\"%24.17f  (21 terms)\\n\", my_exp(x, 20));\n    printf(\"%24.17f  (library exp)\\n\", exp(x));\n    return 0;\n}",
+     "caption": "exp.c: approximating e^x with the first terms of its series"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o exp exp.c -lm\n$ ./exp\n     2.66666666666666652  (4 terms)\n     2.71828180114638451  (11 terms)\n     2.71828182845904553  (21 terms)\n     2.71828182845904509  (library exp)"
+    },
+    {
+     "type": "why",
+     "q": "Suppose you computed n! on its own in a loop, as an `int`. Why would that go wrong for the larger terms?",
+     "a": "Factorials grow very fast. 12! = 479001600 still fits in an `int`, but 13! = 6227020800 is larger than the biggest `int` (2147483647). Signed `int` overflow is undefined behaviour, so the result could be anything. Doing the product in a `double` avoids this: a `double` holds 13!, 20! and much larger values (approximately, but very accurately at these sizes)."
+    },
+    {
+     "type": "why",
+     "q": "Why is the 21-term answer still not exactly equal to the library's `exp(1.0)`?",
+     "a": "Two reasons. **Truncation**: we stopped after a finite number of terms, so we left out a (tiny) remainder. **Rounding**: a `double` holds about 16 significant decimal digits, so every division and addition is rounded a little, and those roundings add up. The library uses a cleverer method, so the last digit or two differ. That is expected."
+    },
+    {
+     "type": "md",
+     "text": "### Plan for Assignment 4's sin.c (in words; you write the code)\n\n`sin.c` approximates sin(x) with the series x - x^3/3! + x^5/5! - x^7/7! + ... using the terms from x^1/1! up to x^13/13!. Every skill is in today's lessons. Steps:\n\n1. Include the headers you need: `<stdio.h>` for printing, `<stdlib.h>` for `atof`, `<math.h>` for `pow`.\n2. In `main(int argc, char *argv[])`, check the argument count first. Exactly one argument means `argc` must be 2. Otherwise print a usage message to **stderr** and end with exit status 1.\n3. Convert `argv[1]` to a `double` with `atof`. (Non-numbers become 0.0; that is fine.)\n4. Write the factorial function the assignment asks for (`fact`): multiply 1 × 2 × ... × n in a loop, keeping the product in a `double` and returning it (see the *Why?* box above for the reason). Note that `exp.c` used a running term instead, so the assignment's `fact` is yours to write.\n5. Add up the terms in a loop with a running total. Think about two things: which powers appear (only the **odd** ones, 1, 3, 5, ..., 13; seven terms), and the **sign** of each term (+ for x^1, - for x^3, + for x^5, ...). Each term is the sign times `pow(x, n)` divided by `fact(n)`.\n6. Print the result with exactly the format the assignment gives, `%24.17f` followed by a newline.\n7. Compile with `-lm` **last**: `gcc -Wall -o sin sin.c -lm`.\n\nSelf-check by hand: the series at x = 0 is 0, and for small x the answer is very close to x (the assignment's example `./sin -0.01` prints `-0.00999983333416666`)."
+    },
+    {
+     "type": "pitfall",
+     "text": "Common sin.c mistakes: (1) factorial in `int`, which overflows at 13!; (2) the wrong sign pattern, e.g. starting with minus, or flipping the sign at the wrong place; (3) one term too many or too few (stop at the x^13 term); (4) `%f` or `%.17f` instead of `%24.17f`, so the spacing does not match; (5) usage message on stdout or exit status 0; (6) `-lm` before `sin.c`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Your answer will differ slightly from the library's `sin(x)` in the last digits, for the truncation and rounding reasons above. That is correct. The checker compares with what the *series* gives, not with `sin()`, so do not call `sin` from `<math.h>`."
+    },
+    {
+     "type": "try",
+     "text": "Make the folder and write the program: `mkdir -p ~/CISC220_A4 && cd ~/CISC220_A4 && nano sin.c`. Compile with `gcc -Wall -o sin sin.c -lm` and try `./sin 0.5`, `./sin`, `./sin 1 2; echo $?`. Then run the checker: `cd ~/CISC220_current/c-app/drills && ./cdrill.sh a4 ~/CISC220_A4 sin.c`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Series in code = running total in a loop; each pass adds one term.\n- Alternating signs: `sign` starts at 1.0, then `sign = -sign` after each term.\n- Factorials and powers get huge: use `double`, not `int`.\n- A truncated series plus rounding differs from the library function in the last digits; that is expected.\n- Print with `%24.17f` to see (and match) 17 decimal places."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c4-fc-01",
+   "topic": "c4-functions",
+   "front": "What is a function prototype? Give one.",
+   "back": "The function's header followed by a semicolon, with no body. It declares the return type, name and parameter types so the function can be called before its definition. Example: `double cube(double x);`"
+  },
+  {
+   "id": "c4-fc-02",
+   "topic": "c4-functions",
+   "front": "Prototype vs definition?",
+   "back": "Prototype (declaration): header + `;`. Definition: header + `{ body }`. A function must be declared (by either) before the line that calls it."
+  },
+  {
+   "id": "c4-fc-03",
+   "topic": "c4-functions",
+   "front": "What happens to the caller's variable if a function changes its parameter?",
+   "back": "Nothing. Parameters are copies of the argument values (local variables of the function)."
+  },
+  {
+   "id": "c4-fc-04",
+   "topic": "c4-functions",
+   "front": "How do you get a result out of a function?",
+   "back": "`return` it, and give the function a matching return type, e.g. `double f(...)` then `return total;`."
+  },
+  {
+   "id": "c4-fc-05",
+   "topic": "c4-functions",
+   "front": "Running-total pattern for a sum and for a product?",
+   "back": "Sum: `double total = 0.0;` then `total = total + term;` in the loop. Product: start at `1.0` and multiply. Return at the end."
+  },
+  {
+   "id": "c4-fc-06",
+   "topic": "c4-functions",
+   "front": "gcc says `implicit declaration of function 'f'`. Why?",
+   "back": "`f` is called before it is declared. Add a prototype above the call or move the definition above it."
+  },
+  {
+   "id": "c4-fc-07",
+   "topic": "c4-libs-errors",
+   "front": "Which header and link flag for `pow`, `sqrt`, `fabs`?",
+   "back": "`#include <math.h>` and `-lm` at the END: `gcc -Wall -o prog prog.c -lm`."
+  },
+  {
+   "id": "c4-fc-08",
+   "topic": "c4-libs-errors",
+   "front": "Why does `gcc -o sin -lm sin.c` fail on Ubuntu?",
+   "back": "The linker reads left to right; at `-lm` nothing needs `pow` yet, so it takes nothing. Then sin.c needs `pow`: ``undefined reference to `pow'``. Put `-lm` after the source file."
+  },
+  {
+   "id": "c4-fc-09",
+   "topic": "c4-libs-errors",
+   "front": "`atof(\"abc\")`? `atof(\"2.5kg\")`? `atoi(\"7.9\")`?",
+   "back": "0.0, 2.5 and 7. They convert the number at the start of the string and ignore the rest; no number gives 0."
+  },
+  {
+   "id": "c4-fc-10",
+   "topic": "c4-libs-errors",
+   "front": "How do you print an error message in C?",
+   "back": "`fprintf(stderr, \"Usage: prog x\\n\");` writes to standard error instead of standard output."
+  },
+  {
+   "id": "c4-fc-11",
+   "topic": "c4-libs-errors",
+   "front": "Usage check for a program that needs exactly one argument?",
+   "back": "`if (argc != 2) { fprintf(stderr, \"Usage: prog x\\n\"); return 1; }` (argc counts the program name)."
+  },
+  {
+   "id": "c4-fc-12",
+   "topic": "c4-libs-errors",
+   "front": "`exit(1)` vs `return 1`?",
+   "back": "`return 1` ends the current function (the program only if it is `main`). `exit(1)` (stdlib.h) ends the whole program from any function, status 1."
+  },
+  {
+   "id": "c4-fc-13",
+   "topic": "c4-libs-errors",
+   "front": "Bash: hide a program's error messages; see its exit status.",
+   "back": "`./prog 2> /dev/null` redirects stderr. `echo $?` prints the last exit status."
+  },
+  {
+   "id": "c4-fc-14",
+   "topic": "c4-series",
+   "front": "How do you make the signs alternate +, -, +, ... in a loop?",
+   "back": "`double sign = 1.0;` and after adding each term, `sign = -sign;`."
+  },
+  {
+   "id": "c4-fc-15",
+   "topic": "c4-series",
+   "front": "Why must a factorial function return `double`?",
+   "back": "13! = 6227020800 is bigger than the largest `int` (2147483647); signed overflow is undefined behaviour. A `double` holds it."
+  },
+  {
+   "id": "c4-fc-16",
+   "topic": "c4-series",
+   "front": "Two reasons a series answer differs from the library function.",
+   "back": "Truncation (only finitely many terms) and rounding (a double has about 16 significant digits; every operation rounds)."
+  },
+  {
+   "id": "c4-fc-17",
+   "topic": "c4-series",
+   "front": "What does `%24.17f` print?",
+   "back": "A double with 17 digits after the decimal point, right-aligned in a field at least 24 characters wide."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c4-q-01",
+   "topic": "c4-functions",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\ndouble twice(double x) {\n    x = x * 2;\n    return x;\n}\n\nint main(void) {\n    double x = 1.5;\n    double y = twice(x);\n    printf(\"%.1f %.1f\\n\", x, y);\n    return 0;\n}",
+   "answer": "1.5 3.0",
+   "explain": "`twice` doubles its own copy of `x` and returns 3.0. `main`'s `x` is unchanged, so it is still 1.5."
+  },
+  {
+   "id": "c4-q-02",
+   "topic": "c4-functions",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nunsigned int odd_product(unsigned int n) {\n    unsigned int p = 1;\n    for (unsigned int i = 1; i <= n; i += 2) {\n        p = p * i;\n    }\n    return p;\n}\n\nint main(void) {\n    printf(\"%u\\n\", odd_product(7));\n    printf(\"%u\\n\", odd_product(1) + odd_product(4));\n    return 0;\n}",
+   "answer": "105\n4",
+   "explain": "`odd_product(7)` multiplies 1 × 3 × 5 × 7 = 105. `odd_product(1)` is 1 and `odd_product(4)` is 1 × 3 = 3, so the sum is 4."
+  },
+  {
+   "id": "c4-q-03",
+   "topic": "c4-functions",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\ndouble half(int n) {\n    return n / 2;\n}\n\nint main(void) {\n    printf(\"%.1f\\n\", half(7));\n    return 0;\n}",
+   "answer": "3.0",
+   "explain": "`n / 2` with `int n = 7` is integer division: 3. Only then is 3 converted to the return type `double`, giving 3.0. Write `n / 2.0` to get 3.5."
+  },
+  {
+   "id": "c4-q-04",
+   "topic": "c4-functions",
+   "type": "mcq",
+   "q": "Which line is a function prototype?",
+   "options": [
+    "`double area(double r);`",
+    "`double area(double r) { return r * r; }`",
+    "`area(2.0);`",
+    "`double a = area(2.0);`"
+   ],
+   "answer": 0,
+   "explain": "A prototype is the header followed by a semicolon. Option B is a definition; C and D are calls."
+  },
+  {
+   "id": "c4-q-05",
+   "topic": "c4-functions",
+   "type": "short",
+   "q": "A function `void reset(int x) { x = 0; }` is called as `reset(count);`. Explain why `count` does not become 0.",
+   "answer": "C passes arguments by value: `x` is a new local variable holding a copy of `count`'s value. Setting `x` to 0 changes only the copy, which disappears when `reset` returns.",
+   "explain": "To change something for the caller, return a new value (`count = reset_value();`) or (later in the course) use a pointer."
+  },
+  {
+   "id": "c4-q-06",
+   "topic": "c4-libs-errors",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    printf(\"%.2f %d\\n\", atof(\"2.5kg\"), atoi(\"2.5kg\"));\n    printf(\"%.2f\\n\", atof(\"kg2.5\"));\n    return 0;\n}",
+   "answer": "2.50 2\n0.00",
+   "explain": "`atof` reads the leading `2.5` and ignores `kg`; `atoi` reads the leading `2` and stops at the `.`. `\"kg2.5\"` does not start with a number, so `atof` returns 0.0."
+  },
+  {
+   "id": "c4-q-07",
+   "topic": "c4-libs-errors",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <math.h>\n#include <stdio.h>\n\nint main(void) {\n    double a = -2.0;\n    double b = 16.0;\n    printf(\"%.1f\\n\", fabs(a) + sqrt(b));\n    printf(\"%.1f\\n\", pow(a, 3));\n    return 0;\n}",
+   "answer": "6.0\n-8.0",
+   "explain": "fabs(-2.0) + sqrt(16.0) = 2.0 + 4.0 = 6.0, and pow(-2.0, 3) = -8.0. (Compile with `-lm`.)"
+  },
+  {
+   "id": "c4-q-08",
+   "topic": "c4-libs-errors",
+   "type": "output",
+   "q": "This program is compiled as `prog` and run as `./prog 2> /dev/null`. What appears on the terminal?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    puts(\"one\");\n    fprintf(stderr, \"two\\n\");\n    puts(\"three\");\n    return 0;\n}",
+   "answer": "one\nthree",
+   "explain": "`puts` writes to standard output, which still goes to the terminal. `fprintf(stderr, ...)` writes to standard error, which `2> /dev/null` throws away."
+  },
+  {
+   "id": "c4-q-09",
+   "topic": "c4-libs-errors",
+   "type": "mcq",
+   "q": "On Ubuntu, which command builds `sin` from `sin.c`, which calls `pow`?",
+   "options": [
+    "`gcc -o sin -lm sin.c`",
+    "`gcc -o sin sin.c -lm`",
+    "`gcc -o sin sin.c`",
+    "`gcc -lm -o sin sin.c`"
+   ],
+   "answer": 1,
+   "explain": "The math library must come after the source file, because the linker reads left to right and only takes from a library what earlier files are missing. The other three fail with ``undefined reference to `pow'``."
+  },
+  {
+   "id": "c4-q-10",
+   "topic": "c4-libs-errors",
+   "type": "short",
+   "q": "Write the lines at the start of `main` for a program `temp` that needs exactly one command line argument: on a wrong count it prints `Usage: temp celsius` to standard error and ends with exit status 1.",
+   "answer": "if (argc != 2) {\n    fprintf(stderr, \"Usage: temp celsius\\n\");\n    return 1;\n}",
+   "explain": "`argc` includes the program name, so one argument means `argc == 2`. `exit(1);` instead of `return 1;` is also correct (include `<stdlib.h>`)."
+  },
+  {
+   "id": "c4-q-11",
+   "topic": "c4-libs-errors",
+   "type": "short",
+   "q": "What is the difference between `exit(1)` and `return 1`?",
+   "answer": "`return 1` ends only the function it is in (it ends the program only when that function is `main`). `exit(1)` ends the whole program immediately with exit status 1, from any function.",
+   "explain": "That is why a helper like `usage()` calls `exit(1)`: a `return` there would just go back to `main`."
+  },
+  {
+   "id": "c4-q-12",
+   "topic": "c4-series",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int total = 0;\n    int sign = 1;\n    for (int k = 1; k <= 5; k++) {\n        total = total + sign * k;\n        sign = -sign;\n    }\n    printf(\"%d\\n\", total);\n    return 0;\n}",
+   "answer": "3",
+   "explain": "The terms are +1 - 2 + 3 - 4 + 5 = 3. `sign` starts at 1 and flips after each term."
+  },
+  {
+   "id": "c4-q-13",
+   "topic": "c4-series",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <math.h>\n#include <stdio.h>\n\nint main(void) {\n    double r = sqrt(2.0);\n    printf(\"[%8.3f]\\n\", r);\n    printf(\"[%.0f]\\n\", r);\n    return 0;\n}",
+   "answer": "[   1.414]\n[1]",
+   "explain": "`%8.3f` gives 3 decimals right-aligned in 8 characters: three spaces then `1.414`. `%.0f` rounds to no decimals: 1."
+  },
+  {
+   "id": "c4-q-14",
+   "topic": "c4-series",
+   "type": "short",
+   "q": "A student's factorial helper returns `int`. Their series program is fine for small terms but goes wrong at 13!. Why, and what is the fix?",
+   "answer": "13! = 6227020800 does not fit in an `int` (largest 2147483647). Signed integer overflow is undefined behaviour, so the value is garbage. Fix: do the product in a `double` and return `double`.",
+   "explain": "`unsigned int` does not help either: its largest value is 4294967295, still less than 13!."
+  }
+ ],
+ "write": [
+  {
+   "id": "c4-w-01",
+   "topic": "c4-libs-errors",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write a complete program `cube.c`. It takes exactly one command line argument x and prints x cubed with three decimal places, e.g. `./cube 1.5` prints `3.375`. Use a function `double cube(double x)` that is declared with a prototype above `main` and defined below it. If the number of arguments is wrong, print `Usage: cube x` to standard error and end with exit status 1.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\ndouble cube(double x);\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"Usage: cube x\\n\");\n        return 1;\n    }\n    double x = atof(argv[1]);\n    printf(\"%.3f\\n\", cube(x));\n    return 0;\n}\n\ndouble cube(double x) {\n    return x * x * x;\n}",
+   "explain": "The prototype `double cube(double x);` lets `main` call `cube` before its definition. `main` checks `argc != 2` first (the program name counts), prints the usage message with `fprintf(stderr, ...)` and returns 1. Then `atof` converts the string `argv[1]` to a double (it needs `<stdlib.h>`), and the result of `cube(x)` is used directly as a `printf` argument with `%.3f`. No `-lm` is needed because nothing from `<math.h>` is used.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "prototype above main and matching definition `double cube(double x)` returning x * x * x"
+    },
+    {
+     "marks": 1,
+     "item": "checks `argc != 2`"
+    },
+    {
+     "marks": 1,
+     "item": "usage message with `fprintf(stderr, ...)` and exit status 1"
+    },
+    {
+     "marks": 1,
+     "item": "converts `argv[1]` with `atof` and includes `<stdlib.h>`"
+    },
+    {
+     "marks": 1,
+     "item": "prints with `%.3f\\n` and returns 0"
+    }
+   ],
+   "pitfalls": [
+    "Checking `argc != 1`: argc counts the program name.",
+    "Using `printf` for the usage message (wrong stream).",
+    "Using `argv[1]` directly in arithmetic: it is a string."
+   ]
+  },
+  {
+   "id": "c4-w-02",
+   "topic": "c4-series",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Complete the function `alt_squares`, which returns the sum of the first n terms of 1 - 1/4 + 1/9 - 1/16 + ... (term k is 1/(k*k), with signs +, -, +, ...). With the main below the program prints 1.000000, 0.750000, 0.861111.",
+   "starter": "#include <stdio.h>\n\n// returns 1 - 1/4 + 1/9 - 1/16 + ... (n terms)\ndouble alt_squares(unsigned int n) {\n    double total = ____;\n    double sign = ____;\n    for (unsigned int k = 1; k <= n; k++) {\n        total = ____;\n        ____;\n    }\n    return ____;\n}\n\nint main(void) {\n    printf(\"%.6f\\n\", alt_squares(1));\n    printf(\"%.6f\\n\", alt_squares(2));\n    printf(\"%.6f\\n\", alt_squares(3));\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\n// returns 1 - 1/4 + 1/9 - 1/16 + ... (n terms)\ndouble alt_squares(unsigned int n) {\n    double total = 0.0;\n    double sign = 1.0;\n    for (unsigned int k = 1; k <= n; k++) {\n        total = total + sign / ((double) k * k);\n        sign = -sign;\n    }\n    return total;\n}\n\nint main(void) {\n    printf(\"%.6f\\n\", alt_squares(1));\n    printf(\"%.6f\\n\", alt_squares(2));\n    printf(\"%.6f\\n\", alt_squares(3));\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "running total starts at 0.0 and is returned"
+    },
+    {
+     "marks": 1,
+     "item": "sign starts at 1.0 (first term positive)"
+    },
+    {
+     "marks": 1,
+     "item": "adds sign / (k * k) using double division"
+    },
+    {
+     "marks": 1,
+     "item": "flips the sign after each term"
+    }
+   ],
+   "pitfalls": [
+    "`1 / (k * k)` is integer division: 0 for every k > 1.",
+    "Flipping the sign before adding the first term makes the series start with minus."
+   ]
+  },
+  {
+   "id": "c4-w-03",
+   "topic": "c4-libs-errors",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a complete program `biggest.c` that prints the largest of its command line arguments, each converted with `atof`, using `printf(\"%f\\n\", ...)`. Any number of arguments (one or more) is allowed: `./biggest 3 -7.5 12.25 4` prints `12.250000`. With no arguments, print a usage message to standard error and end with exit status 1.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    if (argc < 2) {\n        fprintf(stderr, \"Usage: biggest x1 x2 ...\\n\");\n        exit(1);\n    }\n    double best = atof(argv[1]);\n    for (int i = 2; i < argc; i++) {\n        double x = atof(argv[i]);\n        if (x > best) {\n            best = x;\n        }\n    }\n    printf(\"%f\\n\", best);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "includes `<stdio.h>` and `<stdlib.h>`, uses `int main(int argc, char *argv[])`"
+    },
+    {
+     "marks": 1,
+     "item": "no arguments (`argc < 2`): usage message on stderr and exit status 1"
+    },
+    {
+     "marks": 1,
+     "item": "starts the maximum at the first argument (not at 0, which fails for all-negative input)"
+    },
+    {
+     "marks": 1,
+     "item": "loops over the remaining arguments with `atof`, updating the maximum"
+    },
+    {
+     "marks": 1,
+     "item": "prints with `%f\\n` and returns 0"
+    }
+   ],
+   "pitfalls": [
+    "Starting `best` at 0.0: `./biggest -2 -9` would wrongly print 0.000000.",
+    "Loop starting at `i = 0`: `argv[0]` is the program name."
+   ]
+  }
+ ]
+}

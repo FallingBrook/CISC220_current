@@ -1,0 +1,545 @@
+{
+ "day": 5,
+ "title": "Arrays in functions, characters as numbers, and binary",
+ "goal": "Pass arrays to functions and fill output arrays, convert digit characters to numbers, and add binary numbers in ones' complement with long addition: the skills for Assignment 4's sumones.c.",
+ "topics": [
+  {
+   "id": "c5-array-params",
+   "title": "Arrays in functions, and characters are numbers",
+   "notebook": "c/arrays.ipynb",
+   "priority": "high",
+   "examNote": "Expect to write a function that takes an array and changes it, or fills an output array. Know that `int a[]`, `int *a` and `int a[static 8]` all mean a pointer parameter.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### An array argument is not copied\n\nEarlier you saw that a function gets a **copy** of each `int` argument. If the function changes its parameter, the caller's variable does not change.\n\nArrays are different. The notebook says an array **decays** (turns into) a *pointer to its first element* when you pass it to a function. A **pointer** is a value that holds a memory address: here, the address of `arr[0]`. (Pointers get a full lesson later. For today, all you need is this: the function gets the *address* of the caller's array, not a copy of the elements.)\n\nSo when the function writes `arr[0] = 99`, it writes into the **caller's** array."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid change(int n, int arr[]) {\n    n = 99;          // changes the copy only\n    arr[0] = 99;     // changes the caller's array\n}\n\nint main(void) {\n    int n = 1;\n    int arr[3] = {1, 2, 3};\n    change(n, arr);\n    printf(\"n = %d\\n\", n);\n    printf(\"arr[0] = %d\\n\", arr[0]);\n    return 0;\n}",
+     "caption": "changes.c: an int is copied, an array is not"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o changes changes.c\n$ ./changes\nn = 1\narr[0] = 99"
+    },
+    {
+     "type": "why",
+     "q": "Why does C pass the address instead of copying the array?",
+     "a": "An array can be huge (a million elements). Copying it on every call would cost time and memory. An address is small (8 bytes on our machines), so passing it is cheap. The price: the function can change your array, so you must know whether it does."
+    },
+    {
+     "type": "md",
+     "text": "### Three ways to write an array parameter\n\nFor a **parameter**, these three declarations mean the same thing to the compiler: `a` is a pointer to an `int`.\n\n| Parameter | What it says to a human reader |\n|---|---|\n| `int a[]` | \"I expect an array of `int`\" |\n| `int *a` | \"I get a pointer to an `int`\" (what the compiler really sees) |\n| `int a[static 8]` | \"I expect an array with **at least 8** elements\" |\n\n`[static 8]` is a **promise** made by the caller: the argument points to at least 8 elements (so it is also never a null pointer). It does **not** copy the array and nothing is checked when the program runs. But when the compiler can see that a call breaks the promise, it may warn you. Assignment 4 uses `[static 8]` because every binary number there has exactly 8 bits.\n\nOne more consequence of decay: inside the function, `sizeof(a)` is the size of a pointer, not of the array. That is why functions either get the length as another parameter (like `size_t n`) or work with a size that is fixed, like 8."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid show(int a[static 8]) {\n    printf(\"%d\\n\", a[7]);\n}\n\nint main(void) {\n    int small[4] = {1, 2, 3, 4};\n    show(small);\n    return 0;\n}",
+     "caption": "staticwarn.c: breaking the [static 8] promise"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o staticwarn staticwarn.c\nstaticwarn.c: In function 'main':\nstaticwarn.c:9:5: warning: 'show' accessing 32 bytes in a region of size 16 [-Wstringop-overflow=]\n    9 |     show(small);\n      |     ^~~~~~~~~~~\nstaticwarn.c:9:5: note: referencing argument 1 of type 'int[8]'\nstaticwarn.c:3:6: note: in a call to function 'show'\n    3 | void show(int a[static 8]) {\n      |      ^~~~",
+     "caption": "gcc 13 notices that small has only 4 ints (16 bytes) but show was promised 8 (32 bytes). Running this program reads past the end of small: undefined behaviour, so its output means nothing."
+    },
+    {
+     "type": "md",
+     "text": "### \"Returning\" an array: fill an output array\n\nThe notebook says it is impossible to return an array from a function. The usual fix: the **caller** creates the array and passes it in, and the function **fills** it. Such a parameter is called an **output parameter**. The function's return type is often `void`.\n\nAssignment 4 works this way: in `tobinary(str, bin)` the function fills `bin`; in `sum(x, y, z)` it fills `z`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// \"returns\" its results by filling the caller's array\nvoid squares(int out[static 5]) {\n    for (int i = 0; i < 5; i++) {\n        out[i] = i * i;\n    }\n}\n\nint main(void) {\n    int result[5];\n    squares(result);\n    for (int i = 0; i < 5; i++) {\n        printf(\"%d \", result[i]);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+     "caption": "squares.c: the function fills the caller's array"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o squares squares.c\n$ ./squares\n0 1 4 9 16 "
+    },
+    {
+     "type": "check",
+     "q": "Given `void zero(int a[]) { a[0] = 0; }` and `int x[2] = {4, 5};`, what is `x[0]` after `zero(x);`? What if the parameter were `int a` and the call `zero(x[0])` with body `a = 0;`?",
+     "a": "After `zero(x)`, `x[0]` is `0`: the function got the address of `x[0]` and wrote there. In the `int` version, `x[0]` stays `4`: the function changed only its own copy."
+    },
+    {
+     "type": "md",
+     "text": "### Characters are numbers\n\nThe types notebook shows that a `char` is a small integer: printing a `char` with `%d` prints its **numeric code** instead of the character. On our machines the codes are ASCII. The ones to remember:\n\n| Character | Code |\n|---|---|\n| `'0'` | 48 |\n| `'1'` | 49 |\n| `'9'` | 57 |\n| `'A'` | 65 |\n| `'a'` | 97 |\n\nThe digits `'0'` to `'9'` have **consecutive** codes. So you never need to memorise 48:\n\n- `c - '0'` turns a digit character into its value: `'7' - '0'` is `55 - 48`, which is `7`.\n- `'0' + d` turns a value 0 to 9 back into its digit character: `'0' + 4` is `'4'`.\n\nC does arithmetic on `char` values just like on `int` values."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    char c = '7';\n    printf(\"%c has code %d\\n\", c, c);\n    printf(\"'0' has code %d\\n\", '0');\n    int d = c - '0';               // digit character -> its value\n    printf(\"value: %d\\n\", d);\n    printf(\"doubled: %d\\n\", 2 * d);\n    char back = '0' + 4;           // value -> digit character\n    printf(\"back: %c\\n\", back);\n    return 0;\n}",
+     "caption": "chars.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o chars chars.c\n$ ./chars\n7 has code 55\n'0' has code 48\nvalue: 7\ndoubled: 14\nback: 4"
+    },
+    {
+     "type": "pitfall",
+     "text": "`'1'` and `1` are different values: `'1'` is 49. A command line argument like `\"10010000\"` holds the **characters** `'1'` and `'0'`. An `int` array of bits should hold the **numbers** `1` and `0`. Mixing them up (storing `str[i]` without `- '0'`, or testing `bin[i] == '1'`) compiles without a warning and gives wrong answers."
+    },
+    {
+     "type": "check",
+     "q": "What is the value of `('5' - '0') + ('2' - '0')`? And what character is `'0' + ('5' - '0') + ('2' - '0')`?",
+     "a": "`7`, and the character `'7'`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Passing an array passes the address of its first element (the array **decays** to a pointer), so the function can change the caller's array. An `int` argument is a copy.\n- As parameters, `int a[]`, `int *a` and `int a[static 8]` are the same; `[static 8]` promises at least 8 elements and lets gcc warn about calls that break it.\n- A function cannot return an array; it fills an **output array** the caller supplies.\n- A `char` is a small integer. `c - '0'` gives a digit's value; `'0' + d` gives the digit character. `'0'` is 48."
+    }
+   ]
+  },
+  {
+   "id": "c5-binary",
+   "title": "Binary numbers, ones' complement and long addition",
+   "notebook": "c/integers.ipynb",
+   "priority": "high",
+   "examNote": "Be ready to convert 8-bit numbers by hand, negate in ones' and two's complement, and add two binary numbers column by column.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Bits and place values\n\nA **bit** is a binary digit: 0 or 1. An 8-bit number has 8 places. As in the integers notebook, each place is a power of 2, and we write the **most significant bit** (the one worth the most, 2^7 = 128) on the left:\n\n| place | 2^7 | 2^6 | 2^5 | 2^4 | 2^3 | 2^2 | 2^1 | 2^0 |\n|---|---|---|---|---|---|---|---|---|\n| multiplier | 128 | 64 | 32 | 16 | 8 | 4 | 2 | 1 |\n| bit of 01101011 | 0 | 1 | 1 | 0 | 1 | 0 | 1 | 1 |\n\nValue: 64 + 32 + 8 + 2 + 1 = **107**.\n\nIn Assignment 4 the 8 bits live in an `int` array **in the order they are written**: the most significant bit is at **index 0** and the least significant bit (worth 1) is at **index 7**. So `\"01101011\"` becomes `bin[0] = 0, bin[1] = 1, ..., bin[7] = 1`.\n\n**Binary to decimal:** add the multipliers of the 1 bits. `01001001` = 64 + 8 + 1 = 73. `11111111` = 255.\n\n**Decimal to binary:** take away the biggest power of 2 that fits, again and again. 63 = 32 + 16 + 8 + 4 + 2 + 1, so 63 = `00111111`."
+    },
+    {
+     "type": "check",
+     "q": "What are `00001100` and `01100011` in decimal (as unsigned numbers)? What is 10 in 8-bit binary?",
+     "a": "`00001100` = 8 + 4 = 12. `01100011` = 64 + 32 + 2 + 1 = 99. 10 = 8 + 2 = `00001010`."
+    },
+    {
+     "type": "md",
+     "text": "### Negative numbers in ones' complement\n\nAssignment 4 stores signed numbers in **ones' complement**:\n\n- A positive number is written normally; its leftmost bit is 0. The biggest is `01111111` = 127.\n- To negate a number, **flip every bit** (0 becomes 1, 1 becomes 0). 63 is `00111111`, so −63 is `11000000`.\n- A leftmost bit of 1 means the number is negative. The most negative is `10000000` = −127.\n- There are **two zeros**: `00000000` (+0) and `11111111` (−0, the flip of +0).\n\nSo 8-bit ones' complement covers **−127 to 127**: 255 different values, because two patterns both mean zero.\n\n### Why real machines use two's complement (brief)\n\nThe integers notebook explains **two's complement**, which every current computer uses (and which C23 requires): the leftmost bit is worth −128 instead of +128, and to negate you flip the bits **and add 1**. It has only **one** zero, the range is −128 to 127, and adding is plain binary addition where a carry out of the left end is simply thrown away. No extra step, so the hardware is simpler. Ones' complement needs an extra step when adding, shown below. That extra step is exactly what Assignment 4 makes you program."
+    },
+    {
+     "type": "check",
+     "q": "Write −5 in 8-bit ones' complement, and in two's complement.",
+     "a": "5 is `00000101`. Ones' complement: flip, `11111010`. Two's complement: flip and add 1, `11111011`."
+    },
+    {
+     "type": "md",
+     "text": "### Long addition, right to left, with a carry\n\nYou add numbers by hand from the **right**, because a column can produce a **carry** into the column on its left. Here is 457 + 368, one column at a time:\n\n| column | a + b + carry in | digit written | carry out |\n|---|---|---|---|\n| ones | 7 + 8 + 0 = 15 | 5 | 1 |\n| tens | 5 + 6 + 1 = 12 | 2 | 1 |\n| hundreds | 4 + 3 + 1 = 8 | 8 | 0 |\n\nAnswer: 825. Each column follows one rule, for any **base** (10 for decimal, 2 for binary):\n\n- `digit = (a + b + carry) % base`\n- `carry = (a + b + carry) / base` (integer division)\n\nIn base 2, a column sum can only be 0, 1, 2 or 3:\n\n| a + b + carry | bit written | carry out |\n|---|---|---|\n| 0 | 0 | 0 |\n| 1 | 1 | 0 |\n| 2 | 0 | 1 |\n| 3 | 1 | 1 |"
+    },
+    {
+     "type": "md",
+     "text": "### The end-around carry (ones' complement)\n\nTo add two ones' complement numbers: do long addition on all 8 bits. If a carry comes **out of the leftmost bit**, do not throw it away: **add it back in at the right end** (add `00000001`). This is called the **end-around carry**.\n\nWorked by hand: 73 + (−63). 73 is `01001001`. 63 is `00111111`, so −63 is `11000000`.\n\n```\n    01001001     (73)\n  + 11000000    (-63)\n  ----------\n  1 00001001     a carry of 1 came out of the left end\n  + 00000001     so add it back at the right end\n  ----------\n    00001010     (10)\n```\n\nAnd 73 − 63 really is 10. When no carry comes out of the left end, the first sum is already the answer: `00001100` + `01100011` = `01101111` (12 + 99 = 111)."
+    },
+    {
+     "type": "why",
+     "q": "Why does adding the carry back give the right answer?",
+     "a": "Read as unsigned 8-bit numbers, flipping all bits of y gives 255 − y. So x + (−y) is really x + 255 − y = (x − y) + 256 − 1. When x − y is not negative, the result is at least 256, so a 1 comes out of the left end; that carry is the 256. Dropping it leaves (x − y) − 1, and adding the carry back as 1 at the right fixes the −1."
+    },
+    {
+     "type": "check",
+     "q": "Add 3 and −2 in 8-bit ones' complement.",
+     "a": "3 = `00000011`, −2 = flip of `00000010` = `11111101`. Sum: `1 00000000` (carry out 1). Add it back: `00000000` + `00000001` = `00000001`, which is 1."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Bit places are worth 128, 64, ..., 2, 1. In Assignment 4 the most significant bit is at index 0 and the least significant at index 7.\n- Ones' complement: negate by flipping every bit; two zeros (`00000000`, `11111111`); range −127 to 127.\n- Two's complement (all modern machines): flip and add 1; one zero; range −128 to 127; a carry out of the left is dropped.\n- Long addition goes right to left: `digit = (a + b + carry) % base`, `carry = (a + b + carry) / base`.\n- Ones' complement addition: if a carry comes out of the left end, add `00000001` to the result (end-around carry)."
+    }
+   ]
+  },
+  {
+   "id": "c5-recursion-a4",
+   "title": "Recursion, a worked example, and the plan for sumones.c",
+   "notebook": "c/arrays.ipynb",
+   "priority": "high",
+   "examNote": "Know what a base case is and be able to trace a small recursive function. The decimal adder below uses every skill an exam question on arrays and functions is likely to ask for.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Recursion basics\n\nA function is **recursive** when it calls itself. Every call gets its **own copies** of its parameters, so the calls do not disturb each other. A recursive function needs two things:\n\n1. A **base case**: a simple situation where the function does not call itself, so the calls stop.\n2. A **recursive call** on a **smaller or simpler** problem, so each call gets closer to the base case."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid countdown(int n) {\n    if (n == 0) {              // base case: stop\n        printf(\"liftoff\\n\");\n        return;\n    }\n    printf(\"%d\\n\", n);\n    countdown(n - 1);          // recursive call on a smaller problem\n}\n\nint main(void) {\n    countdown(3);\n    return 0;\n}",
+     "caption": "countdown.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o countdown countdown.c\n$ ./countdown\n3\n2\n1\nliftoff"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// 1 + 2 + ... + n\nint sumto(int n) {\n    if (n == 0) {\n        return 0;                  // base case\n    }\n    return n + sumto(n - 1);       // smaller problem\n}\n\nint main(void) {\n    printf(\"%d\\n\", sumto(4));\n    printf(\"%d\\n\", sumto(100));\n    return 0;\n}",
+     "caption": "sumto.c: a recursive function that returns a value"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o sumto sumto.c\n$ ./sumto\n10\n5050",
+     "caption": "sumto(4) = 4 + sumto(3) = 4 + 3 + sumto(2) = 4 + 3 + 2 + sumto(1) = 4 + 3 + 2 + 1 + sumto(0) = 10"
+    },
+    {
+     "type": "pitfall",
+     "text": "Forget the base case (or never get closer to it) and the function calls itself until the program runs out of memory for calls and crashes. There is no fixed output: it is a bug."
+    },
+    {
+     "type": "md",
+     "text": "**How Assignment 4 uses recursion.** It is the simplest kind: `sum` calls itself **at most once**, to add the end-around carry. The first call adds `x` and `y`. If a carry comes out of the left end, it calls `sum` again with the result and `00000001`. In that second call no carry comes out of the left end, so it does not call itself again: that is the base case."
+    },
+    {
+     "type": "md",
+     "text": "### Worked example: adding decimal digit strings\n\nThis program is **not** `sumones.c`. It adds two **4-digit decimal** numbers given on the command line, like `0457` and `0368`. It uses the same techniques you need: arrays as parameters with `[static 4]`, an output array, `c - '0'`, and long addition from right to left."
+    },
+    {
+     "type": "code",
+     "code": "// adddigits.c: add two 4-digit decimal numbers given as strings\n#include <stdio.h>\n\n// print the 4 digits on one line\nvoid printdigits(int d[static 4]) {\n    for (int i = 0; i < 4; i++) {\n        printf(\"%d\", d[i]);\n    }\n    printf(\"\\n\");\n}\n\n// \"0457\" -> [0, 4, 5, 7]\nvoid todigits(const char str[static 4], int d[static 4]) {\n    for (int i = 0; i < 4; i++) {\n        d[i] = str[i] - '0';\n    }\n}\n\n// z = x + y using long addition, right to left; returns the final carry\nint add4(int x[static 4], int y[static 4], int z[static 4]) {\n    int carry = 0;\n    for (int i = 3; i >= 0; i--) {\n        int s = x[i] + y[i] + carry;\n        z[i] = s % 10;\n        carry = s / 10;\n    }\n    return carry;\n}\n\nint main(int argc, char *argv[]) {\n    if (argc != 3) {\n        fprintf(stderr, \"usage: %s dddd dddd\\n\", argv[0]);\n        return 1;\n    }\n    int x[4];\n    int y[4];\n    int z[4];\n    todigits(argv[1], x);\n    todigits(argv[2], y);\n    printdigits(x);\n    printdigits(y);\n    int carry = add4(x, y, z);\n    printdigits(z);\n    if (carry != 0) {\n        printf(\"overflow: carry %d was lost\\n\", carry);\n    }\n    return 0;\n}",
+     "caption": "adddigits.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o adddigits adddigits.c\n$ ./adddigits 0457 0368\n0457\n0368\n0825\n$ ./adddigits 9999 0001\n9999\n0001\n0000\noverflow: carry 1 was lost\n$ ./adddigits\nusage: ./adddigits dddd dddd\n$ echo $?\n1"
+    },
+    {
+     "type": "md",
+     "text": "How it works:\n\n- `todigits` fills its **output array** `d`. `str[i] - '0'` turns `'4'` into `4`.\n- `printdigits` prints each `int` with `%d` and no spaces, then one `\\n`.\n- `add4` loops `i` from **3 down to 0** (right to left). Each column uses `% 10` and `/ 10`. It writes into `z`, the caller's array.\n- `argv[1]` is a `char *` pointing to the first character of the argument, which fits a `char str[static 4]` parameter.\n\nDifferences from your assignment: base 10 instead of 2, 4 digits instead of 8, and here a final carry is just reported. In ones' complement it must be **added back**."
+    },
+    {
+     "type": "md",
+     "text": "### Plan for sumones.c (in words, no code)\n\nWork in small steps and test after each one.\n\n1. **Copy the starter** to `~/CISC220_A4/sumones.c`. Do not change `main` or the function headers.\n2. **`print` first.** It gets an 8-element `int` array. Print each element as a number, with nothing between them, then one newline. Use `printdigits` above as a model, but with 8 elements.\n3. **`tobinary` next.** For each index from 0 to 7, store the *value* of the character `str[i]` (not the character itself) in `bin[i]`. Lesson 1 shows how.\n4. **Test them with `main`.** Before `sum` works, you can add a temporary `print(...)` call in `main` right after a number is converted, then run `./sumones 10010000 00000001` and check that the bits come out unchanged. Remove the temporary line afterwards.\n5. **`sum`, STEP 1:** a carry variable that starts at 0, and a loop from index **7 down to 0**. In each column add the two bits and the carry, then use the column rule from Lesson 2 with base 2 to set `z[i]` and the new carry.\n6. **`sum`, STEP 2:** after the loop, if the carry is 1, do exactly what the starter comments say: make an array `newx` that is a copy of `z` (copy element by element: arrays cannot be assigned), make an array `newy` holding `00000001` (seven 0s and a 1 at index 7, every element set), and call `sum(newx, newy, z)`. That one recursive call adds the end-around carry and leaves the answer in `z`.\n\n**Hand trace** of STEP 1 for `01001001` + `11000000` (73 + −63). Read the table from top to bottom, the order your loop runs:\n\n| i | x[i] | y[i] | carry in | sum | z[i] | carry out |\n|---|---|---|---|---|---|---|\n| 7 | 1 | 0 | 0 | 1 | 1 | 0 |\n| 6 | 0 | 0 | 0 | 0 | 0 | 0 |\n| 5 | 0 | 0 | 0 | 0 | 0 | 0 |\n| 4 | 1 | 0 | 0 | 1 | 1 | 0 |\n| 3 | 0 | 0 | 0 | 0 | 0 | 0 |\n| 2 | 0 | 0 | 0 | 0 | 0 | 0 |\n| 1 | 1 | 1 | 0 | 2 | 0 | 1 |\n| 0 | 0 | 1 | 1 | 2 | 0 | 1 |\n\nAfter the loop, `z` is `00001001` and the carry is 1, so STEP 2 calls `sum` with `newx` = `00001001` and `newy` = `00000001`. Trace that call yourself: you should get `00001010` with a final carry of 0, so there is no further call. Compare with the hand addition in Lesson 2."
+    },
+    {
+     "type": "pitfall",
+     "text": "Common sumones.c mistakes:\n\n- **Looping the wrong way.** The carry moves left, so the loop must start at index 7 and go down to 0.\n- **Forgetting the carry**: not adding it into each column, or not starting it at 0.\n- **Characters instead of numbers**: storing `'1'` (49) in the `int` arrays, or comparing a bit with `'1'`.\n- **Recursion without `newy` set**: a local array has garbage until you set every element. `newy` must be exactly `00000001`, and `newx` a full copy of `z`.\n- **Missing newline** at the end of `print`'s output (the checker reports this one specially)."
+    },
+    {
+     "type": "try",
+     "text": "Write `sumones.c` in `~/CISC220_A4` and compile it with `gcc -o sumones sumones.c -lm` (`-lm` must come **after** the source file: the linker reads left to right, so a library listed before the code that needs it is skipped). Test it with `./sumones 01001001 11000000` (should print `00001010`). Then run the checker: `cd ~/CISC220_current/c-app/drills && ./cdrill.sh a4 ~/CISC220_A4 sumones.c`. For the labs: `./cdrill.sh start 5`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- A recursive function calls itself on a smaller problem and needs a base case that stops the calls.\n- In `sumones.c`, `sum` calls itself at most once, with the result and `00000001`, to add the end-around carry.\n- Build and test in order: `print`, `tobinary`, then `sum` STEP 1 (loop 7 down to 0), then STEP 2.\n- Bits in the `int` arrays are the numbers 0 and 1, never the characters `'0'` and `'1'`.\n- Compile with `-lm` last: `gcc -o sumones sumones.c -lm`."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c5-fc-01",
+   "topic": "c5-array-params",
+   "front": "What happens to an array when you pass it to a function?",
+   "back": "It **decays** to a pointer to its first element. The function gets the address, not a copy, so it can change the caller's array."
+  },
+  {
+   "id": "c5-fc-02",
+   "topic": "c5-array-params",
+   "front": "A function changes its `int` parameter. Does the caller's variable change?",
+   "back": "No. An `int` argument is a copy."
+  },
+  {
+   "id": "c5-fc-03",
+   "topic": "c5-array-params",
+   "front": "As a parameter, how do `int a[]`, `int *a` and `int a[static 8]` differ?",
+   "back": "To the compiler they are the same: a pointer to `int`. `[static 8]` adds a promise that the argument has at least 8 elements (and is not null), so gcc can warn about calls that break it."
+  },
+  {
+   "id": "c5-fc-04",
+   "topic": "c5-array-params",
+   "front": "Does `[static 8]` copy the array or check its size at run time?",
+   "back": "Neither. It is only a promise the compiler may use for warnings."
+  },
+  {
+   "id": "c5-fc-05",
+   "topic": "c5-array-params",
+   "front": "Why is `sizeof(a)` wrong for finding the length of an array parameter `a`?",
+   "back": "Inside the function `a` is a pointer, so `sizeof(a)` is the size of a pointer. Pass the length separately or use a fixed size."
+  },
+  {
+   "id": "c5-fc-06",
+   "topic": "c5-array-params",
+   "front": "How does a C function \"return\" an array?",
+   "back": "It cannot. The caller creates the array and passes it in; the function fills it (an output parameter)."
+  },
+  {
+   "id": "c5-fc-07",
+   "topic": "c5-array-params",
+   "front": "What is the numeric code of `'0'`? Of `'A'`?",
+   "back": "`'0'` is 48 (`'9'` is 57). `'A'` is 65, `'a'` is 97."
+  },
+  {
+   "id": "c5-fc-08",
+   "topic": "c5-array-params",
+   "front": "How do you turn a digit character `c` into its value, and a value `d` (0 to 9) into a character?",
+   "back": "`c - '0'` and `'0' + d`."
+  },
+  {
+   "id": "c5-fc-09",
+   "topic": "c5-binary",
+   "front": "In Assignment 4, which array index holds the most significant bit?",
+   "back": "Index 0 (worth 128). Index 7 holds the least significant bit (worth 1)."
+  },
+  {
+   "id": "c5-fc-10",
+   "topic": "c5-binary",
+   "front": "What is `01001001` in decimal?",
+   "back": "64 + 8 + 1 = 73."
+  },
+  {
+   "id": "c5-fc-11",
+   "topic": "c5-binary",
+   "front": "How do you negate a number in ones' complement? In two's complement?",
+   "back": "Ones': flip every bit. Two's: flip every bit and add 1."
+  },
+  {
+   "id": "c5-fc-12",
+   "topic": "c5-binary",
+   "front": "Range and zeros of 8-bit ones' complement?",
+   "back": "−127 to 127; two zeros, `00000000` (+0) and `11111111` (−0)."
+  },
+  {
+   "id": "c5-fc-13",
+   "topic": "c5-binary",
+   "front": "The long addition rule for one column?",
+   "back": "`digit = (a + b + carry) % base` and `carry = (a + b + carry) / base`, working right to left."
+  },
+  {
+   "id": "c5-fc-14",
+   "topic": "c5-binary",
+   "front": "What is the end-around carry?",
+   "back": "In ones' complement addition, a carry out of the leftmost bit is added back at the right end (add `00000001`)."
+  },
+  {
+   "id": "c5-fc-15",
+   "topic": "c5-recursion-a4",
+   "front": "What two parts does every recursive function need?",
+   "back": "A base case that stops, and a recursive call on a smaller or simpler problem."
+  },
+  {
+   "id": "c5-fc-16",
+   "topic": "c5-recursion-a4",
+   "front": "Where must `-lm` go on the gcc command line, and why?",
+   "back": "After the source file: `gcc -o sumones sumones.c -lm`. The linker reads left to right and only takes from a library what the files before it need."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c5-q-01",
+   "topic": "c5-array-params",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid bump(int a[], int n) {\n    a[0] = a[0] + n;\n    n = 0;\n}\n\nint main(void) {\n    int a[2] = {5, 6};\n    int n = 10;\n    bump(a, n);\n    printf(\"%d %d %d\\n\", a[0], a[1], n);\n    return 0;\n}",
+   "answer": "15 6 10",
+   "explain": "`a` points at the caller's array, so `a[0]` becomes 5 + 10 = 15. `n` is a copy: setting it to 0 does not change `main`'s `n`."
+  },
+  {
+   "id": "c5-q-02",
+   "topic": "c5-array-params",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"%d\\n\", '9' - '0');\n    printf(\"%c\\n\", '0' + 3);\n    printf(\"%d\\n\", 'A' + 1);\n    printf(\"%c\\n\", 'A' + 1);\n    return 0;\n}",
+   "answer": "9\n3\n66\nB",
+   "explain": "`'9' - '0'` is 57 − 48 = 9. `'0' + 3` printed with `%c` is the character 3. `'A' + 1` is 66, which `%c` prints as `B`."
+  },
+  {
+   "id": "c5-q-03",
+   "topic": "c5-array-params",
+   "type": "mcq",
+   "q": "As a function parameter, `int a[]` is treated by the compiler as:",
+   "options": [
+    "`int *a`, a pointer to the first element",
+    "a full copy of the caller's array",
+    "an array whose length the function can get with `sizeof`",
+    "a `const` array that cannot be changed"
+   ],
+   "answer": 0,
+   "explain": "The array decays to a pointer to its first element, so changes are made to the caller's array and `sizeof(a)` gives the pointer size."
+  },
+  {
+   "id": "c5-q-04",
+   "topic": "c5-array-params",
+   "type": "short",
+   "q": "What does `int bin[static 8]` promise, and what does it not do?",
+   "answer": "The caller promises that the argument points to (at least) 8 ints and is not null. It does not copy the array and does not check anything at run time; gcc may warn when it can see a call breaking the promise.",
+   "explain": "It is still a pointer parameter, like `int bin[]`."
+  },
+  {
+   "id": "c5-q-05",
+   "topic": "c5-array-params",
+   "type": "short",
+   "q": "Why can't `tobinary` simply return the array of bits, and what does it do instead?",
+   "answer": "A C function cannot return an array. The caller supplies an array (`bin`) and `tobinary` fills it; this works because the array argument is passed as a pointer to the caller's elements.",
+   "explain": "This is an output parameter."
+  },
+  {
+   "id": "c5-q-06",
+   "topic": "c5-binary",
+   "type": "short",
+   "q": "Convert `01100011` to decimal, and 37 to 8-bit binary.",
+   "answer": "`01100011` = 64 + 32 + 2 + 1 = 99. 37 = 32 + 4 + 1 = `00100101`.",
+   "explain": "Add the place values of the 1 bits; for the other direction, take away the largest power of 2 that fits."
+  },
+  {
+   "id": "c5-q-07",
+   "topic": "c5-binary",
+   "type": "short",
+   "q": "Write −5 and −0 in 8-bit ones' complement.",
+   "answer": "5 is `00000101`, so −5 is `11111010`. −0 is `11111111` (the flip of `00000000`).",
+   "explain": "Ones' complement negation flips every bit."
+  },
+  {
+   "id": "c5-q-08",
+   "topic": "c5-binary",
+   "type": "mcq",
+   "q": "What is the range of 8-bit ones' complement numbers?",
+   "options": [
+    "−127 to 127",
+    "−128 to 127",
+    "−128 to 128",
+    "0 to 255"
+   ],
+   "answer": 0,
+   "explain": "The largest is `01111111` = 127 and its flip `10000000` = −127. Two patterns mean zero, so only 255 values. −128 to 127 is two's complement."
+  },
+  {
+   "id": "c5-q-09",
+   "topic": "c5-binary",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int x[3] = {8, 7, 5};\n    int y[3] = {1, 4, 8};\n    int z[3];\n    int carry = 0;\n    for (int i = 2; i >= 0; i--) {\n        int s = x[i] + y[i] + carry;\n        z[i] = s % 10;\n        carry = s / 10;\n    }\n    printf(\"%d%d%d carry %d\\n\", z[0], z[1], z[2], carry);\n    return 0;\n}",
+   "answer": "023 carry 1",
+   "explain": "875 + 148 = 1023. Right to left: 5+8 = 13 (write 3, carry 1), 7+4+1 = 12 (write 2, carry 1), 8+1+1 = 10 (write 0, carry 1). Only 3 digits fit, so the 1 is left in `carry`."
+  },
+  {
+   "id": "c5-q-10",
+   "topic": "c5-binary",
+   "type": "short",
+   "q": "Add 3 and −2 in 8-bit ones' complement, showing the end-around carry.",
+   "answer": "3 = `00000011`, −2 = `11111101`. Long addition gives `00000000` with a carry of 1 out of the left end. Add it back: `00000000` + `00000001` = `00000001` = 1.",
+   "explain": "Without the end-around carry you would get 0, which is wrong."
+  },
+  {
+   "id": "c5-q-11",
+   "topic": "c5-binary",
+   "type": "short",
+   "q": "Give two reasons computers use two's complement instead of ones' complement.",
+   "answer": "Two's complement has only one zero, and addition is plain binary addition (a carry out of the left is dropped) with no end-around step, so the hardware is simpler. It also gives one more value (−128).",
+   "explain": "All current machines use two's complement and C23 requires it."
+  },
+  {
+   "id": "c5-q-12",
+   "topic": "c5-recursion-a4",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid f(int n) {\n    if (n == 0) {\n        return;\n    }\n    f(n - 1);\n    printf(\"%d\\n\", n);\n}\n\nint main(void) {\n    f(3);\n    return 0;\n}",
+   "answer": "1\n2\n3",
+   "explain": "`f(3)` calls `f(2)` before printing, which calls `f(1)`, which calls `f(0)` (base case, returns). Then the prints happen on the way back: 1, 2, 3."
+  },
+  {
+   "id": "c5-q-13",
+   "topic": "c5-recursion-a4",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint g(int n) {\n    if (n <= 1) {\n        return 1;\n    }\n    return 2 * g(n - 1);\n}\n\nint main(void) {\n    printf(\"%d %d\\n\", g(1), g(4));\n    return 0;\n}",
+   "answer": "1 8",
+   "explain": "`g(1)` is the base case, 1. `g(4)` = 2 × g(3) = 2 × 2 × g(2) = 2 × 2 × 2 × g(1) = 8."
+  },
+  {
+   "id": "c5-q-14",
+   "topic": "c5-recursion-a4",
+   "type": "mcq",
+   "q": "In long addition over an array where index 0 is the most significant digit, the loop should run:",
+   "options": [
+    "from the last index down to 0",
+    "from 0 up to the last index",
+    "in either order, the result is the same",
+    "twice, once each way"
+   ],
+   "answer": 0,
+   "explain": "A carry goes into the column on the left (the smaller index), so that column must be computed after the one on its right."
+  }
+ ],
+ "write": [
+  {
+   "id": "c5-w-01",
+   "topic": "c5-array-params",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write a function `doubleall` that doubles every element of an `int` array in place (the caller's array changes). It gets the array and its length. Write a `main` that doubles `{1, -2, 3, 10}` and prints the elements one per line.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// doubles every element of the caller's array\nvoid doubleall(int a[], size_t n) {\n    for (size_t i = 0; i < n; i++) {\n        a[i] = 2 * a[i];\n    }\n}\n\nint main(void) {\n    int a[4] = {1, -2, 3, 10};\n    doubleall(a, 4);\n    for (size_t i = 0; i < 4; i++) {\n        printf(\"%d\\n\", a[i]);\n    }\n    return 0;\n}",
+   "explain": "The array parameter is really a pointer to the caller's first element, so `a[i] = 2 * a[i]` changes `main`'s array. The function cannot find the length itself (`sizeof(a)` would give the pointer size), so `n` is passed in, with type `size_t` as in the notebook. Output:\n\n```\n$ ./doubleall\n2\n-4\n6\n20\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "header `void doubleall(int a[], size_t n)` (or `int *a`)"
+    },
+    {
+     "marks": 1,
+     "item": "loop over indexes 0 to n − 1"
+    },
+    {
+     "marks": 1,
+     "item": "assigns back into `a[i]` (no return value needed)"
+    },
+    {
+     "marks": 1,
+     "item": "main calls it with the array and 4, then prints the elements"
+    }
+   ],
+   "pitfalls": [
+    "Using `sizeof(a) / sizeof(int)` inside the function: it gives the pointer size, not 4.",
+    "Returning the array: a function cannot return an array, and there is no need."
+   ]
+  },
+  {
+   "id": "c5-w-02",
+   "topic": "c5-recursion-a4",
+   "stage": "faded",
+   "marks": 3,
+   "prompt": "Complete the recursive function `countup` so that `countup(n)` prints 1, 2, ..., n, one number per line (`countup(4)` prints 1 to 4). It must not use a loop.",
+   "starter": "#include <stdio.h>\n\n// prints 1, 2, ..., n, one per line\nvoid countup(int n) {\n    if (____) {\n        return;\n    }\n    ____;\n    printf(\"%d\\n\", n);\n}\n\nint main(void) {\n    countup(4);\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\n// prints 1, 2, ..., n, one per line\nvoid countup(int n) {\n    if (n == 0) {\n        return;\n    }\n    countup(n - 1);\n    printf(\"%d\\n\", n);\n}\n\nint main(void) {\n    countup(4);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "base case `n == 0` (or `n < 1`) returns without printing"
+    },
+    {
+     "marks": 1,
+     "item": "recursive call `countup(n - 1)` on a smaller problem"
+    },
+    {
+     "marks": 1,
+     "item": "the call comes BEFORE the printf, so the small numbers print first"
+    }
+   ],
+   "pitfalls": [
+    "Calling `countup(n)` instead of `countup(n - 1)`: it never reaches the base case.",
+    "Putting the recursive call after printf prints the numbers in reverse."
+   ]
+  },
+  {
+   "id": "c5-w-03",
+   "topic": "c5-binary",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a function `int addone(int d[static 4])` that adds 1 to the 4-digit decimal number stored in `d` (most significant digit at index 0, each element 0 to 9), changing `d` in place with long addition, and returns the carry left over at the end (0 or 1). For example `{0, 1, 9, 9}` becomes `{0, 2, 0, 0}` and the function returns 0; `{9, 9, 9, 9}` becomes `{0, 0, 0, 0}` and it returns 1. Include a short `main` that tests both examples.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// adds 1 to the 4-digit decimal number in d; returns the carry left over\nint addone(int d[static 4]) {\n    int carry = 1;                 // the 1 we are adding\n    for (int i = 3; i >= 0; i--) {\n        int s = d[i] + carry;\n        d[i] = s % 10;\n        carry = s / 10;\n    }\n    return carry;\n}\n\nint main(void) {\n    int a[4] = {0, 1, 9, 9};\n    int c = addone(a);\n    printf(\"%d%d%d%d carry %d\\n\", a[0], a[1], a[2], a[3], c);\n    int b[4] = {9, 9, 9, 9};\n    c = addone(b);\n    printf(\"%d%d%d%d carry %d\\n\", b[0], b[1], b[2], b[3], c);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "correct header with `[static 4]`, returns `int`"
+    },
+    {
+     "marks": 1,
+     "item": "carry starts as 1 (the 1 being added), or 1 is added to the last digit"
+    },
+    {
+     "marks": 1,
+     "item": "loop from index 3 down to 0"
+    },
+    {
+     "marks": 1,
+     "item": "uses `% 10` for the digit and `/ 10` for the carry"
+    },
+    {
+     "marks": 1,
+     "item": "returns the final carry; main prints the results"
+    }
+   ],
+   "pitfalls": [
+    "Looping from 0 to 3: the carry would go the wrong way.",
+    "Forgetting to update the carry in each column, or returning a digit instead of the final carry."
+   ]
+  }
+ ]
+}

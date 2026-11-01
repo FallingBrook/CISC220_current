@@ -1,0 +1,622 @@
+{
+ "day": 3,
+ "title": "Arrays, strings and command-line arguments",
+ "goal": "Use arrays and C strings, read command-line arguments, and build a new string character by character: the skills for concat2.c.",
+ "topics": [
+  {
+   "id": "c3-arrays",
+   "title": "Arrays",
+   "notebook": "c/arrays.ipynb",
+   "priority": "high",
+   "examNote": "Exam questions often ask what a short loop over an array prints, or what is wrong with an index. Remember: the last element of an array of capacity n is at index n - 1.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "An **array** is a row of variables that all have the same type, stored side by side in memory. You pick one element with an **index** (its position) in square brackets.\n\n```c\nint a[5];\n```\n\ndeclares an array named `a` with **capacity** 5 (room for 5 `int`s). The elements are `a[0]`, `a[1]`, `a[2]`, `a[3]` and `a[4]`. Indexes **start at 0**, so the last index is 4, not 5. The capacity never changes while the array exists.\n\nLike a plain `int` variable, the elements of `int a[5];` start with **no particular value** (whatever was in that memory). Give them values before you read them. A `for` loop from `0` to `n - 1` visits every element:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int a[5];          // an array of 5 ints: a[0] to a[4]\n    for (int i = 0; i < 5; i++) {\n        a[i] = 10 * i;\n    }\n    for (int i = 0; i < 5; i++) {\n        printf(\"a[%d] = %d\\n\", i, a[i]);\n    }\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o array1 array1.c\n$ ./array1\na[0] = 0\na[1] = 10\na[2] = 20\na[3] = 30\na[4] = 40",
+     "caption": "Compiled and run"
+    },
+    {
+     "type": "md",
+     "text": "### Initialiser lists\n\nAn **initialiser list** gives the elements their values at the point where the array is declared:\n\n- `int x[] = {4, 8, 15, 16, 23};` with empty brackets: the compiler counts the list, so the capacity is 5.\n- `int y[4] = {7, 9};` with fewer values than the capacity: the rest of the elements are set to 0.\n- `int z[3] = {1, 2, 3, 4};` with too many values: a compiler warning (*excess elements*), and the extra value is thrown away. Never do it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int x[] = {4, 8, 15, 16, 23};   // capacity 5, counted from the list\n    int y[4] = {7, 9};              // y[2] and y[3] become 0\n\n    int sum = 0;\n    for (int i = 0; i < 5; i++) {\n        sum = sum + x[i];\n    }\n    printf(\"sum of x = %d\\n\", sum);\n\n    for (int i = 0; i < 4; i++) {\n        printf(\"%d \", y[i]);\n    }\n    printf(\"\\n\");\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o init init.c\n$ ./init\nsum of x = 66\n7 9 0 0 "
+    },
+    {
+     "type": "md",
+     "text": "You cannot assign a whole array with `=` (`x = y;` is a compile error). To copy an array, copy its elements one at a time with a loop."
+    },
+    {
+     "type": "pitfall",
+     "text": "**C does not check indexes.** Java throws an exception for `a[5]` when `a` has 5 elements. C does not: it reads or writes whatever memory lies past the end of the array. That is **undefined behaviour**: the C standard says nothing about what happens. The program might print garbage, crash, change another variable, or seem to work today and fail tomorrow. There is no \"correct output\" for such a program. `gcc -Wall` catches only some of these mistakes, so check your loop bounds yourself: `i < n`, not `i <= n`."
+    },
+    {
+     "type": "md",
+     "text": "### Variable-length arrays\n\nSo far the capacity was a constant like `5`. In C99 and later (including C17, which we use with gcc) the capacity of a local array may be any integer expression whose value is only known **when the program runs**. This is a **variable-length array** (VLA):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid squares(int n) {\n    int sq[n];         // variable-length array: n is known only when the program runs\n    for (int i = 0; i < n; i++) {\n        sq[i] = i * i;\n    }\n    for (int i = 0; i < n; i++) {\n        printf(\"%d \", sq[i]);\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    squares(3);\n    squares(6);\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o vla vla.c\n$ ./vla\n0 1 4 \n0 1 4 9 16 25 "
+    },
+    {
+     "type": "md",
+     "text": "Each call to `squares` makes a fresh array of the size it needs. The course notebooks use VLAs the same way, for example `char dest1[len + 1];` where `len` was computed by `strlen`. Rules for a VLA:\n\n- it must be a local variable (declared inside a function);\n- it cannot have an initialiser list (`int sq[n] = {0};` is an error); fill it with a loop instead;\n- its size must be greater than 0 (a size of 0 or less is undefined behaviour), and should be small (it lives on the *stack*, which you will meet later)."
+    },
+    {
+     "type": "check",
+     "q": "`double v[10];` What are the first and last valid indexes?",
+     "a": "`v[0]` and `v[9]`. Ten elements, numbered 0 to 9."
+    },
+    {
+     "type": "check",
+     "q": "What does `int c[6] = {5};` put in `c[0]` and in `c[5]`?",
+     "a": "`c[0]` is 5. The other five elements, including `c[5]`, are 0 because the list is shorter than the capacity."
+    },
+    {
+     "type": "why",
+     "q": "Why is `for (int i = 0; i <= 5; i++) a[i] = 0;` wrong for `int a[5];`?",
+     "a": "The last pass uses `a[5]`, one element past the end. C does not stop you; writing there is undefined behaviour. Use `i < 5`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `T a[n];` makes `n` elements of type `T`, indexed `0` to `n - 1`.\n- Elements are not set to anything unless you use an initialiser list; a short list fills the rest with 0.\n- No bounds checking: going out of bounds is undefined behaviour, not an error message.\n- Arrays cannot be assigned with `=`; copy element by element.\n- A variable-length array `char s[n];` gets its size at run time (C99/C17); no initialiser list, size must be > 0."
+    }
+   ]
+  },
+  {
+   "id": "c3-strings",
+   "title": "C strings: '\\0', strlen and building a new string",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "Expect to write code that builds a string in a `char` array. Markers look for the array size (length + 1) and the `'\\0'` at the end.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "C has no string type. A **string** in C is an array of `char` whose end is marked by the **null character** `'\\0'` (also called the *null terminator*). Its numeric value is 0. Do not confuse it with the digit `'0'`, whose value is 48:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    char zero = '0';\n    char terminator = '\\0';\n    printf(\"'0' has the value %d\\n\", zero);\n    printf(\"'\\\\0' has the value %d\\n\", terminator);\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o terminator terminator.c\n$ ./terminator\n'0' has the value 48\n'\\0' has the value 0"
+    },
+    {
+     "type": "md",
+     "text": "### String literals\n\nA **string literal** is text in double quotes, such as `\"CISC220\"`. The compiler adds the `'\\0'` for you. So\n\n```c\nchar s[] = \"CISC220\";\n```\n\nmakes an array of **8** chars, not 7:\n\n| index | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |\n|---|---|---|---|---|---|---|---|---|\n| `s[i]` | `'C'` | `'I'` | `'S'` | `'C'` | `'2'` | `'2'` | `'0'` | `'\\0'` |\n\nNotice that `s[6]` is the digit `'0'` and `s[7]` is the terminator `'\\0'`. The array `s` is a copy of the literal, so you may change its elements, for example `s[0] = 'c';`.\n\n### strlen\n\n`strlen(s)`, declared in `<string.h>`, returns the **length** of the string: the number of characters *before* the first `'\\0'`. It returns a `size_t`, so print it with `%zu`. `strlen` walks along the array until it finds `'\\0'`; if there is no `'\\0'`, it runs off the end (undefined behaviour)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"CISC220\";      // 7 characters + '\\0' = an array of 8 chars\n    size_t len = strlen(s);\n    printf(\"s = %s, length = %zu\\n\", s, len);\n    printf(\"s[0] = %c, s[6] = %c\\n\", s[0], s[6]);\n\n    char empty[] = \"\";         // holds only '\\0'\n    printf(\"empty has length %zu\\n\", strlen(empty));\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o length length.c\n$ ./length\ns = CISC220, length = 7\ns[0] = C, s[6] = 0\nempty has length 0"
+    },
+    {
+     "type": "md",
+     "text": "**The +1 rule.** A string of length `n` needs an array of **`n + 1`** chars: `n` for the characters and 1 for the `'\\0'`. The empty string `\"\"` has length 0 but still uses 1 char."
+    },
+    {
+     "type": "md",
+     "text": "### Building a NEW string, character by character\n\nTo make a string that did not exist before:\n\n1. work out its length `n`;\n2. declare a `char` array of size `n + 1` (a variable-length array if `n` is computed at run time);\n3. fill indexes `0` to `n - 1` with a loop;\n4. put `'\\0'` at index `n`.\n\nOnly then is it a string that `printf(\"%s\\n\", s)`, `puts(s)` and `strlen(s)` can use. Here `stars(n)` builds a string of `n` stars:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid stars(int n) {\n    char s[n + 1];             // n stars + 1 for '\\0'\n    for (int i = 0; i < n; i++) {\n        s[i] = '*';\n    }\n    s[n] = '\\0';               // end the string\n    printf(\"[%s]\\n\", s);\n}\n\nint main(void) {\n    stars(3);\n    stars(7);\n    stars(0);\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o stars stars.c\n$ ./stars\n[***]\n[*******]\n[]"
+    },
+    {
+     "type": "md",
+     "text": "The same steps copy an existing string. The copy is a separate array, so changing it does not change the original:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char src[] = \"hello\";\n    size_t n = strlen(src);    // 5\n    char dest[n + 1];          // 6 chars: room for '\\0'\n\n    for (size_t i = 0; i < n; i++) {\n        dest[i] = src[i];\n    }\n    dest[n] = '\\0';\n\n    dest[0] = 'J';             // dest is a separate copy\n    printf(\"%s\\n\", src);\n    puts(dest);\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o copy copy.c\n$ ./copy\nhello\nJello"
+    },
+    {
+     "type": "md",
+     "text": "Two ways to print a string `s`:\n\n- `printf(\"%s\\n\", s);` where `%s` means \"print the chars up to `'\\0'`\". You write the `\\n`.\n- `puts(s);` prints the string **and adds a newline** itself.\n\n(`<string.h>` also has `strcpy` and `strcat`, which copy and join strings. Later days cover them. Today you write the loops yourself, which is what an exam or an assignment that forbids those functions expects.)"
+    },
+    {
+     "type": "pitfall",
+     "text": "**Forgetting the `'\\0'`** (or leaving no room for it). `char t[5];` filled with `h e l l o` and no `'\\0'` is *not* a string. `printf(\"%s\", t)` keeps reading past the end of `t` until it happens to meet a 0 byte: undefined behaviour. You may see `hello` followed by junk, or nothing odd at all, which is worse because the bug hides."
+    },
+    {
+     "type": "check",
+     "q": "How many chars does `char w[] = \"queens\";` have, and what is `strlen(w)`?",
+     "a": "7 chars (6 letters + `'\\0'`); `strlen(w)` is 6."
+    },
+    {
+     "type": "check",
+     "q": "You want to store a string of length `len` (a `size_t`). Write the declaration of the array `buf`.",
+     "a": "`char buf[len + 1];`"
+    },
+    {
+     "type": "why",
+     "q": "Why does `strlen` need `'\\0'` at all? Can't it just ask the array its size?",
+     "a": "A C array does not store its own length anywhere. The `'\\0'` is the only way a function like `strlen`, `printf` or `puts` can tell where the string stops."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- A C string is a `char` array ending in `'\\0'` (value 0, not the digit `'0'`).\n- A literal `\"abc\"` holds 4 chars; the compiler adds the `'\\0'`.\n- `strlen` (from `<string.h>`) counts chars before `'\\0'` and returns `size_t` (`%zu`).\n- A string of length `n` needs `n + 1` chars.\n- To build a string: size `n + 1`, fill `0..n-1`, then put `'\\0'` at index `n`. Then print with `printf(\"%s\\n\", s)` or `puts(s)`."
+    }
+   ]
+  },
+  {
+   "id": "c3-argv",
+   "title": "Command-line arguments: argc and argv",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "examNote": "Know what `argc` and `argv[0]` are when a program is run with no arguments, and always check `argc` before using `argv[i]`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "In Bash you used `$#`, `$0`, `$1`, `$2`... to read a script's arguments. C has the same idea. Write `main` as\n\n```c\nint main(int argc, char *argv[])\n```\n\n- `argc` (*argument count*) is the number of words on the command line, **including the program name**.\n- `argv` (*argument vector*) is an array of strings. `argv[0]` is the program name as you typed it, `argv[1]` is the first argument, and so on up to `argv[argc - 1]`.\n\nFor now, read `char *` as \"a string\"; the `*` (a *pointer*) is explained on a later day. The shell splits the words and removes quotes before your program sees them, exactly as for a Bash script:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(int argc, char *argv[]) {\n    printf(\"argc = %d\\n\", argc);\n    for (int i = 0; i < argc; i++) {\n        printf(\"argv[%d] = \\\"%s\\\"\\n\", i, argv[i]);\n    }\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o args args.c\n$ ./args\nargc = 1\nargv[0] = \"./args\"\n$ ./args hello \"two words\" ''\nargc = 4\nargv[0] = \"./args\"\nargv[1] = \"hello\"\nargv[2] = \"two words\"\nargv[3] = \"\"",
+     "caption": "Quotes keep \"two words\" together; '' is an empty argument"
+    },
+    {
+     "type": "md",
+     "text": "So `argc` is always at least 1, and with no arguments `argc` is 1 (in Bash, `$#` would be 0).\n\n### Check argc first\n\nIf the user gave fewer arguments than you expect, `argv[1]` or `argv[2]` is not a string you may use. Reading it is undefined behaviour (often a crash). So test `argc` **before** using `argv[i]`.\n\nA good program prints a usage message to **standard error** and exits with a non-zero status, like a careful Bash script. `fprintf(stderr, ...)` works exactly like `printf`, but writes to standard error instead of standard output:\n\n```c\nif (argc != 2) {\n    fprintf(stderr, \"usage: %s word\\n\", argv[0]);\n    return 1;\n}\n```\n\n### argv[i][j] is a char\n\n`argv[i]` is a string, so `argv[i][j]` is its character at index `j`, a `char` (`%c`). Each `argv[i]` ends with `'\\0'`, so `strlen(argv[i])` works on it:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc < 2) {\n        fprintf(stderr, \"usage: %s word\\n\", argv[0]);\n        return 1;\n    }\n    size_t n = strlen(argv[1]);\n    for (size_t j = 0; j < n; j++) {\n        printf(\"argv[1][%zu] = '%c'\\n\", j, argv[1][j]);\n    }\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o letters letters.c\n$ ./letters hey\nargv[1][0] = 'h'\nargv[1][1] = 'e'\nargv[1][2] = 'y'\n$ echo $?\n0\n$ ./letters\nusage: ./letters word\n$ echo $?\n1"
+    },
+    {
+     "type": "md",
+     "text": "### Worked example: every character doubled\n\nGoal: `./doubled abc` prints `aabbcc`. The program must **build a new string** and then print it. Follow the steps from the strings lesson:\n\n1. Check `argc`.\n2. Measure: `n = strlen(argv[1])`.\n3. Size: the new string has `2 * n` characters, so the array needs `2 * n + 1`.\n4. Copy: character `i` of the input goes to positions `2 * i` and `2 * i + 1`.\n5. Terminate: the last character is at `2 * n - 1`, so `'\\0'` goes at `2 * n`.\n6. Print the new string."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    // 1. check argc before touching argv[1]\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s word\\n\", argv[0]);\n        return 1;\n    }\n    // 2. measure the input\n    size_t n = strlen(argv[1]);\n    // 3. make an array big enough: 2 copies of each char, plus '\\0'\n    char d[2 * n + 1];\n    // 4. copy characters into their new positions\n    for (size_t i = 0; i < n; i++) {\n        d[2 * i] = argv[1][i];\n        d[2 * i + 1] = argv[1][i];\n    }\n    // 5. terminate\n    d[2 * n] = '\\0';\n    // 6. print the NEW string\n    printf(\"%s\\n\", d);\n    return 0;\n}\n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o doubled doubled.c\n$ ./doubled abc\naabbcc\n$ ./doubled \"a b\"\naa  bb\n$ ./doubled ''\n\n$ ./doubled\nusage: ./doubled word",
+     "caption": "An empty argument gives an empty string, so only a newline is printed"
+    },
+    {
+     "type": "md",
+     "text": "Check the empty case by hand: with `n = 0` the array has size 1, the loop does nothing, and `d[0] = '\\0'` makes the empty string. That is why `2 * n + 1` is safe even for `\"\"`. Test with `\"\"` and with arguments that contain spaces every time you write a program like this."
+    },
+    {
+     "type": "check",
+     "q": "`./prog one two` What are `argc`, `argv[0]` and `argv[2]`?",
+     "a": "`argc` is 3, `argv[0]` is `\"./prog\"`, `argv[2]` is `\"two\"`."
+    },
+    {
+     "type": "check",
+     "q": "`./prog \"Kingston ON\"` What is `argv[1][8]`?",
+     "a": "`' '` (a space). `argv[1]` is `\"Kingston ON\"`: K=0, i=1, n=2, g=3, s=4, t=5, o=6, n=7, space=8."
+    },
+    {
+     "type": "why",
+     "q": "Why must the `if (argc != 2)` test come before `strlen(argv[1])`?",
+     "a": "If there is no argument, `argv[1]` is not a real string; passing it to `strlen` is undefined behaviour (usually a crash). Checking `argc` first guarantees `argv[1]` exists."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `int main(int argc, char *argv[])`: `argc` counts the program name too; `argv[0]` is the program name.\n- Arguments are `argv[1]` to `argv[argc - 1]`; each is a `'\\0'`-terminated string.\n- Check `argc` before using `argv[i]`; report problems with `fprintf(stderr, ...)` and a non-zero exit status.\n- `argv[i][j]` is one `char`.\n- Build new strings with the five steps: measure, size (+1), copy, terminate, print."
+    }
+   ]
+  },
+  {
+   "id": "c3-concat2",
+   "title": "Plan for concat2.c (Assignment 4)",
+   "notebook": "c/strings.ipynb",
+   "priority": "high",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "Assignment 4 asks for `concat2.c`: a program that joins its two command-line arguments into one **new** string and prints it. This lesson is a plan in words; writing the code is your job (it is graded). Everything you need is in the three lessons above.\n\n### What the checker expects\n\nBuilt from the assignment's examples:\n\n| command | standard output |\n|---|---|\n| `./concat2` | nothing |\n| `./concat2 marsh` | `marsh` |\n| `./concat2 marsh mallow` | `marshmallow` |\n| `./concat2 \"a b\" c` | `a bc` |\n| `./concat2 \"\" xyz` | `xyz` |\n\nEvery case exits with status 0. Re-read the handout for the exact rules, including what to do with more than two arguments. **Note:** the handout's sample output shows `marshmallo`. That is a typo; the right answer (and what the checker expects) is `marshmallow`.\n\nThe assignment also limits which functions you may call: only `strlen`, `printf` and `puts`. So no `strcpy` or `strcat`; you copy characters with loops, as in today's examples."
+    },
+    {
+     "type": "md",
+     "text": "### The steps, in words\n\n1. **Handle the `argc` cases first.** Decide what each value of `argc` means (no arguments, one argument, two). Never touch `argv[2]` unless `argc` says it exists.\n2. **Measure both arguments** with `strlen`, storing each length in a `size_t` variable.\n3. **Make an array of the right size.** How many characters does the joined string have? Add one for `'\\0'`. A variable-length array is fine.\n4. **Copy the first argument** into the start of the array with a loop.\n5. **Copy the second argument** right after it. Ask yourself: at which index does its first character go? (Not 0, or you overwrite the first argument.) Work it out on paper for `marsh` + `mallow` first: which index does the `m` of `mallow` land on?\n6. **Terminate**: put `'\\0'` right after the last copied character. Which index is that, in terms of the two lengths?\n7. **Print the new string** once, followed by a newline (`printf` with `%s\\n`, or `puts`)."
+    },
+    {
+     "type": "md",
+     "text": "### Hints\n\n- Draw the array as a row of boxes with index numbers for `marsh` + `mallow` (5 + 6 characters). The indexes you need will be obvious.\n- Use `size_t` for lengths and loop counters that are compared with lengths; mixing `int` and `size_t` can give `-Wall` warnings.\n- Test the edge cases from the table: an empty first argument and an empty second argument should both work without special code if your indexes are right."
+    },
+    {
+     "type": "pitfall",
+     "text": "**Common mistakes**\n\n- Forgetting the `'\\0'`: the output may look right on one run and show junk on another.\n- Off-by-one size: an array of exactly `len1 + len2` chars has no room for `'\\0'`.\n- Printing instead of building: `printf(\"%s%s\\n\", argv[1], argv[2])` prints the right text but does not make a new string, which is what the assignment asks for.\n- Starting the second copy at index 0, or one place too far (leaving a gap of junk).\n- Using `argv[2]` when only one argument was given."
+    },
+    {
+     "type": "try",
+     "text": "Write `concat2.c` in `~/CISC220_A4` (for example `mkdir -p ~/CISC220_A4 && nano ~/CISC220_A4/concat2.c`). Compile it with `gcc -Wall -o concat2 concat2.c` and try the commands in the table. Then run the checker:\n\n```\n$ cd ~/CISC220_current/c-app/drills && ./cdrill.sh a4 ~/CISC220_A4 concat2.c\n```\n\nIt compiles your file, runs the cases above, and warns if you call a function other than `strlen`, `printf` or `puts`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Handle `argc` first; never read an argument that is not there.\n- Size = sum of the lengths + 1.\n- Two copy loops; the second starts where the first ended.\n- Terminate with `'\\0'`, then print the new string once.\n- Expected output for `marsh mallow` is `marshmallow` (the handout's `marshmallo` is a typo)."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c3-fc-01",
+   "topic": "c3-arrays",
+   "front": "Valid indexes of `int a[n];`",
+   "back": "`0` to `n - 1`. `a[n]` is one past the end."
+  },
+  {
+   "id": "c3-fc-02",
+   "topic": "c3-arrays",
+   "front": "What does C do if you use an index outside the array?",
+   "back": "Nothing checks it. Reading or writing out of bounds is **undefined behaviour**: no guaranteed result (garbage, crash, or seeming to work)."
+  },
+  {
+   "id": "c3-fc-03",
+   "topic": "c3-arrays",
+   "front": "`int y[4] = {7, 9};` What are `y[2]` and `y[3]`?",
+   "back": "Both 0. A short initialiser list fills the remaining elements with 0."
+  },
+  {
+   "id": "c3-fc-04",
+   "topic": "c3-arrays",
+   "front": "`int x[] = {1, 2, 3};` What is the capacity?",
+   "back": "3. With empty brackets the compiler counts the initialisers."
+  },
+  {
+   "id": "c3-fc-05",
+   "topic": "c3-arrays",
+   "front": "Can you write `x = y;` for two arrays?",
+   "back": "No, arrays cannot be assigned (compile error). Copy element by element with a loop."
+  },
+  {
+   "id": "c3-fc-06",
+   "topic": "c3-arrays",
+   "front": "What is a variable-length array (VLA)?",
+   "back": "A local array whose size is computed at run time, e.g. `char s[n + 1];`. Allowed in C99/C17; no initialiser list; size must be > 0."
+  },
+  {
+   "id": "c3-fc-07",
+   "topic": "c3-strings",
+   "front": "What is a C string?",
+   "back": "An array of `char` ending with the null character `'\\0'`."
+  },
+  {
+   "id": "c3-fc-08",
+   "topic": "c3-strings",
+   "front": "`'\\0'` versus `'0'`",
+   "back": "`'\\0'` is the null character, value 0, which ends a string. `'0'` is the digit zero, value 48."
+  },
+  {
+   "id": "c3-fc-09",
+   "topic": "c3-strings",
+   "front": "How many chars in `char s[] = \"abc\";`?",
+   "back": "4: `'a' 'b' 'c' '\\0'`. The compiler adds the `'\\0'`."
+  },
+  {
+   "id": "c3-fc-10",
+   "topic": "c3-strings",
+   "front": "What does `strlen(s)` return, and its type?",
+   "back": "The number of chars before the first `'\\0'`, as a `size_t` (print with `%zu`). Header: `<string.h>`."
+  },
+  {
+   "id": "c3-fc-11",
+   "topic": "c3-strings",
+   "front": "Array size needed for a string of length n",
+   "back": "`n + 1` (one extra for `'\\0'`)."
+  },
+  {
+   "id": "c3-fc-12",
+   "topic": "c3-strings",
+   "front": "Steps to build a new string",
+   "back": "1. find its length n; 2. `char t[n + 1];` 3. fill `t[0]`..`t[n-1]` with a loop; 4. `t[n] = '\\0';` 5. print."
+  },
+  {
+   "id": "c3-fc-13",
+   "topic": "c3-strings",
+   "front": "`puts(s)` versus `printf(\"%s\", s)`",
+   "back": "`puts` adds a newline after the string; `printf` prints only what the format says."
+  },
+  {
+   "id": "c3-fc-14",
+   "topic": "c3-argv",
+   "front": "What do `argc` and `argv` hold?",
+   "back": "`argc`: number of command-line words **including** the program name. `argv[0]`: program name; `argv[1]`..`argv[argc-1]`: the arguments, as strings."
+  },
+  {
+   "id": "c3-fc-15",
+   "topic": "c3-argv",
+   "front": "`./prog` with no arguments: value of `argc`?",
+   "back": "1 (just the program name)."
+  },
+  {
+   "id": "c3-fc-16",
+   "topic": "c3-argv",
+   "front": "Why check `argc` before using `argv[i]`?",
+   "back": "If the argument was not given, `argv[i]` is not a usable string; using it is undefined behaviour (often a crash)."
+  },
+  {
+   "id": "c3-fc-17",
+   "topic": "c3-argv",
+   "front": "What is `argv[1][0]`?",
+   "back": "The first character (a `char`) of the first argument."
+  },
+  {
+   "id": "c3-fc-18",
+   "topic": "c3-argv",
+   "front": "How to print a usage error in C",
+   "back": "`fprintf(stderr, \"usage: %s word\\n\", argv[0]);` then `return 1;` (non-zero exit status)."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c3-q-01",
+   "topic": "c3-arrays",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int a[] = {3, 1, 4, 1, 5};\n    for (int i = 4; i >= 0; i--) {\n        printf(\"%d\", a[i]);\n    }\n    printf(\"\\n\");\n    return 0;\n}\n",
+   "answer": "51413",
+   "explain": "The loop goes from index 4 down to 0, printing the elements in reverse: 5, 1, 4, 1, 3."
+  },
+  {
+   "id": "c3-q-02",
+   "topic": "c3-arrays",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int y[5] = {2, 4};\n    int sum = 0;\n    for (int i = 0; i < 5; i++) {\n        sum = sum + y[i];\n        printf(\"%d \", y[i]);\n    }\n    printf(\"sum=%d\\n\", sum);\n    return 0;\n}\n",
+   "answer": "2 4 0 0 0 sum=6",
+   "explain": "`y` has capacity 5 but only 2 initialisers, so `y[2]`, `y[3]`, `y[4]` are 0. The sum is 6."
+  },
+  {
+   "id": "c3-q-03",
+   "topic": "c3-arrays",
+   "type": "mcq",
+   "q": "`int a[4];` Which use of `a` is out of bounds?",
+   "options": [
+    "`a[0] = 1;`",
+    "`a[3] = 1;`",
+    "`a[4] = 1;`",
+    "`a[1 + 2] = 1;`"
+   ],
+   "answer": 2,
+   "explain": "The valid indexes are 0 to 3. `a[4]` is one past the end: undefined behaviour, and C does not report it."
+  },
+  {
+   "id": "c3-q-04",
+   "topic": "c3-arrays",
+   "type": "short",
+   "q": "A student writes `int a[3] = {1, 2, 3};` and then `printf(\"%d\\n\", a[3]);`. What does it print?",
+   "answer": "There is no defined answer: `a[3]` is out of bounds, so the behaviour is undefined. It may print any number, crash, or appear to work.",
+   "explain": "C has no bounds checking. Never predict a specific output for an out-of-bounds access."
+  },
+  {
+   "id": "c3-q-05",
+   "topic": "c3-strings",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"abc\";\n    printf(\"%zu %c\\n\", strlen(s), s[1]);\n    return 0;\n}\n",
+   "answer": "3 b",
+   "explain": "`strlen` counts the 3 characters before `'\\0'`; `s[1]` is the second character, `b`."
+  },
+  {
+   "id": "c3-q-06",
+   "topic": "c3-strings",
+   "type": "mcq",
+   "q": "What is the smallest `char` array that can hold the string `\"assign\"`?",
+   "options": [
+    "5",
+    "6",
+    "7",
+    "8"
+   ],
+   "answer": 2,
+   "explain": "6 characters plus 1 for `'\\0'` is 7."
+  },
+  {
+   "id": "c3-q-07",
+   "topic": "c3-strings",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"cat\";\n    s[1] = '\\0';\n    printf(\"[%s] %zu\\n\", s, strlen(s));\n    return 0;\n}\n",
+   "answer": "[c] 1",
+   "explain": "Putting `'\\0'` at index 1 ends the string after `c`. `printf` and `strlen` both stop at the first `'\\0'`."
+  },
+  {
+   "id": "c3-q-08",
+   "topic": "c3-strings",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    char s[] = \"abcd\";\n    char t[3];\n    t[0] = s[3];\n    t[1] = s[0];\n    t[2] = '\\0';\n    puts(t);\n    puts(s);\n    return 0;\n}\n",
+   "answer": "da\nabcd",
+   "explain": "`t` is built by hand: `t[0]` is `s[3]` (`d`), `t[1]` is `s[0]` (`a`), then `'\\0'`. `puts` adds a newline after each string. `s` is unchanged."
+  },
+  {
+   "id": "c3-q-09",
+   "topic": "c3-strings",
+   "type": "short",
+   "q": "What is wrong with this code (`n` is `strlen(w)`)?\n\n```c\nchar t[n];\nfor (size_t i = 0; i < n; i++) {\n    t[i] = w[i];\n}\nprintf(\"%s\\n\", t);\n```",
+   "answer": "`t` has no room for `'\\0'` and no `'\\0'` is ever stored, so `t` is not a string; `printf(\"%s\")` reads past the end (undefined behaviour). Fix: `char t[n + 1];` and `t[n] = '\\0';` after the loop.",
+   "explain": "Two bugs in one: size n instead of n + 1, and a missing terminator. (Also, if `n` is 0, `char t[0]` is itself undefined.)"
+  },
+  {
+   "id": "c3-q-10",
+   "topic": "c3-argv",
+   "type": "output",
+   "q": "The program is compiled as `p` and run as `./p one \"two three\"`. What does it print?",
+   "code": "#include <stdio.h>\n\nint main(int argc, char *argv[]) {\n    printf(\"%d\\n\", argc);\n    printf(\"%s\\n\", argv[argc - 1]);\n    return 0;\n}\n",
+   "answer": "3\ntwo three",
+   "explain": "`argc` is 3 (`./p`, `one`, `two three`). `argv[argc - 1]` is `argv[2]`, the quoted argument with its space."
+  },
+  {
+   "id": "c3-q-11",
+   "topic": "c3-argv",
+   "type": "short",
+   "q": "A program is run as `./prog` with no arguments. What are `argc` and `argv[0]`? Is it safe to call `strlen(argv[1])`?",
+   "answer": "`argc` is 1 and `argv[0]` is `\"./prog\"`. No: there is no first argument, so `strlen(argv[1])` is undefined behaviour. Check `argc` first.",
+   "explain": "`argc` counts the program name, so it is never 0 for a normal run."
+  },
+  {
+   "id": "c3-q-12",
+   "topic": "c3-argv",
+   "type": "output",
+   "q": "The program is compiled as `p` and run as `./p abcdefg`. What does it print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc < 2) {\n        return 1;\n    }\n    size_t n = strlen(argv[1]);\n    for (size_t j = 0; j < n; j = j + 2) {\n        printf(\"%c\", argv[1][j]);\n    }\n    printf(\"\\n\");\n    return 0;\n}\n",
+   "answer": "aceg",
+   "explain": "`j` takes the values 0, 2, 4, 6, so the characters at those indexes are printed: a, c, e, g."
+  },
+  {
+   "id": "c3-q-13",
+   "topic": "c3-argv",
+   "type": "output",
+   "q": "The program is compiled as `p` and run as `./p \"ab c\"`. What does it print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        return 1;\n    }\n    size_t n = strlen(argv[1]);\n    char t[n + 1];\n    for (size_t i = 0; i < n; i++) {\n        t[i] = argv[1][n - 1 - i];\n    }\n    t[n] = '\\0';\n    printf(\"%s|%zu\\n\", t, strlen(t));\n    return 0;\n}\n",
+   "answer": "c ba|4",
+   "explain": "It builds the reverse of `ab c` (4 characters, including the space) in a new array of 5 chars, then prints it and its length."
+  },
+  {
+   "id": "c3-q-14",
+   "topic": "c3-argv",
+   "type": "short",
+   "q": "Why does the assignment want `concat2` to build a new string instead of just `printf(\"%s%s\\n\", argv[1], argv[2])`?",
+   "answer": "The goal is to practise making a string yourself: sizing a `char` array (sum of lengths + 1), copying characters into it, and adding `'\\0'`. Printing the two arguments one after the other produces the same text without building anything, so it does not meet the requirement.",
+   "explain": "Same output, different program. Graders read the code."
+  }
+ ],
+ "write": [
+  {
+   "id": "c3-w-01",
+   "topic": "c3-argv",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write a complete program `mirror.c` that takes exactly one command-line argument and prints a NEW string made of the argument followed by the argument backwards. `./mirror abc` prints `abccba`; `./mirror \"\"` prints an empty line. With the wrong number of arguments, print a usage message to standard error and return 1. Build the string in a `char` array; do not just print characters one at a time.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s word\\n\", argv[0]);\n        return 1;\n    }\n    size_t n = strlen(argv[1]);\n    char m[2 * n + 1];\n\n    for (size_t i = 0; i < n; i++) {\n        m[i] = argv[1][i];               // left half: forwards\n        m[2 * n - 1 - i] = argv[1][i];   // right half: backwards\n    }\n    m[2 * n] = '\\0';\n\n    printf(\"%s\\n\", m);\n    return 0;\n}\n",
+   "explain": "Follow the five steps.\n\n1. **Check argc**: exactly one argument means `argc == 2`.\n2. **Measure**: `n = strlen(argv[1])`.\n3. **Size**: the result has `2 * n` characters, so `char m[2 * n + 1];`.\n4. **Copy**: one loop fills both halves. Character `i` goes to `m[i]` (left half) and to `m[2 * n - 1 - i]` (right half, counted from the last index `2 * n - 1` backwards). Check with `abc`, n = 3: `a` goes to 0 and 5, `b` to 1 and 4, `c` to 2 and 3.\n5. **Terminate** at index `2 * n`, then print.\n\nFor `\"\"`, n = 0: the array has 1 element, the loop does nothing, and `m[0] = '\\0'`.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "Checks `argc != 2`, prints usage to `stderr`, returns 1"
+    },
+    {
+     "marks": 1,
+     "item": "Uses `strlen(argv[1])` (stored in a `size_t`)"
+    },
+    {
+     "marks": 1,
+     "item": "Array size `2 * n + 1`"
+    },
+    {
+     "marks": 1,
+     "item": "Correct indexes for both halves"
+    },
+    {
+     "marks": 1,
+     "item": "Stores `'\\0'` at index `2 * n` and prints the new string with a newline"
+    }
+   ],
+   "pitfalls": [
+    "Using `2 * n - i` instead of `2 * n - 1 - i` (writes one past the right half and leaves index `n` unset).",
+    "Array of size `2 * n`: no room for `'\\0'`."
+   ]
+  },
+  {
+   "id": "c3-w-02",
+   "topic": "c3-strings",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Fill in the blanks. `dashes.c` builds a NEW string with a `-` between neighbouring characters of its argument: `./dashes abc` prints `a-b-c`, `./dashes x` prints `x`, `./dashes \"\"` prints an empty line. `k` is the next free index in `t`.",
+   "starter": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != ____) {\n        fprintf(stderr, \"usage: %s word\\n\", argv[0]);\n        return 1;\n    }\n    size_t n = ____;\n    char t[2 * n + 1];\n    size_t k = ____;               // next free index in t\n    for (size_t i = 0; i < n; i++) {\n        if (i > 0) {\n            t[k] = ____;\n            k++;\n        }\n        t[k] = ____;\n        k++;\n    }\n    ____;\n    printf(\"%s\\n\", t);\n    return 0;\n}\n",
+   "solution": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s word\\n\", argv[0]);\n        return 1;\n    }\n    size_t n = strlen(argv[1]);\n    char t[2 * n + 1];\n    size_t k = 0;                  // next free index in t\n    for (size_t i = 0; i < n; i++) {\n        if (i > 0) {\n            t[k] = '-';\n            k++;\n        }\n        t[k] = argv[1][i];\n        k++;\n    }\n    t[k] = '\\0';\n    printf(\"%s\\n\", t);\n    return 0;\n}\n",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`argc != 2` and `n = strlen(argv[1])`"
+    },
+    {
+     "marks": 1,
+     "item": "`k` starts at 0"
+    },
+    {
+     "marks": 1,
+     "item": "`t[k] = '-'` then `t[k] = argv[1][i]`"
+    },
+    {
+     "marks": 1,
+     "item": "`t[k] = '\\0'` after the loop (k, not n)"
+    }
+   ],
+   "pitfalls": [
+    "Writing `t[n] = '\\0'`: the new string's length is `k` (here `2 * n - 1`), not `n`.",
+    "Using `i` as the index into `t`: the positions in `t` move faster than the positions in the argument, which is why a separate `k` is needed."
+   ]
+  },
+  {
+   "id": "c3-w-03",
+   "topic": "c3-argv",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a complete program `under.c` that takes exactly one command-line argument and builds a NEW string that is a copy of it with every space replaced by an underscore `_`, then prints it with `puts`. `./under \"a b  c\"` prints `a_b__c`. With the wrong number of arguments, print a usage message to standard error and return 1.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <string.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s text\\n\", argv[0]);\n        return 1;\n    }\n    size_t n = strlen(argv[1]);\n    char t[n + 1];\n    for (size_t i = 0; i < n; i++) {\n        if (argv[1][i] == ' ') {\n            t[i] = '_';\n        } else {\n            t[i] = argv[1][i];\n        }\n    }\n    t[n] = '\\0';\n    puts(t);\n    return 0;\n}\n",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "Checks `argc` and reports errors on `stderr` with status 1"
+    },
+    {
+     "marks": 1,
+     "item": "Array of size `strlen(argv[1]) + 1`"
+    },
+    {
+     "marks": 1,
+     "item": "Loop over every character with `if` comparing to `' '`"
+    },
+    {
+     "marks": 1,
+     "item": "Terminates with `'\\0'` at index `n`"
+    },
+    {
+     "marks": 1,
+     "item": "Prints the new string (not `argv[1]`) with `puts`"
+    }
+   ],
+   "pitfalls": [
+    "Comparing with `\" \"` (a string, double quotes) instead of `' '` (a char).",
+    "Changing `argv[1]` and printing it instead of building a new string."
+   ]
+  }
+ ]
+}

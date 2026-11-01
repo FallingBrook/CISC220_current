@@ -1,0 +1,662 @@
+{
+ "day": 2,
+ "title": "Variables, types, printf and control flow",
+ "goal": "Declare and use int, unsigned int, double, char and size_t variables, predict integer versus floating-point arithmetic, print values with exact widths and precisions, and write if statements, loops and small functions.",
+ "topics": [
+  {
+   "id": "c2-vars",
+   "title": "Variables, types and arithmetic",
+   "notebook": "c/types.ipynb",
+   "priority": "high",
+   "examNote": "Exam questions love `7 / 2` (it is `3`), `-7 % 2` (it is `-1`) and `(double) a / b` versus `(double) (a / b)`. Trace them by hand.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "A **variable** is a named box in memory that holds one value. In C every variable has a **type**, and the type\ndecides what values the box can hold and what you can do with it.\n\nYou create a variable with a **declaration**: the type, then the name, then a semicolon.\n\n```c\nint count;\n```\n\nA name (formally an *identifier*) is made of letters, digits and underscores and cannot start with a digit:\n`total`, `max_value`, `x2` are fine; `2x` is not.\n\n### The five types you need today\n\n| Type | Holds | Example value |\n| :--- | :--- | :--- |\n| `int` | whole numbers, negative or not | `-5`, `0`, `42` |\n| `unsigned int` | whole numbers that are never negative | `0`, `40000` |\n| `double` | numbers with a fractional part (floating point) | `3.14`, `-0.5`, `2.0` |\n| `char` | one character, written in single quotes | `'A'`, `'z'`, `'7'` |\n| `size_t` | an unsigned whole number used for sizes, lengths and counts | `0`, `12` |\n\n`size_t` is not a new kind of number: it is a name for some unsigned integer type that is big enough to hold the size\nof anything in memory. It is defined in `<stdio.h>` (and `<stddef.h>`, `<stdlib.h>`, `<string.h>`). You will meet it again\nwhenever you work with string lengths."
+    },
+    {
+     "type": "md",
+     "text": "### Initialising and assigning\n\nGiving a variable a value **in its declaration** is called **initialisation**. Giving an existing variable a new value\nlater is called **assignment**. Both use `=`, which means *store*, not *is equal to*."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int count = 3;              // a whole number; may be negative\n    unsigned int pages = 250;   // a whole number that is never negative\n    double price = 19.99;       // a number with a fractional part\n    char grade = 'A';           // one character, written in single quotes\n    size_t length = 12;         // an unsigned type for sizes and counts\n\n    count = count + 1;          // assignment: replace the old value\n\n    printf(\"count  = %d\\n\", count);\n    printf(\"pages  = %u\\n\", pages);\n    printf(\"price  = %f\\n\", price);\n    printf(\"grade  = %c\\n\", grade);\n    printf(\"length = %zu\\n\", length);\n    return 0;\n}",
+     "caption": "vars.c: one variable of each type. `%d`, `%u`, `%f`, `%c` and `%zu` tell `printf` how to print each type (next lesson)."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o vars vars.c\n$ ./vars\ncount  = 4\npages  = 250\nprice  = 19.990000\ngrade  = A\nlength = 12"
+    },
+    {
+     "type": "pitfall",
+     "text": "A variable declared inside a function and **not** initialised holds an indeterminate (garbage) value. Reading it before you assign it is a bug and its output is not predictable. Always initialise: `int total = 0;`."
+    },
+    {
+     "type": "md",
+     "text": "### `const`: a read-only variable\n\nPut `const` in front of the type and the variable cannot be assigned to after its initialisation (like `final` in Java).\nUse it for values that should never change, such as a limit. The compiler refuses to build code that tries to change it:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    const int max = 10;   // read-only from now on\n    max = 20;             // error: max is const\n    printf(\"%d\\n\", max);\n    return 0;\n}",
+     "caption": "const_bad.c (does not compile)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o const_bad const_bad.c\nconst_bad.c:5:9: error: assignment of read-only variable ‘max’\n    5 |     max = 20;             // error: max is const\n      |         ^"
+    },
+    {
+     "type": "md",
+     "text": "### Arithmetic\n\nThe operators are `+`, `-`, `*`, `/` and `%` (remainder, also called *mod*). `*`, `/` and `%` happen before `+` and `-`;\nuse parentheses to change the order: `n * (n + 1) / 2`.\n\nThe important rule: **the types of the two operands decide what kind of arithmetic is done.**\n\n- `int / int` is **integer division**: the fraction is thrown away (it rounds toward zero). `7 / 2` is `3`, `-7 / 2` is `-3`.\n- `%` gives the remainder and works only on integers. `7 % 2` is `1`. The remainder has the sign of the left operand: `-7 % 2` is `-1`.\n- If **either** operand is a `double`, the other is converted to `double` first and you get **floating-point division**: `7.0 / 2` is `3.5`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int a = 7;\n    int b = 2;\n    printf(\"a / b   = %d\\n\", a / b);     // int / int: fraction thrown away\n    printf(\"a mod b = %d\\n\", a % b);     // remainder\n    printf(\"-7 / 2  = %d\\n\", -7 / 2);    // rounds toward zero\n    printf(\"-7 mod 2 = %d\\n\", -7 % 2);   // remainder has the sign of -7\n    printf(\"7.0 / 2 = %f\\n\", 7.0 / 2);   // one double: double division\n    return 0;\n}",
+     "caption": "division.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o division division.c\n$ ./division\na / b   = 3\na mod b = 1\n-7 / 2  = -3\n-7 mod 2 = -1\n7.0 / 2 = 3.500000"
+    },
+    {
+     "type": "md",
+     "text": "### Mixing `int` and `double`, and casts\n\nStoring an `int` result into a `double` variable does **not** bring the fraction back: the division already happened\nwith integers. To get a real average you must make one operand a `double` *before* dividing. A **cast** does that:\n`(double) total` means \"the value of `total`, converted to `double`\".\n\nA cast applies only to the value right after it. `(double) total / n` converts `total` and then divides, but\n`(double) (total / n)` divides first (integer division) and converts the already-truncated result.\n\nGoing the other way, storing a `double` into an `int` drops the fraction (no rounding)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int total = 9;\n    int n = 4;\n    double wrong = total / n;            // 9 / 4 is the int 2, then 2 becomes 2.0\n    double right = (double) total / n;   // 9.0 / 4 is 2.25\n    double late = (double) (total / n);  // cast happens after int division: 2.0\n    int whole = 3.99;                    // double to int: the fraction is dropped\n    printf(\"wrong = %f\\n\", wrong);\n    printf(\"right = %f\\n\", right);\n    printf(\"late  = %f\\n\", late);\n    printf(\"whole = %d\\n\", whole);\n    return 0;\n}",
+     "caption": "mixing.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o mixing mixing.c\n$ ./mixing\nwrong = 2.000000\nright = 2.250000\nlate  = 2.000000\nwhole = 3"
+    },
+    {
+     "type": "why",
+     "q": "Why does C have two kinds of division at all?",
+     "a": "Integers and floating-point numbers are stored in completely different ways, and the processor has separate instructions for each. C exposes this directly: it picks the instruction from the operand types. Integer division is exact for whole-number work (counting, splitting into groups, digits), and `%` gives the leftover."
+    },
+    {
+     "type": "pitfall",
+     "text": "Dividing an integer by zero (`x / 0` or `x % 0` with ints) is undefined behaviour: the program may crash or do anything. Check the divisor first."
+    },
+    {
+     "type": "check",
+     "q": "What are `17 / 5`, `17 % 5` and `17 / 5.0`?",
+     "a": "`3`, `2` and `3.4`. The first two use integers; the last has a `double` operand so it is floating-point division."
+    },
+    {
+     "type": "check",
+     "q": "`int a = 5, b = 2;` What is `(double) (a / b)`? What is `(double) a / b`?",
+     "a": "`2.0` (int division happens first, giving 2) and `2.5` (a becomes 5.0, then 5.0 / 2)."
+    },
+    {
+     "type": "try",
+     "text": "Copy mixing.c into `~/cisc220_c/day2/`, compile it with `gcc -Wall -o mixing mixing.c` and run it. Then change `n` to `3` and predict all four lines before running it again."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Declare before use: `type name;`. Initialise with `=` in the declaration; assign with `=` later.\n- `int`, `unsigned int`, `double`, `char` (`'A'`), `size_t` (unsigned, for sizes and counts).\n- `const` makes a variable read-only; assigning to it is a compile error.\n- `int / int` truncates toward zero; `%` is the remainder (sign of the left operand).\n- One `double` operand makes it floating-point division. Cast *before* dividing: `(double) total / n`.\n- `double` to `int` drops the fraction. Never read an uninitialised variable."
+    }
+   ]
+  },
+  {
+   "id": "c2-printf",
+   "title": "printf: conversions, width and precision",
+   "notebook": "c/floats.ipynb",
+   "priority": "high",
+   "examNote": "Assignment 4's sin.c prints its answer with `%24.17f`. Know what each number means: width 24 = at least 24 characters, padded on the left with spaces; precision 17 = 17 digits after the decimal point.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "`printf` prints its first argument, the **format string**, but each **conversion specification** (a `%` followed by a\nletter) is replaced by the next argument, converted to text. The letter must match the argument's type.\n\n| Conversion | Prints a ... | Example |\n| :--- | :--- | :--- |\n| `%d` | `int` (decimal) | `-5` |\n| `%u` | `unsigned int` | `40000` |\n| `%zu` | `size_t` | `8` |\n| `%f` | `double` (6 digits after the point by default) | `9.810000` |\n| `%c` | `char` (the character itself) | `z` |\n| `%s` | string (for now: a string literal in double quotes) | `hello` |\n| `%%` | a literal `%` sign (uses no argument) | `%` |\n\nArguments are used left to right, one per conversion."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int temp = -5;\n    unsigned int u = 40000;\n    size_t size = 8;\n    double g = 9.81;\n    char c = 'z';\n    printf(\"int      %d\\n\", temp);\n    printf(\"unsigned %u\\n\", u);\n    printf(\"size_t   %zu\\n\", size);\n    printf(\"double   %f\\n\", g);\n    printf(\"char     %c\\n\", c);\n    printf(\"string   %s\\n\", \"hello\");\n    printf(\"%d items at %f each, grade %c\\n\", 3, 2.5, 'B');\n    return 0;\n}",
+     "caption": "specifiers.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o specifiers specifiers.c\n$ ./specifiers\nint      -5\nunsigned 40000\nsize_t   8\ndouble   9.810000\nchar     z\nstring   hello\n3 items at 2.500000 each, grade B"
+    },
+    {
+     "type": "pitfall",
+     "text": "A conversion that does not match its argument is undefined behaviour: the output is not predictable. `gcc -Wall` catches most of these, so always compile with `-Wall` and fix every warning:\n\n```\n$ gcc -Wall -o wrongspec wrongspec.c\nwrongspec.c:5:14: warning: format ‘%d’ expects argument of type ‘int’, but argument 2 has type ‘double’ [-Wformat=]\n    5 |     printf(\"%d\\n\", x);    // wrong: %d needs an int\n      |             ~^     ~\n      |              |     |\n      |              int   double\n      |             %f\n```"
+    },
+    {
+     "type": "md",
+     "text": "### Field width and precision\n\nBetween the `%` and the letter you can put a **width** and a **precision**: `%` *width* `.` *precision* `f`.\n\n- **Width** is the *minimum* number of characters to print. If the value is shorter, it is padded with spaces on the\n  **left**, so numbers line up on the right (right-aligned). A `-` before the width pads on the right instead (left-aligned).\n  If the value is longer than the width, it is printed in full; the width never cuts anything off.\n- **Precision** (the number after the `.`) for `%f` is the number of **digits after the decimal point**. The value is\n  rounded to that many digits. `%.0f` prints no decimal point at all.\n\nThe width counts *every* character: the sign, the digits before the point, the point itself and the digits after it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int n = 42;\n    double third = 1.0 / 3.0;\n    printf(\"[%d]\\n\", n);\n    printf(\"[%5d]\\n\", n);         // width 5: at least 5 characters\n    printf(\"[%-5d]\\n\", n);        // minus sign: left-aligned\n    printf(\"[%1d]\\n\", 12345);     // too narrow: never cut off\n    printf(\"[%.3f]\\n\", third);    // precision 3: 3 digits after the point\n    printf(\"[%8.2f]\\n\", third);   // width 8, precision 2\n    printf(\"[%24.17f]\\n\", third); // width 24, precision 17\n    printf(\"[%.2f]\\n\", 2.999);    // rounded, not chopped\n    printf(\"[%.0f]\\n\", 7.5);      // no digits after the point\n    return 0;\n}",
+     "caption": "width.c: the square brackets show exactly where the spaces are."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o width width.c\n$ ./width\n[42]\n[   42]\n[42   ]\n[12345]\n[0.333]\n[    0.33]\n[     0.33333333333333331]\n[3.00]\n[8]"
+    },
+    {
+     "type": "md",
+     "text": "Read `%24.17f` with `1.0 / 3.0`: precision 17 gives `0.33333333333333331` (17 digits after the point). That is\n1 + 1 + 17 = 19 characters, so width 24 adds 24 - 19 = 5 spaces in front. Notice the last digits are `31`, not `33`:\na `double` holds about 16 significant decimal digits, so digits that far out show the tiny error in the stored value.\nThat is normal, not a bug."
+    },
+    {
+     "type": "why",
+     "q": "Why is padding on the left the default?",
+     "a": "Tables of numbers are read by place value, so ones digits should line up under ones digits. Right-aligning in a fixed width does that automatically when every row uses the same conversion, for example `%6d` or `%8.2f`."
+    },
+    {
+     "type": "md",
+     "text": "### Printing a literal `%`\n\nBecause `%` starts a conversion, write `%%` to print one percent sign:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int score = 87;\n    printf(\"You scored %d%%\\n\", score);\n    printf(\"%%d prints an int\\n\");\n    return 0;\n}",
+     "caption": "percent.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o percent percent.c\n$ ./percent\nYou scored 87%\n%d prints an int"
+    },
+    {
+     "type": "check",
+     "q": "How many characters does `printf(\"%8.3f\", 2.5)` print, and what are they?",
+     "a": "8 characters: `2.500` is 5 characters, so 3 spaces come first: `   2.500`."
+    },
+    {
+     "type": "check",
+     "q": "Which format prints a `double` in at least 10 characters with 4 digits after the point?",
+     "a": "`%10.4f`."
+    },
+    {
+     "type": "try",
+     "text": "Add the line `printf(\"[%-24.17f]\\n\", third);` to width.c, compile and run it, and see the 5 spaces move to the right side of the number."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `%d` int, `%u` unsigned int, `%zu` size_t, `%f` double, `%c` char, `%s` string, `%%` a literal `%`.\n- The conversion must match the argument's type; a mismatch is undefined behaviour. `-Wall` warns you.\n- Width = minimum characters, padded with spaces on the left (right-aligned); `-` left-aligns. Never truncates.\n- Precision for `%f` = digits after the point, rounded. `%f` alone means `%.6f`.\n- `%24.17f`: 17 digits after the point, whole thing at least 24 characters wide."
+    }
+   ]
+  },
+  {
+   "id": "c2-control",
+   "title": "Control flow and simple functions",
+   "notebook": "c/statements.ipynb",
+   "priority": "high",
+   "examNote": "On the handwritten exam you will write loops and small functions from scratch. Practise `for (int i = 0; i < n; i++)` until you can write it without thinking, and always put a helper function above `main`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "C's `if`, `while` and `for` statements look exactly like Java's.\n\n### Comparisons and true/false\n\nThe comparison operators are `==` (equal), `!=` (not equal), `<`, `<=`, `>`, `>=`. In C a comparison gives\nthe `int` **1** if it is true and **0** if it is false (a `bool` type exists in `<stdbool.h>`; you will meet it later). In a condition,\n**0 means false and any other value means true**.\n\nThe **logical operators** combine conditions:\n\n- `a && b` (and): true only if both are true.\n- `a || b` (or): true if at least one is true.\n- `!a` (not): true if `a` is false.\n\n`&&` and `||` stop early (*short-circuit*): in `a && b`, if `a` is false then `b` is not evaluated at all."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int age = 20;\n    int has_ticket = 0;        // 0 means false\n    printf(\"%d\\n\", age >= 18);                  // true is 1\n    printf(\"%d\\n\", age >= 18 && has_ticket);    // both must be true\n    printf(\"%d\\n\", age >= 18 || has_ticket);    // at least one true\n    printf(\"%d\\n\", !has_ticket);                // not\n    if (age >= 13 && age <= 19) {\n        puts(\"teenager\");\n    } else {\n        puts(\"not a teenager\");\n    }\n    return 0;\n}",
+     "caption": "logic.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o logic logic.c\n$ ./logic\n1\n0\n1\n1\nnot a teenager"
+    },
+    {
+     "type": "md",
+     "text": "### `if` / `else if` / `else`\n\nThe conditions are tested from top to bottom and **only the first true branch runs**. The final `else` runs if none\nwere true. A **block** is a group of statements inside braces `{ }`; it acts as one statement."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int val = -7;\n    int rem = val % 2;\n    if (rem == 0) {\n        puts(\"even\");\n    } else if (rem < 0) {\n        puts(\"odd and negative\");\n    } else {\n        puts(\"odd and positive\");\n    }\n    return 0;\n}",
+     "caption": "ifelse.c (from the course notebook, with val = -7)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o ifelse ifelse.c\n$ ./ifelse\nodd and negative"
+    },
+    {
+     "type": "pitfall",
+     "text": "`if (x = 5)` *assigns* 5 to `x` and is always true. Comparison is `==`. `gcc -Wall` warns: `suggest parentheses around assignment used as truth value`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Without braces, only the **one** next statement belongs to the `if`. Indentation means nothing to the compiler:\n\n```c\nif (x > 10)\n    printf(\"big\\n\");\n    printf(\"done\\n\");    // always runs\n```\n\n`gcc -Wall` warns `this 'if' clause does not guard...` (`-Wmisleading-indentation`). Always use braces."
+    },
+    {
+     "type": "md",
+     "text": "### Loops, `++`, `--` and compound assignment\n\n- `while (condition) { body }` repeats the body as long as the condition is true. It tests *before* each pass.\n- `for (start; condition; step) { body }` puts the three parts of a counting loop on one line. A counter declared in\n  the `for`, like `int i`, exists only inside the loop.\n- `i++` adds 1 to `i`; `i--` subtracts 1.\n- `x += 5` means `x = x + 5`. Likewise `-=`, `*=`, `/=`, `%=`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int left = 3;\n    while (left > 0) {\n        printf(\"left = %d\\n\", left);\n        left--;                       // same as left = left - 1\n    }\n\n    for (int i = 0; i < 3; i++) {\n        printf(\"i = %d\\n\", i);\n    }\n\n    int power = 1;\n    for (int k = 1; k <= 5; k++) {\n        power *= 2;                   // same as power = power * 2\n    }\n    printf(\"2 to the 5 = %d\\n\", power);\n    return 0;\n}",
+     "caption": "loops.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o loops loops.c\n$ ./loops\nleft = 3\nleft = 2\nleft = 1\ni = 0\ni = 1\ni = 2\n2 to the 5 = 32"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 10;\n    x += 5;     // 15\n    x -= 3;     // 12\n    x *= 2;     // 24\n    x /= 5;     // 4 (int division)\n    x %= 3;     // 1\n    x++;        // 2\n    printf(\"x = %d\\n\", x);\n    return 0;\n}",
+     "caption": "assignops.c: trace it line by line; the comments show each new value."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o assignops assignops.c\n$ ./assignops\nx = 2"
+    },
+    {
+     "type": "check",
+     "q": "How many times does `for (int i = 0; i < 5; i++)` run its body, and what values does `i` take?",
+     "a": "5 times: `i` is 0, 1, 2, 3, 4. When `i` becomes 5 the condition `i < 5` is false and the loop stops."
+    },
+    {
+     "type": "md",
+     "text": "### Writing your own functions\n\nA function definition has a **return type**, a **name**, a **parameter list** in parentheses, and a body:\n\n```c\nint square(int x) {\n    return x * x;\n}\n```\n\n- **Parameters** (`int x`) are local variables that receive copies of the values passed in a **call** such as `square(6)`.\n- `return value;` ends the function and hands the value back to the caller. The value should match the return type.\n- A function that returns nothing has return type `void` and uses `return;` or just reaches the closing brace.\n- A function that takes no parameters says so with `void`, like `int main(void)`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// returns the square of x\nint square(int x) {\n    return x * x;\n}\n\n// returns the area of a w-by-h rectangle\ndouble area(double w, double h) {\n    return w * h;\n}\n\n// prints n stars and a newline; returns nothing\nvoid stars(int n) {\n    for (int i = 0; i < n; i++) {\n        printf(\"*\");\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    int s = square(6);\n    printf(\"square(6) = %d\\n\", s);\n    printf(\"square(2 + 1) = %d\\n\", square(2 + 1));\n    printf(\"area = %.1f\\n\", area(2.5, 4.0));\n    stars(5);\n    return 0;\n}",
+     "caption": "functions.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o functions functions.c\n$ ./functions\nsquare(6) = 36\nsquare(2 + 1) = 9\narea = 10.0\n*****"
+    },
+    {
+     "type": "md",
+     "text": "### Declare before use\n\nThe compiler reads your file from top to bottom. When it reaches a call, it must already know the function's name,\nreturn type and parameters. The simplest rule: **put your functions above `main`**. If you call a function before\nit appears, gcc 13 warns (and newer gcc versions refuse to compile):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"%d\\n\", twice(4));   // twice is not declared yet\n    return 0;\n}\n\nint twice(int x) {\n    return 2 * x;\n}",
+     "caption": "implicit.c: the call comes before the function."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o implicit implicit.c\nimplicit.c:4:20: warning: implicit declaration of function ‘twice’ [-Wimplicit-function-declaration]\n    4 |     printf(\"%d\\n\", twice(4));   // twice is not declared yet\n      |                    ^~~~~"
+    },
+    {
+     "type": "md",
+     "text": "The other fix is a **declaration** (also called a *prototype*): the function's first line followed by `;`, placed\nabove the call. It promises the function exists; the full **definition** can then come later."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint twice(int x);   // declaration (prototype): promises twice exists\n\nint main(void) {\n    printf(\"%d\\n\", twice(4));\n    return 0;\n}\n\nint twice(int x) {  // definition\n    return 2 * x;\n}",
+     "caption": "prototype.c: compiles with no warnings."
+    },
+    {
+     "type": "md",
+     "text": "### Parameters are copies\n\nC passes arguments **by value**: the function gets a copy. Changing a parameter does not change the caller's variable,\neven if they have the same name."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid reset(int n) {\n    n = 0;                       // changes only the copy\n    printf(\"in reset: n = %d\\n\", n);\n}\n\nint main(void) {\n    int n = 5;\n    reset(n);\n    printf(\"in main:  n = %d\\n\", n);\n    return 0;\n}",
+     "caption": "byvalue.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -Wall -o byvalue byvalue.c\n$ ./byvalue\nin reset: n = 0\nin main:  n = 5"
+    },
+    {
+     "type": "why",
+     "q": "Why does `main` return `int` if no one calls it in our program?",
+     "a": "The shell calls it, in effect. The value `main` returns becomes the program's exit status, which you see with `echo $?` (Day 1). Your own functions work the same way: the caller receives the returned value."
+    },
+    {
+     "type": "check",
+     "q": "Write the first line (the header) of a function `celsius` that takes a `double` temperature in Fahrenheit and returns a `double`.",
+     "a": "`double celsius(double f)`  (any parameter name is fine)."
+    },
+    {
+     "type": "try",
+     "text": "Run `./cdrill.sh start 2` in `~/CISC220_current/c-app/drills` and do the labs. Then try `./cdrill.sh check 2`. Each lab uses `int main(void)` only."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Comparisons give `1` (true) or `0` (false); in a condition, 0 is false, anything else true. `&&`, `||`, `!`.\n- `if` / `else if` / `else`: the first true branch runs, only that one. Use `==` to compare, and always use braces.\n- `while` tests before each pass; `for (int i = 0; i < n; i++)` counts; `i++`, `i--`, `+=`, `-=`, `*=`, `/=`, `%=`.\n- A function: return type, name, parameters, body with `return`. `void` means returns nothing (or takes nothing).\n- Declare before use: define helpers above `main`, or write a prototype `int twice(int x);` above the call.\n- Arguments are copied (pass by value)."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c2-fc-01",
+   "topic": "c2-vars",
+   "front": "What is the difference between initialisation and assignment?",
+   "back": "Initialisation gives a value in the declaration (`int x = 1;`). Assignment stores a new value in an existing variable later (`x = 2;`)."
+  },
+  {
+   "id": "c2-fc-02",
+   "topic": "c2-vars",
+   "front": "What is `size_t`?",
+   "back": "An unsigned integer type big enough to hold the size of any object; used for sizes, lengths and counts. Print it with `%zu`."
+  },
+  {
+   "id": "c2-fc-03",
+   "topic": "c2-vars",
+   "front": "What does `const int max = 10;` mean?",
+   "back": "`max` is read-only: it must get its value when declared, and any later assignment to it is a compile error."
+  },
+  {
+   "id": "c2-fc-04",
+   "topic": "c2-vars",
+   "front": "`7 / 2` and `-7 / 2` in C?",
+   "back": "`3` and `-3`. Integer division throws away the fraction (rounds toward zero)."
+  },
+  {
+   "id": "c2-fc-05",
+   "topic": "c2-vars",
+   "front": "`7 % 3`, `-7 % 3`?",
+   "back": "`1` and `-1`. `%` is the remainder; it has the sign of the left operand. It works only on integers."
+  },
+  {
+   "id": "c2-fc-06",
+   "topic": "c2-vars",
+   "front": "When is `/` floating-point division?",
+   "back": "When at least one operand is a `double` (e.g. `7.0 / 2` or `7 / 2.0`, both `3.5`)."
+  },
+  {
+   "id": "c2-fc-07",
+   "topic": "c2-vars",
+   "front": "`int t = 9, n = 4;` `(double) t / n` vs `(double) (t / n)`?",
+   "back": "`2.25` (cast first, then double division) vs `2.0` (int division gives 2, then the cast)."
+  },
+  {
+   "id": "c2-fc-08",
+   "topic": "c2-vars",
+   "front": "What happens with `int k = 3.99;`?",
+   "back": "`k` is `3`: converting a `double` to an `int` drops the fraction (no rounding)."
+  },
+  {
+   "id": "c2-fc-09",
+   "topic": "c2-printf",
+   "front": "printf conversions for int, unsigned int, size_t, double, char, string?",
+   "back": "`%d`, `%u`, `%zu`, `%f`, `%c`, `%s`."
+  },
+  {
+   "id": "c2-fc-10",
+   "topic": "c2-printf",
+   "front": "How do you print a literal `%` with printf?",
+   "back": "`%%` in the format string."
+  },
+  {
+   "id": "c2-fc-11",
+   "topic": "c2-printf",
+   "front": "In `%8.2f`, what are 8 and 2?",
+   "back": "8 is the field width: at least 8 characters, padded with spaces on the left. 2 is the precision: 2 digits after the decimal point."
+  },
+  {
+   "id": "c2-fc-12",
+   "topic": "c2-printf",
+   "front": "What does `printf(\"[%5d]\", 42)` print? And `[%-5d]`?",
+   "back": "`[   42]` (right-aligned) and `[42   ]` (left-aligned)."
+  },
+  {
+   "id": "c2-fc-13",
+   "topic": "c2-printf",
+   "front": "What does `%f` alone print for 9.81?",
+   "back": "`9.810000`: the default precision is 6."
+  },
+  {
+   "id": "c2-fc-14",
+   "topic": "c2-control",
+   "front": "What value does `3 < 5` have in C?",
+   "back": "The `int` `1`. A false comparison gives `0`. In a condition, 0 is false and any non-zero value is true."
+  },
+  {
+   "id": "c2-fc-15",
+   "topic": "c2-control",
+   "front": "What does short-circuit mean for `&&` and `||`?",
+   "back": "Evaluation stops as soon as the answer is known: in `a && b`, `b` is skipped if `a` is false; in `a || b`, `b` is skipped if `a` is true."
+  },
+  {
+   "id": "c2-fc-16",
+   "topic": "c2-control",
+   "front": "Why does a function have to appear above `main` (or be declared there)?",
+   "back": "The compiler reads top to bottom and must know a function's return type and parameters at the point of the call. Otherwise gcc warns about an implicit declaration (newer gcc: error)."
+  },
+  {
+   "id": "c2-fc-17",
+   "topic": "c2-control",
+   "front": "What is a function prototype?",
+   "back": "A declaration: the header followed by a semicolon, e.g. `int twice(int x);`. It lets you call the function before its full definition."
+  },
+  {
+   "id": "c2-fc-18",
+   "topic": "c2-control",
+   "front": "If a function changes its parameter, does the caller's variable change?",
+   "back": "No. C passes arguments by value: the parameter is a copy."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c2-q-01",
+   "topic": "c2-vars",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int a = 17;\n    int b = 5;\n    printf(\"%d %d\\n\", a / b, a % b);\n    printf(\"%f\\n\", a / 2.0);\n    return 0;\n}",
+   "answer": "3 2\n8.500000",
+   "explain": "17 / 5 is integer division: 3 (the 0.4 is thrown away). 17 % 5 is the remainder 2. `a / 2.0` has a double operand, so it is 8.5, printed by `%f` with 6 digits."
+  },
+  {
+   "id": "c2-q-02",
+   "topic": "c2-vars",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int sum = 7;\n    int n = 2;\n    double x = sum / n;\n    double y = (double) sum / n;\n    printf(\"%.1f %.1f\\n\", x, y);\n    return 0;\n}",
+   "answer": "3.0 3.5",
+   "explain": "`sum / n` is 7 / 2 with ints, which is 3; storing it in a double gives 3.0. In `(double) sum / n` the cast happens first, so it is 7.0 / 2 = 3.5."
+  },
+  {
+   "id": "c2-q-03",
+   "topic": "c2-vars",
+   "type": "mcq",
+   "q": "Which expression has the value `2.5`?",
+   "options": [
+    "`5 / 2`",
+    "`(double) (5 / 2)`",
+    "`5 / 2.0`",
+    "`5 % 2`"
+   ],
+   "answer": 2,
+   "explain": "Only `5 / 2.0` has a double operand. `5 / 2` is 2, `(double) (5 / 2)` is 2.0, and `5 % 2` is 1."
+  },
+  {
+   "id": "c2-q-04",
+   "topic": "c2-vars",
+   "type": "short",
+   "q": "A student writes `const int limit = 5;` and later `limit = 6;`. What happens when they compile with `gcc -Wall`?",
+   "answer": "It does not compile: gcc reports an error, assignment of read-only variable 'limit'.",
+   "explain": "`const` makes the variable read-only after its initialisation. This is a compile error, not just a warning."
+  },
+  {
+   "id": "c2-q-05",
+   "topic": "c2-printf",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"[%4d]\\n\", 7);\n    printf(\"[%-4d]\\n\", 7);\n    printf(\"[%6.2f]\\n\", 3.14159);\n    printf(\"[%.1f]\\n\", 0.06);\n    return 0;\n}",
+   "answer": "[   7]\n[7   ]\n[  3.14]\n[0.1]",
+   "explain": "`%4d` pads 7 to 4 characters on the left; `%-4d` pads on the right. `%6.2f` rounds to 3.14 (4 characters) and adds 2 spaces. `%.1f` rounds 0.06 to 0.1."
+  },
+  {
+   "id": "c2-q-06",
+   "topic": "c2-printf",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    char c = 'A';\n    printf(\"%c%c %d%%\\n\", c, 'b', 50);\n    return 0;\n}",
+   "answer": "Ab 50%",
+   "explain": "`%c` prints the character itself (`A`, then `b`), there is no space between the first two conversions, and `%%` prints one `%`."
+  },
+  {
+   "id": "c2-q-07",
+   "topic": "c2-printf",
+   "type": "short",
+   "q": "`double r = 2.0 / 3.0;` Write the printf call that prints `r` with exactly 5 digits after the decimal point, right-aligned in a field at least 12 characters wide, followed by a newline.",
+   "answer": "`printf(\"%12.5f\\n\", r);`",
+   "explain": "Width 12 (minimum characters, padded on the left), precision 5 (digits after the point). It prints `     0.66667`."
+  },
+  {
+   "id": "c2-q-08",
+   "topic": "c2-printf",
+   "type": "mcq",
+   "q": "`printf(\"[%3d]\\n\", 12345);` prints:",
+   "options": [
+    "`[123]`",
+    "`[345]`",
+    "`[12345]`",
+    "nothing; it is an error"
+   ],
+   "answer": 2,
+   "explain": "The width is a minimum. A value that needs more characters is printed in full."
+  },
+  {
+   "id": "c2-q-09",
+   "topic": "c2-control",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int total = 0;\n    for (int i = 1; i <= 4; i++) {\n        total += i * i;\n    }\n    printf(\"%d\\n\", total);\n    return 0;\n}",
+   "answer": "30",
+   "explain": "total adds 1*1 + 2*2 + 3*3 + 4*4 = 1 + 4 + 9 + 16 = 30. The loop stops when i becomes 5."
+  },
+  {
+   "id": "c2-q-10",
+   "topic": "c2-control",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int n = 20;\n    int steps = 0;\n    while (n > 1) {\n        n /= 2;\n        steps++;\n    }\n    printf(\"n = %d, steps = %d\\n\", n, steps);\n    return 0;\n}",
+   "answer": "n = 1, steps = 4",
+   "explain": "n goes 20, 10, 5, 2, 1 (5 / 2 is 2 and 2 / 2 is 1, integer division). That is 4 halvings; then `n > 1` is false."
+  },
+  {
+   "id": "c2-q-11",
+   "topic": "c2-control",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int x = 4;\n    printf(\"%d %d %d\\n\", x > 3 && x < 10, x == 3 || x == 5, !(x % 2));\n    return 0;\n}",
+   "answer": "1 0 1",
+   "explain": "4 > 3 && 4 < 10 is true (1). 4 == 3 || 4 == 5 is false (0). 4 % 2 is 0 and !0 is 1."
+  },
+  {
+   "id": "c2-q-12",
+   "topic": "c2-control",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int t = 25;\n    if (t > 10) {\n        puts(\"warm\");\n    } else if (t > 20) {\n        puts(\"hot\");\n    } else {\n        puts(\"cold\");\n    }\n    return 0;\n}",
+   "answer": "warm",
+   "explain": "The conditions are tested in order and only the first true branch runs. 25 > 10 is true, so it prints warm and never tests t > 20. (Put the stricter test first to get hot.)"
+  },
+  {
+   "id": "c2-q-13",
+   "topic": "c2-control",
+   "type": "short",
+   "q": "This program is compiled and run, then the user types `echo $?`. What two things are printed (program output, then the exit status)?",
+   "code": "#include <stdio.h>\n\nint add3(int n) {\n    return n + 3;\n}\n\nint main(void) {\n    int a = 1;\n    a = add3(add3(a));\n    printf(\"%d\\n\", a);\n    return add3(-1);\n}",
+   "answer": "7 is printed by the program; echo $? prints 2.",
+   "explain": "add3(add3(1)) is add3(4) = 7. main returns add3(-1) = 2, which becomes the exit status."
+  },
+  {
+   "id": "c2-q-14",
+   "topic": "c2-control",
+   "type": "short",
+   "q": "A program calls `int twice(int x)` inside `main`, but the definition of `twice` is written below `main`. Name two ways to fix the warning `implicit declaration of function 'twice'`.",
+   "answer": "Move the definition of twice above main, or put the prototype `int twice(int x);` above main.",
+   "explain": "The compiler reads top to bottom; it must have seen a declaration of twice before the call."
+  }
+ ],
+ "write": [
+  {
+   "id": "c2-w-01",
+   "topic": "c2-control",
+   "stage": "worked",
+   "marks": 4,
+   "prompt": "Write a function `average3` that takes three `int` parameters and returns their average as a `double` (for example, `average3(1, 2, 2)` returns 1.666...). Then write a `main` that prints `average3(1, 2, 2)` and `average3(70, 85, 90)`, each with 3 digits after the decimal point on its own line, and returns 0.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// returns the average of a, b and c as a double\ndouble average3(int a, int b, int c) {\n    return (a + b + c) / 3.0;\n}\n\nint main(void) {\n    printf(\"%.3f\\n\", average3(1, 2, 2));\n    printf(\"%.3f\\n\", average3(70, 85, 90));\n    return 0;\n}",
+   "explain": "The function goes above `main` so the compiler knows it before the call. `a + b + c` is an `int`; dividing by the `double` literal `3.0` makes it floating-point division (dividing by `3` would truncate: 5 / 3 is 1). The return type `double` matches. In `main`, `%.3f` prints 3 digits after the point. Output:\n\n```\n1.667\n81.667\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "Correct header `double average3(int a, int b, int c)`, defined above main"
+    },
+    {
+     "marks": 1,
+     "item": "Floating-point division (`3.0` or a cast), not int division"
+    },
+    {
+     "marks": 1,
+     "item": "Returns the value with `return`"
+    },
+    {
+     "marks": 1,
+     "item": "main calls it twice and prints with `%.3f\\n`; returns 0"
+    }
+   ],
+   "pitfalls": [
+    "`(a + b + c) / 3` truncates before the result becomes a double.",
+    "`(double) ((a + b + c) / 3)` casts too late.",
+    "Printing a double with `%d` is undefined behaviour."
+   ]
+  },
+  {
+   "id": "c2-w-02",
+   "topic": "c2-printf",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Fill in the blanks so the program prints a Celsius to Fahrenheit table for 0, 20, 40, ..., 100. The Celsius value is right-aligned in width 4, then a space, then Fahrenheit (F = C * 9 / 5 + 32) right-aligned in width 6 with 1 digit after the point. Expected output:\n\n```\n   C      F\n   0   32.0\n  20   68.0\n  40  104.0\n  60  140.0\n  80  176.0\n 100  212.0\n```",
+   "starter": "#include <stdio.h>\n\nint main(void) {\n    printf(\"   C      F\\n\");\n    for (____ c = 0; c <= 100; ____) {\n        double f = c * ____ / 5.0 + 32;\n        printf(\"____ ____\\n\", c, f);\n    }\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\nint main(void) {\n    printf(\"   C      F\\n\");\n    for (int c = 0; c <= 100; c += 20) {\n        double f = c * 9.0 / 5.0 + 32;\n        printf(\"%4d %6.1f\\n\", c, f);\n    }\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "Counter declared as `int` in the for"
+    },
+    {
+     "marks": 1,
+     "item": "Step `c += 20`"
+    },
+    {
+     "marks": 1,
+     "item": "`9.0` (or a cast) so the conversion is not integer division"
+    },
+    {
+     "marks": 1,
+     "item": "Format `\"%4d %6.1f\\n\"`"
+    }
+   ],
+   "pitfalls": [
+    "Writing `9` instead of `9.0` makes `c * 9 / 5` integer arithmetic. It happens to be exact for multiples of 20, but for c = 1 it gives 33.0 instead of 33.8. Use `9.0`.",
+    "`c++` would print every degree, not every 20.",
+    "Width counts the point and the digit after it: 212.0 is 5 characters, so `%6.1f` adds one space."
+   ]
+  },
+  {
+   "id": "c2-w-03",
+   "topic": "c2-control",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "A year is a leap year if it is divisible by 4, except that years divisible by 100 are not, except that years divisible by 400 are. Write a function `int is_leap(int year)` that returns 1 for a leap year and 0 otherwise, and a `main` (using `int main(void)`) that uses a `for` loop and `is_leap` to print every leap year from 1896 to 1912 inclusive, one per line. Expected output:\n\n```\n1896\n1904\n1908\n1912\n```",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\n// returns 1 if year is a leap year, 0 otherwise\nint is_leap(int year) {\n    if (year % 400 == 0) {\n        return 1;\n    } else if (year % 100 == 0) {\n        return 0;\n    } else if (year % 4 == 0) {\n        return 1;\n    }\n    return 0;\n}\n\nint main(void) {\n    for (int y = 1896; y <= 1912; y++) {\n        if (is_leap(y)) {\n            printf(\"%d\\n\", y);\n        }\n    }\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`is_leap` defined above main (or declared with a prototype) with the right header"
+    },
+    {
+     "marks": 2,
+     "item": "Correct rule using `%` and if/else if or `&&`/`||` (1900 is not a leap year, 2000 is)"
+    },
+    {
+     "marks": 1,
+     "item": "for loop from 1896 to 1912 inclusive (`<=`)"
+    },
+    {
+     "marks": 1,
+     "item": "Prints only the leap years with `%d\\n`; returns 0"
+    }
+   ],
+   "pitfalls": [
+    "Testing `year % 4 == 0` first returns 1 for 1900. Test 400, then 100, then 4, or use `(year % 4 == 0 && year % 100 != 0) || year % 400 == 0`.",
+    "`y < 1912` misses 1912.",
+    "`if (is_leap(y) = 1)` is an assignment; write `if (is_leap(y))` or `== 1`."
+   ]
+  }
+ ]
+}

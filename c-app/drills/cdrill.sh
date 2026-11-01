@@ -141,6 +141,7 @@ cmd_check() {
         else echo "${R}  ✘ $id${N}  $f passed $good/$n tests"; printf '%s' "$why" | head -n 30; fi
     done
     [[ -z $selftest ]] && { echo; echo "${B}Score: $pass / $total${N}"; }
+    return 0
 }
 
 # ---------------------------------------------------------------- Assignment 4
