@@ -59,6 +59,7 @@ reference solution in `c-app/drills/solutions/dayN/`, test by test, so any corre
     ctask 1 hello.c "Prompt (plain text): what the program must do, exact output format, exit status."
     crun ''                 # one test: command line arguments as shell words ('' = none)
     crun 'abc "two words"'
+    crun '' 'line one\nline two\n'   # optional 2nd argument: standard input (printf %b escapes)
     compare out,status      # optional, default out,err,status
     libs -lm                # optional, extra link flags
 

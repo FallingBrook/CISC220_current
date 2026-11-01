@@ -30,7 +30,7 @@ declare -A T_FILE=() T_PROMPT=() T_RUNS=() T_CMP=() T_LIBS=()
 CUR=""
 DAY_TITLE=""
 ctask()   { CUR=$1; T_IDS+=("$1"); T_FILE[$1]=$2; T_PROMPT[$1]=$3; T_RUNS[$1]=""; T_CMP[$1]=out,err,status; T_LIBS[$1]=""; }
-crun()    { T_RUNS[$CUR]+="$1"$'\x1e'; }
+crun()    { T_RUNS[$CUR]+="$1"$'\x1f'"${2:-}"$'\x1e'; }   # crun 'ARGS' ['STDIN (printf %b escapes, e.g. a\\nb\\n)']
 compare() { T_CMP[$CUR]=$1; }
 libs()    { T_LIBS[$CUR]=$1; }
 
@@ -50,14 +50,14 @@ compile() {
     gcc "${CFLAGS[@]}" -o "$2" "$1" "${libs[@]}" >"$TMP/cc.txt" 2>&1
 }
 
-# run PROG ARGS PREFIX: runs with the args (shell words), saving .out .err .status
+# run PROG ARGS PREFIX [STDIN]: runs with the args (shell words) and optional standard input, saving .out .err .status
 run_prog() {
-    local prog=$1 args=$2 pre=$3
+    local prog=$1 args=$2 pre=$3 input=${4:-}
     (
         cd "$TMP" || exit
         eval "set -- $args"
-        timeout 5 "$prog" "$@" >"$pre.out" 2>"$pre.err" </dev/null
-        echo $? >"$pre.status"
+        printf '%b' "$input" | timeout 5 "$prog" "$@" >"$pre.out" 2>"$pre.err"
+        echo "${PIPESTATUS[1]}" >"$pre.status"
     )
 }
 
@@ -125,16 +125,18 @@ cmd_check() {
         local n=0 good=0 r why=""
         for r in "${runs[@]}"; do
             [[ $r == $'\n' ]] && continue
+            local stdin_text=""
+            if [[ $r == *$'\x1f'* ]]; then stdin_text=${r#*$'\x1f'}; r=${r%%$'\x1f'*}; fi
             n=$((n + 1))
-            run_prog "$TMP/ref" "$r" "$TMP/exp"
+            run_prog "$TMP/ref" "$r" "$TMP/exp" "$stdin_text"
             if [[ -n $selftest ]]; then
-                echo "  ${D}$id test $n:${N} ./${f%.c} $r   ${D}(exit $(cat "$TMP/exp.status"))${N}"
+                echo "  ${D}$id test $n:${N} ./${f%.c} $r${stdin_text:+ < input}   ${D}(exit $(cat "$TMP/exp.status"))${N}"
                 sed 's/^/      | /' "$TMP/exp.out" | head -n 8; [[ -s $TMP/exp.err ]] && sed 's/^/      ! /' "$TMP/exp.err" | head -n 3
                 continue
             fi
-            run_prog "$TMP/mine" "$r" "$TMP/act"
+            run_prog "$TMP/mine" "$r" "$TMP/act" "$stdin_text"
             if out=$(same "$TMP/exp" "$TMP/act" "${T_CMP[$id]}"); then good=$((good + 1))
-            else why+="    test: ./${f%.c} $r"$'\n'"$out"$'\n'; fi
+            else why+="    test: ./${f%.c} $r${stdin_text:+  (input: $(printf '%q' "$(printf '%b' "$stdin_text")"))}"$'\n'"$out"$'\n'; fi
         done
         [[ -n $selftest ]] && continue
         if ((good == n)); then echo "${G}  ✔ $id${N}  $f passed $good/$n tests"; pass=$((pass + 1))
