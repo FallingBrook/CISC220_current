@@ -1,0 +1,583 @@
+{
+ "day": 25,
+ "title": "A generic stack",
+ "goal": "Make the linked stack hold elements of any type with void * and pointers to functions, know who frees what, and remove a node from the middle of a singly linked list safely.",
+ "topics": [
+  {
+   "id": "c25-generic",
+   "title": "A stack of anything: storing void * elements",
+   "notebook": "c/generic_linked_stack.ipynb",
+   "priority": "high",
+   "examNote": "Exams ask you to *use* a container like this more than to build one: push the address of a heap object, pop into a `void *` variable, and free each object exactly once. Be ready to say who frees what.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### The problem\n\nOn Days 23 and 24 you built `qlstack`, a linked stack whose nodes hold an `int`:\n\n```c\nstruct node {\n    int elem;\n    struct node *next;\n};\n```\n\nThat stack can only hold `int` values. For a stack of `double`, or of strings, or of a struct, you would have to copy the whole `qlstack` code and change the element type each time. The notebook calls this **code duplication**: the same code written many times, so every bug must be fixed many times.\n\nOther languages solve it with **generic types**, types that work for any element type. In Java, `Stack<Integer>` and `Stack<Double>` are written once and the compiler checks that only the right type goes in. In Python, one list can hold a string, a number and anything else, and *the programmer* must remember what each element is. The notebook builds a C stack that works like the Python version."
+    },
+    {
+     "type": "md",
+     "text": "### The idea: store a pointer to the element\n\nC has no type that can hold a value of *any* type. But it has `void *` (Day 12): a pointer to an object of an unspecified type. Any object pointer converts to `void *` and back without a cast. So the generic node stores a **pointer to the element** instead of the element:\n\n```c\nstruct node {\n    void *elem;           // the ADDRESS of the element, whatever its type\n    struct node *next;\n};\n```\n\nA picture of a stack holding three `double` objects:\n\n```\n stack struct        nodes (heap)                    elements (heap)\n +------+-----+      +------+------+                 +-----+\n | top  |  o--+----> | elem |  o---+---------------> | 4.5 |  a double\n | size |  3  |      | next |  o   |                 +-----+\n +------+-----+      +------+--|---+\n                               v\n                     +------+------+                 +-----+\n                     | elem |  o---+---------------> | 3.0 |\n                     | next |  o   |                 +-----+\n                     +------+--|---+\n                               v\n                     +------+------+                 +-----+\n                     | elem |  o---+---------------> | 1.5 |\n                     | next | NULL |                 +-----+\n                     +------+------+\n```\n\nTwo important consequences:\n\n- The stack **never looks inside** an element. It does not know the element's type or size, so it never copies the element (there is no element size and no copying of bytes in this design). It only copies the *address*.\n- Each element must stay alive **at least as long as the stack** holds its address. The notebook: *typically, this means that memory for each element will be dynamically allocated* (with `malloc`, Day 18)."
+    },
+    {
+     "type": "md",
+     "text": "### The header: `qlgstack.h`\n\nThe notebook's files are in `c/src/qlgstack/`. The type is opaque, exactly like `qlstack` (Day 23):\n\n```c\ntypedef struct qlgstack_tag qlgstack;\n```\n\n`new`, `is_empty` and `size` are unchanged. `push` now takes a `void *`:\n\n```c\n// Pushes a pointer to the specified element onto the top of the stack\n// pointed at by s. Returns s, or a null pointer if s is a null pointer.\nqlgstack *qlgstack_push(qlgstack *s, void *elem);\n```\n\nand `pop` gives the popped element back through a `void **`:\n\n```c\n// Pops the top element off the top of the stack pointed at by s. If popped\n// is not null then a pointer to the popped element is written into the\n// object pointed at by popped. Returns s, or a null pointer if s is null.\nqlgstack *qlgstack_pop(qlgstack *s, void **popped);\n```\n\nWhy two stars? In `qlstack`, pop wrote an `int` into the caller's `int` variable, so it took an `int *` (an **output parameter**, Day 11). Now the thing to write is a `void *`, so pop needs the address of the caller's `void *` variable: a pointer to a pointer, `void **`."
+    },
+    {
+     "type": "code",
+     "code": "qlgstack *qlgstack_push(qlgstack *s, void *elem) {\n    if (!s) {\n        return NULL;\n    }\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        return NULL;\n    }\n    n->elem = elem;          // store the address, not a copy of the element\n    n->next = s->top;\n    s->top = n;\n    s->size++;\n    return s;\n}\n\nqlgstack *qlgstack_pop(qlgstack *s, void **popped) {\n    if (!s) {\n        return NULL;\n    }\n    struct node *oldtop = s->top;\n    void *elem = oldtop->elem;\n    s->top = oldtop->next;\n    s->size--;\n    free(oldtop);            // the NODE is freed, the element is not\n    if (popped) {\n        *popped = elem;      // give the element's address to the caller\n    }\n    return s;\n}",
+     "caption": "From qlgstack.c: almost identical to qlstack_push and qlstack_pop. Only the element type changed."
+    },
+    {
+     "type": "md",
+     "text": "Note that `pop` frees the **node**, but not the element. After a pop, the element's address is in your variable and the element is **your** job.\n\n### Using it with `double`\n\nEach pushed `double` gets its own heap object. To pop, declare a `void *` variable, pass its address, then convert to the real type (`double *top = p;` needs no cast, Day 12). `qlgstack_print` and `qlgstack_free` take one extra argument (a function); they are explained in the next lesson."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include \"qlgstack.h\"\n\nvoid print_double(const void *elem) {\n    const double *d = elem;\n    printf(\"%.1f\", *d);\n}\n\nvoid free_double(void *elem) {\n    free(elem);\n}\n\nint main(void) {\n    qlgstack *s = qlgstack_new();\n    if (!s) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (int i = 1; i <= 3; i++) {\n        double *d = malloc(sizeof(double));   // each element gets its own heap object\n        if (!d) {\n            fprintf(stderr, \"out of memory\\n\");\n            qlgstack_free(s, free_double);\n            return 1;\n        }\n        *d = i * 1.5;\n        qlgstack_push(s, d);                  // the stack stores the pointer d\n    }\n    qlgstack_print(\"s: \", s, \"\\n\", print_double);\n\n    void *p;                                  // pop writes a void * here\n    qlgstack_pop(s, &p);\n    double *top = p;                          // convert, then use\n    printf(\"popped %.1f\\n\", *top);\n    free(top);                                // popped: the caller frees it now\n\n    qlgstack_print(\"s: \", s, \"\\n\", print_double);\n    qlgstack_free(s, free_double);            // frees the nodes AND the 2 doubles left\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o doubles doubles.c qlgstack.c\n$ ./doubles\ns: top : 4.5, 3.0, 1.5 : bottom\npopped 4.5\ns: top : 3.0, 1.5 : bottom",
+     "caption": "Compile your program together with qlgstack.c, as with qlstack. (The notebook's command says qlstack.c: that is a typo, the file is qlgstack.c.)"
+    },
+    {
+     "type": "check",
+     "q": "After `double *d = malloc(sizeof(double)); *d = 2.0; qlgstack_push(s, d);`, what exactly does the new node store: the value 2.0, a copy of it, or something else?",
+     "a": "The node's `elem` member stores the **address** held in `d` (converted to `void *`). The `double` itself stays where `malloc` put it; the stack never copies it."
+    },
+    {
+     "type": "pitfall",
+     "text": "The notebook's `demo.c` pops with `int *val1; qlgstack_pop(q1, &val1);`. `&val1` is an `int **`, not a `void **`, and gcc warns:\n\n```\ndemo.c:42:26: warning: passing argument 2 of 'qlgstack_pop' from incompatible pointer type [-Wincompatible-pointer-types]\nqlgstack.h:54:44: note: expected 'void **' but argument is of type 'int **'\n```\n\n`void *` converts to and from any object pointer, but `void **` is **not** generic: it means \"pointer to a `void *` object\". Write the clean version: `void *p; qlgstack_pop(q1, &p); int *val1 = p;`"
+    },
+    {
+     "type": "md",
+     "text": "### Element lifetime: one object per element\n\nBecause the stack stores addresses, pushing the address of the **same** variable several times gives several nodes that all point at **one** object:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include \"qlgstack.h\"\n\nvoid print_int(const void *elem) {\n    const int *val = elem;\n    printf(\"%d\", *val);\n}\n\nint main(void) {\n    qlgstack *s = qlgstack_new();\n    int x;\n    for (x = 1; x <= 3; x++) {\n        qlgstack_push(s, &x);      // BUG: the same address every time\n    }\n    qlgstack_print(\"\", s, \"\\n\", print_int);\n    qlgstack_free(s, NULL);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o samebox samebox.c qlgstack.c\n$ ./samebox\ntop : 4, 4, 4 : bottom"
+    },
+    {
+     "type": "md",
+     "text": "All three nodes hold `&x`. When the stack is printed the loop has finished and `x` is 4, so every element reads 4. (This is well defined only because `x` is still alive. If `x` were a local of a function that had already returned, the nodes would hold dangling pointers: undefined behaviour.) The fix is the `doubles.c` pattern: `malloc` a new object for each element."
+    },
+    {
+     "type": "why",
+     "q": "Why doesn't the notebook make the stack copy each element into the node, so lifetimes would not matter?",
+     "a": "To copy an element the stack would need to know how many bytes it has, and the notebook's stack is designed to know nothing about its elements. Storing only addresses keeps it simple: one `void *` per node works for every type. The price is the lifetime rule: the user must keep each element alive (usually on the heap) while the stack points at it."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Generic node: `struct node { void *elem; struct node *next; };`. The stack stores **addresses** of elements, never copies.\n- `qlgstack_push(s, ptr)` takes any object pointer (it becomes `void *`).\n- `qlgstack_pop(s, &p)` with `void *p;`. Then convert: `double *d = p;`. Do not pass an `int **`.\n- `pop` frees the **node** only; the popped element is now yours.\n- Every element must outlive its time in the stack: `malloc` a separate object for each one. Pushing `&x` repeatedly gives many nodes pointing at one object."
+    }
+   ]
+  },
+  {
+   "id": "c25-funcptr",
+   "title": "Pointers to functions: printing and freeing unknown elements",
+   "notebook": "c/generic_linked_stack.ipynb",
+   "priority": "high",
+   "examNote": "Know how to declare a pointer to a function (with and without `typedef`), how to write a small `print_...(const void *elem)` or `free_...(void *elem)` function for a given type, and the table of who frees what.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Two new problems\n\n`qlstack_print` printed each element with `printf(\"%d\", n->elem)`. The generic stack cannot do that: it does not know whether `elem` points at an `int`, a `double` or a struct.\n\n`qlstack_free` freed every node. The generic stack also has to deal with the **elements**, but it cannot know how: maybe each one is a single `malloc` block (call `free`), maybe it is a struct holding another heap pointer (free that first), maybe it is not on the heap at all (do nothing).\n\nThe notebook's solution: the **user** of the stack knows the type, so the user writes a small function that prints one element, and another that frees one element, and **passes those functions to the stack**. C passes a function by passing a **pointer to a function**."
+    },
+    {
+     "type": "md",
+     "text": "### Pointer to a function\n\nA pointer to `int` stores the address of an `int` object. A **pointer to a function** stores the address of a function. To declare one, take the function's declaration and replace its name with `(*name_of_pointer)`:\n\n```c\nvoid print_int(const void *elem);           // a function\nvoid (*ptr2func)(const void *elem);         // a pointer to such a function\n```\n\nRead it as: `ptr2func` is a pointer to a function that takes a `const void *` and returns `void`. The parentheses around `*ptr2func` matter: without them, `void *ptr2func(const void *elem);` declares a *function* that returns a `void *`.\n\n- Assign: `ptr2func = &print_int;` or simply `ptr2func = print_int;` (the `&` is optional).\n- Call: `(*ptr2func)(&a);` or simply `ptr2func(&a);` (the `*` is optional).\n\nThe pointer can point at **any** function with that return type and that parameter list. This is the notebook's example (with the optional forms used on the last call):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid print_int(const void *elem) {\n    const int *p = elem;      // convert elem to pointer to int\n    printf(\"%d\", *p);\n}\n\nvoid print_double(const void *elem) {\n    const double *p = elem;   // convert elem to pointer to double\n    printf(\"%f\", *p);\n}\n\nvoid print_string(const void *elem) {\n    const char *p = elem;     // convert elem to pointer to char\n    printf(\"%s\", p);\n}\n\nint main(void) {\n    // ptr2func can point at any function like: void f(const void *elem)\n    void (*ptr2func)(const void *elem) = NULL;\n\n    int x = 1;\n    ptr2func = &print_int;\n    (*ptr2func)(&x);\n    printf(\"\\n\");\n\n    double y = -99.9;\n    ptr2func = &print_double;\n    (*ptr2func)(&y);\n    printf(\"\\n\");\n\n    char str[] = \"CISC220\";\n    ptr2func = print_string;      // & is optional\n    ptr2func(str);                // so is the *\n    printf(\"\\n\");\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o fptr fptr.c\n$ ./fptr\n1\n-99.900000\nCISC220"
+    },
+    {
+     "type": "md",
+     "text": "Each `print_` function converts its `const void *` parameter to a pointer to the real type (no cast needed) and then uses it. `print_string` gets `str`, which is already a `char *` to the first character, so it does not dereference.\n\n### `typedef` for a function pointer type\n\nFunction pointer declarations are hard to read. A `typedef` (Day 23) gives the pointer **type** a short name. Write `typedef`, then the declaration with the name replaced by `(*alias)`:\n\n```c\ntypedef void (*print_func)(const void *elem);\n```\n\nNow `print_func p = print_int;` declares the same pointer as `void (*p)(const void *elem) = print_int;`. The short name is most useful for a **parameter**, when you pass a function to a function:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\ntypedef void (*print_func)(const void *elem);\n\nvoid print_char(const void *elem) {\n    const char *c = elem;\n    printf(\"'%c'\", *c);\n}\n\nvoid print_long(const void *elem) {\n    const long *n = elem;\n    printf(\"%ldL\", *n);\n}\n\n// calls f on each of the count objects whose addresses are in elems\nvoid print_all(void *elems[], size_t count, print_func f) {\n    for (size_t i = 0; i < count; i++) {\n        f(elems[i]);\n        printf(\" \");\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    char a = 'Q', b = 'u';\n    long big = 1234567890123L, small = -8;\n    void *chars[] = {&a, &b};\n    void *longs[] = {&big, &small};\n    print_all(chars, 2, print_char);\n    print_all(longs, 2, print_long);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o typedefptr typedefptr.c\n$ ./typedefptr\n'Q' 'u' \n1234567890123L -8L "
+    },
+    {
+     "type": "check",
+     "q": "Declare a pointer `fp` that can point at `void free_int(void *elem)`, and make it point there. Then write a `typedef` named `free_func` for that pointer type.",
+     "a": "`void (*fp)(void *elem) = free_int;` (or `= &free_int;`)\n\n`typedef void (*free_func)(void *elem);`"
+    },
+    {
+     "type": "md",
+     "text": "### Printing and freeing the generic stack\n\n`qlgstack.h` declares the two function pointer types:\n\n```c\ntypedef void (*qlgstack_print_func)(const void *elem);\ntypedef void (*qlgstack_free_func)(void *elem);\n```\n\n`qlgstack_print(pre, s, post, ptr)` is `qlstack`'s print with optional text before and after, where each element is printed by calling `ptr(n->elem)`. If `ptr` is `NULL`, each element is printed as `?`. The print function takes `const void *` because printing must not change the element.\n\n`qlgstack_free` is `qlstack_free` plus one line:"
+    },
+    {
+     "type": "code",
+     "code": "void qlgstack_free(qlgstack *s, qlgstack_free_func ptr) {\n    if (!s) {\n        return;\n    }\n    // free all nodes\n    struct node *n = s->top;\n    while (n) {\n        struct node *next = n->next;\n        if (ptr) {\n            ptr(n->elem);           // deallocate memory used by the element\n        }\n        free(n);\n        n = next;\n    }\n    // free the stack\n    free(s);\n}",
+     "caption": "From qlgstack.c. If ptr is NULL, the elements are left alone."
+    },
+    {
+     "type": "md",
+     "text": "The free function's parameter is `void *`, not `const void *`, because it usually ends with `free(elem)`, and `free` takes a non-`const` pointer.\n\n### Who frees what\n\n| Memory | Freed by | When |\n|---|---|---|\n| the stack struct | `qlgstack_free` | at the end |\n| one node | `qlgstack_pop` | when it is popped |\n| the remaining nodes | `qlgstack_free` | at the end |\n| an element still in the stack | the free function you pass to `qlgstack_free` (nothing if you pass `NULL`) | at the end |\n| a popped element | **you** | after you are done with it |\n\nPass a free function when the stack holds the **only** pointers to heap elements. Pass `NULL` when the elements are not yours to free (for example `argv` strings or string literals):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include \"qlgstack.h\"\n\nvoid print_string(const void *elem) {\n    const char *str = elem;\n    printf(\"%s\", str);\n}\n\nint main(int argc, char *argv[]) {\n    qlgstack *s = qlgstack_new();\n    if (!s) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (int i = 1; i < argc; i++) {\n        qlgstack_push(s, argv[i]);   // argv[i] already points at a string\n    }\n    qlgstack_print(\"\", s, \"\\n\", print_string);\n    qlgstack_free(s, NULL);          // NULL: do NOT free the elements\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o words words.c qlgstack.c\n$ ./words red green blue\ntop : blue, green, red : bottom"
+    },
+    {
+     "type": "md",
+     "text": "### Why a function, and not just `free`?\n\nFor a struct that holds its own heap pointer, one `free` is not enough. Here each `student` owns a heap copy of its name (Day 20 style), so `free_student` frees the name first and then the struct. Only the user knows this; the stack just calls the function. (To keep the example short, `main` does not check whether `student_new` returned `NULL`.)"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"qlgstack.h\"\n\nstruct student {\n    char *name;      // points at its own heap copy of the name\n    int mark;\n};\n\n// Returns a new heap student holding a copy of name, or NULL.\nstruct student *student_new(const char *name, int mark) {\n    struct student *st = malloc(sizeof(struct student));\n    if (!st) {\n        return NULL;\n    }\n    st->name = malloc(strlen(name) + 1);\n    if (!st->name) {\n        free(st);\n        return NULL;\n    }\n    strcpy(st->name, name);\n    st->mark = mark;\n    return st;\n}\n\nvoid print_student(const void *elem) {\n    const struct student *st = elem;\n    printf(\"%s(%d)\", st->name, st->mark);\n}\n\nvoid free_student(void *elem) {\n    struct student *st = elem;\n    free(st->name);      // first the name inside...\n    free(st);            // ...then the struct itself\n}\n\nint main(void) {\n    qlgstack *s = qlgstack_new();\n    if (!s) {\n        return 1;\n    }\n    qlgstack_push(s, student_new(\"Ada\", 91));\n    qlgstack_push(s, student_new(\"Linus\", 78));\n    qlgstack_push(s, student_new(\"Grace\", 85));\n    qlgstack_print(\"\", s, \"\\n\", print_student);\n    qlgstack_free(s, free_student);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o students students.c qlgstack.c\n$ ./students\ntop : Grace(85), Linus(78), Ada(91) : bottom\n$ valgrind --leak-check=full ./students\n...\n==22824==   total heap usage: 11 allocs, 11 frees, 4,224 bytes allocated\n...",
+     "caption": "11 allocations: the stack, 3 nodes, 3 structs, 3 names, and one buffer printf uses internally. All freed."
+    },
+    {
+     "type": "md",
+     "text": "### The notebook's `demo.c` leaks\n\n`demo.c` pushes heap `int`s onto two stacks, pops them all, and frees both stacks with `free_int`. But by then the stacks are **empty**: the popped elements were never freed. valgrind finds the leak (the `malloc` lines 20 and 21 are the two element allocations):\n\n```\n$ gcc -std=c17 -g -o demo demo.c qlgstack.c\n$ valgrind --leak-check=full ./demo 1 2 3\n...\n==25575==     in use at exit: 24 bytes in 6 blocks\n==25575==   total heap usage: 15 allocs, 9 frees, 4,248 bytes allocated\n==25575== 12 bytes in 3 blocks are definitely lost in loss record 1 of 2\n==25575==    by 0x109317: main (demo.c:20)\n==25575== 12 bytes in 3 blocks are definitely lost in loss record 2 of 2\n==25575==    by 0x109325: main (demo.c:21)\n```\n\nThe cure is the \"popped element: you\" row of the table: `free(val1);` and `free(val2);` after printing them."
+    },
+    {
+     "type": "pitfall",
+     "text": "Passing a free function when the elements are NOT heap blocks (for example `qlgstack_free(s, free_string)` in `words.c`, where the elements are `argv` strings) calls `free` on memory that `malloc` never gave you: undefined behaviour, often a crash (\"free(): invalid pointer\"). Pass `NULL` instead."
+    },
+    {
+     "type": "try",
+     "text": "Copy `qlgstack.h` and `qlgstack.c` from `c/src/qlgstack/` and the `doubles.c` program above into one folder. Compile with `gcc -std=c17 -Wall -g -o doubles doubles.c qlgstack.c` and run `valgrind --leak-check=full ./doubles`: it should say `8 allocs, 8 frees`. Then delete the line `free(top);` and run valgrind again: you should see 8 bytes definitely lost."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Pointer to a function: replace the function name by `(*p)`: `void (*p)(const void *elem);`. Assign `p = f;` (or `&f`), call `p(x)` (or `(*p)(x)`).\n- `typedef void (*print_func)(const void *elem);` names the pointer type; handy for parameters.\n- A print function takes `const void *`, converts it to the real pointer type and prints. A free function takes `void *` and frees everything the element owns.\n- `qlgstack_print(pre, s, post, print_fn)`: `NULL` prints `?`. `qlgstack_free(s, free_fn)`: `NULL` leaves the elements alone.\n- Who frees: nodes and the stack: the stack code. Elements left in the stack: your free function. Popped elements: you."
+    }
+   ]
+  },
+  {
+   "id": "c25-remove",
+   "title": "Removing a node from the middle of a linked list",
+   "notebook": "c/generic_linked_stack.ipynb",
+   "priority": "high",
+   "examNote": "The December 2016 final, Q5 (10 marks, a \"slightly hard\" question on Prof. Ma's list), asked for a function that deletes one particular node from a singly linked list of `int`s, returns its data, frees the node, and does nothing (returns 0) for lists that are too short. The pattern below (walk with `prev` and `cur`, unlink, then free) is exactly what it tests. Writing item c25-w-03 is modeled on it.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Beyond the top of the stack\n\nA stack only removes its top node: `top = top->next`, then free the old top. Exams also ask you to remove a node **elsewhere** in a singly linked list (a list where each node knows only the **next** node). We use the plain `int` node:\n\n```c\nstruct node {\n    int elem;\n    struct node *next;\n};\n```\n\nand a list is just a pointer `head` to its first node (`NULL` for an empty list).\n\nThe difficulty: to remove node `cur`, you must change the `next` member of the node **before** it. A singly linked list has no link backwards, so while walking you keep a second pointer, `prev`, one step behind `cur`.\n\n### Three steps\n\n1. **Find**: walk `prev` and `cur` until `cur` is the node to remove.\n2. **Unlink**: make the list skip `cur`: `prev->next = cur->next;` (or, if `cur` is the head, `head = cur->next;`).\n3. **Free**: `free(cur);`. Last, because step 2 reads `cur->next`."
+    },
+    {
+     "type": "md",
+     "text": "### Worked example: remove 30 from `[10,20,30,40,50]`\n\n**Start.** `prev` is `NULL` (no node before the head), `cur` is the head:\n\n```\n head\n  |\n  v\n +----+---+   +----+---+   +----+---+   +----+---+   +----+------+\n | 10 | o-+-->| 20 | o-+-->| 30 | o-+-->| 40 | o-+-->| 50 | NULL |\n +----+---+   +----+---+   +----+---+   +----+---+   +----+------+\n  ^\n cur          prev = NULL\n```\n\n**Walk.** While `cur->elem != 30`: `prev = cur; cur = cur->next;`\n\n| step | `prev` points at | `cur` points at | `cur->elem == 30`? |\n|---|---|---|---|\n| start | (NULL) | 10 | no |\n| 1 | 10 | 20 | no |\n| 2 | 20 | 30 | yes: stop |\n\n```\n head\n  |\n  v\n +----+---+   +----+---+   +----+---+   +----+---+   +----+------+\n | 10 | o-+-->| 20 | o-+-->| 30 | o-+-->| 40 | o-+-->| 50 | NULL |\n +----+---+   +----+---+   +----+---+   +----+---+   +----+------+\n                ^             ^\n               prev          cur\n```\n\n**Unlink.** `prev->next = cur->next;` copies the address of the 40 node into the 20 node's `next`. The list now skips 30, but `cur` still points at it, so it is not lost yet:\n\n```\n                              cur\n                               |\n                               v\n                             +----+---+\n                             | 30 | o-+--+\n                             +----+---+  |\n head                                    v\n  |\n  v\n +----+---+   +----+---+               +----+---+   +----+------+\n | 10 | o-+-->| 20 | o-+-------------->| 40 | o-+-->| 50 | NULL |\n +----+---+   +----+---+               +----+---+   +----+------+\n                ^\n               prev\n```\n\n**Free.** `free(cur);` returns the 30 node to the heap. The list is `[10,20,40,50]` and nothing leaked. (`cur` still holds the old address, so it must not be used again.)\n\n### The special case: removing the head\n\nIf the target is the **first** node, the walk stops at once and `prev` is still `NULL`: there is no node before it whose `next` could change. Instead the **head pointer** itself must move: `head = cur->next;` then `free(cur);`.\n\nBecause a function's parameter is a **copy** of the caller's pointer (Day 11), changing `head` inside the function does not change the caller's variable. So the function **returns the new head**, and the caller writes `list = remove_first(list, 10);`. Two other cases need care: the target is not found (`cur` becomes `NULL`: change nothing), and the empty list (`head` is `NULL`: the loop never runs, same as not found)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\n// Adds a new node holding elem in front of head; returns the new head.\nstruct node *add_front(struct node *head, int elem) {\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    n->elem = elem;\n    n->next = head;\n    return n;\n}\n\nvoid print_list(const struct node *head) {\n    printf(\"[\");\n    for (const struct node *n = head; n; n = n->next) {\n        printf(\"%d\", n->elem);\n        if (n->next) {\n            printf(\",\");\n        }\n    }\n    printf(\"]\\n\");\n}\n\n// Removes the first node holding target and frees it.\n// Returns the (possibly new) head of the list.\nstruct node *remove_first(struct node *head, int target) {\n    struct node *prev = NULL;      // the node before cur (none yet)\n    struct node *cur = head;\n    while (cur && cur->elem != target) {\n        prev = cur;                // walk: prev follows one step behind cur\n        cur = cur->next;\n    }\n    if (!cur) {                    // reached the end: target not in the list\n        return head;\n    }\n    if (!prev) {                   // cur is the head: no node before it\n        head = cur->next;\n    } else {                       // middle or last node: bypass cur\n        prev->next = cur->next;\n    }\n    free(cur);                     // unlink FIRST, free LAST\n    return head;\n}\n\nvoid free_list(struct node *head) {\n    while (head) {\n        struct node *next = head->next;   // save the link before freeing\n        free(head);\n        head = next;\n    }\n}\n\nint main(void) {\n    struct node *list = NULL;\n    for (int v = 50; v >= 10; v -= 10) {\n        list = add_front(list, v);\n    }\n    print_list(list);\n    list = remove_first(list, 30);     // middle\n    print_list(list);\n    list = remove_first(list, 10);     // head\n    print_list(list);\n    list = remove_first(list, 50);     // last\n    print_list(list);\n    list = remove_first(list, 99);     // not there\n    print_list(list);\n    free_list(list);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o remove remove.c\n$ ./remove\n[10,20,30,40,50]\n[10,20,40,50]\n[20,40,50]\n[20,40]\n[20,40]\n$ valgrind --leak-check=full ./remove\n...\n==22856==   total heap usage: 6 allocs, 6 frees, 4,176 bytes allocated\n...",
+     "caption": "Middle, head, last, not found. Removing the last node is the middle case with cur->next == NULL, so prev->next becomes NULL."
+    },
+    {
+     "type": "md",
+     "text": "`free_list` uses the same idea as `qlgstack_free`: save `head->next` in a variable **before** freeing `head`, because after `free(head)` you may no longer read `head->next`.\n\n### A function that cannot change the head\n\nIn the 2016 exam the function's parameter was the list itself (a copy of the head pointer) and its return value was the deleted **data**, not a new head. Such a function can never remove the first node: the caller's pointer would still point at the freed node. That is why the question said that a list too short to have the requested node should be left alone (return 0). Read such conditions carefully: they tell you which special cases to test **first**, before you touch `->next` of a pointer that might be `NULL`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Freeing first and unlinking second reads a freed node:\n\n```c\nfree(cur);\nprev->next = cur->next;    // reads cur after it is gone\n```\n\nRecent gcc even warns (`warning: pointer 'cur' used after 'free' [-Wuse-after-free]`) and valgrind reports `Invalid read of size 8`. The order is always: **unlink, then free**. If you need the data (to return it), save it in a variable before `free` too."
+    },
+    {
+     "type": "pitfall",
+     "text": "Writing `prev->next = NULL;` to remove a node in the middle cuts off **everything** after it: those nodes are still allocated but no pointer reaches them (a leak). Only for the last node is `cur->next` equal to `NULL`, which is why `prev->next = cur->next;` handles the middle and the end with one line."
+    },
+    {
+     "type": "check",
+     "q": "`prev` points at the node before `cur`, and `cur` is not the head. Write the two statements that remove `cur` from the list and release its memory.",
+     "a": "`prev->next = cur->next;`\n`free(cur);`\n\n(In that order.)"
+    },
+    {
+     "type": "why",
+     "q": "Why does the walk need `prev` at all? Could we stop at the node before the target by testing `cur->next->elem`?",
+     "a": "Yes, that also works (stop when `cur->next != NULL && cur->next->elem == target`, then `cur` plays the role of `prev`). But you must test `cur->next != NULL` first, and the head still needs its own case. The `prev`/`cur` pair is the pattern the course uses and is harder to get wrong: `cur` is always the node you are looking at, `prev` always the one before it."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Removing a node = **find** (`prev` one step behind `cur`), **unlink**, **free**.\n- Middle or last node: `prev->next = cur->next;`. Head: `head = cur->next;` (detected by `prev == NULL`).\n- Unlink and save any data **before** `free(cur)`. Never read `cur->...` afterwards.\n- A function that may remove the head must return the new head (the parameter is a copy). A function that returns something else must leave the head alone.\n- Test the short cases first: empty list (`head == NULL`), one node (`head->next == NULL`), target not found (`cur == NULL`)."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c25-fc-01",
+   "topic": "c25-generic",
+   "front": "Why can't `qlstack` (from Days 23 and 24) hold `double` values, and what is the cost of copying it for each type?",
+   "back": "Its node has an `int elem` member. Copying the code for every element type is **code duplication**: the same logic in many places, so every fix must be made many times."
+  },
+  {
+   "id": "c25-fc-02",
+   "topic": "c25-generic",
+   "front": "What does a node of the generic stack store?",
+   "back": "`void *elem`: the **address** of the element (plus `struct node *next`). The stack never copies or looks inside the element."
+  },
+  {
+   "id": "c25-fc-03",
+   "topic": "c25-generic",
+   "front": "Lifetime rule for elements of `qlgstack`",
+   "back": "Each element must stay alive at least as long as the stack holds its address. Usually: `malloc` a separate object for each element."
+  },
+  {
+   "id": "c25-fc-04",
+   "topic": "c25-generic",
+   "front": "Why is `qlgstack_pop`'s second parameter a `void **`?",
+   "back": "Pop must write a `void *` (the element's address) into the caller's variable, so it needs that variable's address: a pointer to a `void *`. Call it as `void *p; qlgstack_pop(s, &p);`."
+  },
+  {
+   "id": "c25-fc-05",
+   "topic": "c25-generic",
+   "front": "`int *v; qlgstack_pop(s, &v);` gives a warning. Why, and what is the fix?",
+   "back": "`&v` is `int **`, which is not compatible with `void **` (only `void *` is generic). Fix: `void *p; qlgstack_pop(s, &p); int *v = p;`"
+  },
+  {
+   "id": "c25-fc-06",
+   "topic": "c25-generic",
+   "front": "What does `qlgstack_pop` free?",
+   "back": "Only the popped **node**. The element is handed to the caller, who must free it (if it is on the heap) when done."
+  },
+  {
+   "id": "c25-fc-07",
+   "topic": "c25-funcptr",
+   "front": "Declare `fp`, a pointer to a function that takes a `const void *` and returns nothing.",
+   "back": "`void (*fp)(const void *elem);` (the parameter name is optional). The parentheses around `*fp` are required."
+  },
+  {
+   "id": "c25-fc-08",
+   "topic": "c25-funcptr",
+   "front": "What does `void *fp(const void *elem);` declare?",
+   "back": "A **function** named `fp` that returns a `void *`. Without parentheses around `*fp` it is not a pointer variable."
+  },
+  {
+   "id": "c25-fc-09",
+   "topic": "c25-funcptr",
+   "front": "Two ways to call the function that `p` points at with argument `x`.",
+   "back": "`(*p)(x)` and `p(x)`. Likewise `p = f;` and `p = &f;` both make `p` point at `f`."
+  },
+  {
+   "id": "c25-fc-10",
+   "topic": "c25-funcptr",
+   "front": "Write a `typedef` named `print_func` for a pointer to `void f(const void *elem)`.",
+   "back": "`typedef void (*print_func)(const void *elem);`"
+  },
+  {
+   "id": "c25-fc-11",
+   "topic": "c25-funcptr",
+   "front": "Write the print function for a stack of `int` elements.",
+   "back": "```c\nvoid print_int(const void *elem) {\n    const int *p = elem;\n    printf(\"%d\", *p);\n}\n```"
+  },
+  {
+   "id": "c25-fc-12",
+   "topic": "c25-funcptr",
+   "front": "Why does the print function take `const void *` but the free function `void *`?",
+   "back": "Printing must not change the element, so `const`. Freeing usually calls `free(elem)`, and `free` takes a non-`const` pointer."
+  },
+  {
+   "id": "c25-fc-13",
+   "topic": "c25-funcptr",
+   "front": "`qlgstack_print(pre, s, post, NULL)` and `qlgstack_free(s, NULL)`: what does `NULL` mean in each?",
+   "back": "Print: each element is printed as `?`. Free: free the nodes and the stack but leave the elements alone."
+  },
+  {
+   "id": "c25-fc-14",
+   "topic": "c25-funcptr",
+   "front": "Who frees what with `qlgstack`?",
+   "back": "Stack struct and remaining nodes: `qlgstack_free`. A popped node: `qlgstack_pop`. Elements still in the stack at the end: the free function you pass. Popped elements: you."
+  },
+  {
+   "id": "c25-fc-15",
+   "topic": "c25-remove",
+   "front": "The three steps of removing node `cur` from a singly linked list",
+   "back": "1. **Find** it, with `prev` one step behind. 2. **Unlink**: `prev->next = cur->next;` (or `head = cur->next;` if `prev == NULL`). 3. **Free**: `free(cur);`"
+  },
+  {
+   "id": "c25-fc-16",
+   "topic": "c25-remove",
+   "front": "Why must `free(cur)` come after `prev->next = cur->next;`?",
+   "back": "The unlink reads `cur->next`. After `free(cur)` the node's lifetime is over, so reading it is undefined behaviour (use-after-free)."
+  },
+  {
+   "id": "c25-fc-17",
+   "topic": "c25-remove",
+   "front": "How do you know, after the walk, that the node to remove is the head?",
+   "back": "`prev` is still `NULL`: the walk stopped before taking any step. Then the head pointer must change: `head = cur->next;`."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c25-q-01",
+   "type": "output",
+   "topic": "c25-funcptr",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint twice(int n) {\n    return 2 * n;\n}\n\nint square(int n) {\n    return n * n;\n}\n\nint main(void) {\n    int (*f)(int) = twice;\n    int a = f(3);\n    f = square;\n    int b = f(a);\n    printf(\"%d %d %d\\n\", a, b, (*f)(-2));\n    return 0;\n}",
+   "answer": "6 36 4",
+   "explain": "`f` first points at `twice`: `a = twice(3) = 6`. Then `f = square`, so `b = square(6) = 36` and `(*f)(-2) = square(-2) = 4`. `f(x)` and `(*f)(x)` are the same call."
+  },
+  {
+   "id": "c25-q-02",
+   "type": "mcq",
+   "topic": "c25-funcptr",
+   "q": "Which line declares `fp` as a pointer to a function like `void free_thing(void *elem)`?",
+   "options": [
+    "`void *fp(void *elem);`",
+    "`void (*fp)(void *elem);`",
+    "`void (fp*)(void *elem);`",
+    "`(void *) fp(void *elem);`"
+   ],
+   "answer": 1,
+   "explain": "Replace the function name with `(*fp)`. Option A declares a function `fp` returning `void *`. C and D are not valid declarations."
+  },
+  {
+   "id": "c25-q-03",
+   "type": "output",
+   "topic": "c25-funcptr",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\ntypedef int (*int_func)(int);\n\nint negate(int n) {\n    return -n;\n}\n\nint add_one(int n) {\n    return n + 1;\n}\n\n// replaces each element a[i] by f(a[i])\nvoid apply(int a[], size_t n, int_func f) {\n    for (size_t i = 0; i < n; i++) {\n        a[i] = f(a[i]);\n    }\n}\n\nint main(void) {\n    int a[] = {4, -1, 0};\n    apply(a, 3, add_one);\n    apply(a, 3, negate);\n    apply(a, 3, add_one);\n    printf(\"%d %d %d\\n\", a[0], a[1], a[2]);\n    return 0;\n}",
+   "answer": "-4 1 0",
+   "explain": "`apply` calls `f` on every element. `{4,-1,0}` after `add_one` is `{5,0,1}`, after `negate` `{-5,0,-1}`, after `add_one` again `{-4,1,0}`."
+  },
+  {
+   "id": "c25-q-04",
+   "type": "output",
+   "topic": "c25-generic",
+   "q": "This program is compiled with the notebook's `qlgstack.c`. What does it print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n#include \"qlgstack.h\"\n\nvoid print_int(const void *elem) {\n    const int *val = elem;\n    printf(\"%d\", *val);\n}\n\nint main(void) {\n    int a = 1, b = 2;\n    qlgstack *s = qlgstack_new();\n    qlgstack_push(s, &a);\n    qlgstack_push(s, &b);\n    qlgstack_push(s, &a);\n    a = 10;\n    qlgstack_print(\"\", s, \"\\n\", print_int);\n    qlgstack_free(s, NULL);\n    return 0;\n}",
+   "answer": "top : 10, 2, 10 : bottom",
+   "explain": "The stack stores **addresses**. The bottom and top nodes both hold `&a`, the middle one `&b`. When printing, `a` is already 10, so both `&a` elements read 10. Nothing was copied at push time."
+  },
+  {
+   "id": "c25-q-05",
+   "type": "output",
+   "topic": "c25-funcptr",
+   "q": "This program is compiled with the notebook's `qlgstack.c`. What does it print?",
+   "code": "#include <stdio.h>\n#include \"qlgstack.h\"\n\nint main(void) {\n    char *days[] = {\"Mon\", \"Tue\", \"Wed\"};\n    qlgstack *s = qlgstack_new();\n    for (int i = 0; i < 3; i++) {\n        qlgstack_push(s, days[i]);\n    }\n    void *p;\n    qlgstack_pop(s, &p);\n    qlgstack_print(\"[\", s, \"]\\n\", NULL);\n    printf(\"%s %zu\\n\", (char *) p, qlgstack_size(s));\n    qlgstack_free(s, NULL);\n    return 0;\n}",
+   "answer": "[top : ?, ? : bottom]\nWed 2",
+   "explain": "Pushing Mon, Tue, Wed makes Wed the top. Pop gives back the address of \"Wed\" in `p` and leaves 2 elements. With a `NULL` print function, every element prints as `?`. `pre` and `post` are printed around the stack. `qlgstack_free(s, NULL)` is right here: the strings are string literals, not heap blocks."
+  },
+  {
+   "id": "c25-q-06",
+   "type": "short",
+   "topic": "c25-generic",
+   "q": "Write the lines that pop the top element of the generic stack `s` (it holds heap `double`s), print it with `%.2f`, and release its memory. Use no casts.",
+   "answer": "```c\nvoid *p;\nqlgstack_pop(s, &p);\ndouble *d = p;\nprintf(\"%.2f\\n\", *d);\nfree(d);\n```",
+   "explain": "Pop needs the address of a `void *` variable. `void *` converts to `double *` without a cast. The popped node is freed by pop, but the element is now yours, so `free(d)` after the last use."
+  },
+  {
+   "id": "c25-q-07",
+   "type": "short",
+   "topic": "c25-funcptr",
+   "q": "A generic stack holds pointers to heap `struct box { int *values; size_t count; }` objects, where each `values` array was also `malloc`'d. Write `void free_box(void *elem)` for `qlgstack_free`.",
+   "answer": "```c\nvoid free_box(void *elem) {\n    struct box *b = elem;\n    free(b->values);\n    free(b);\n}\n```",
+   "explain": "Convert to the real type first. Free what the struct owns (the array) **before** the struct itself: after `free(b)` you may no longer read `b->values`. Just `free(elem)` would leak every array."
+  },
+  {
+   "id": "c25-q-08",
+   "type": "mcq",
+   "topic": "c25-funcptr",
+   "q": "A program pushes `argv[1]`, `argv[2]`, ... onto a `qlgstack`. How should it release the stack at the end?",
+   "options": [
+    "`qlgstack_free(s, free_string);` where `free_string` calls `free`",
+    "`qlgstack_free(s, NULL);`",
+    "`free(s);`",
+    "pop every element and call `free` on each"
+   ],
+   "answer": 1,
+   "explain": "The `argv` strings were not allocated with `malloc`, so they must not be freed. `NULL` frees the nodes and the stack only. `free(s)` alone leaks every node, and options A and D call `free` on non-heap memory (undefined behaviour)."
+  },
+  {
+   "id": "c25-q-09",
+   "type": "short",
+   "topic": "c25-funcptr",
+   "q": "The notebook's `demo.c` frees both stacks with `free_int` at the end, yet valgrind reports `definitely lost: 24 bytes in 6 blocks` for `./demo 1 2 3`. Explain the leak and how to fix it.",
+   "answer": "Every element is popped before the stacks are freed, so `qlgstack_free` finds empty stacks and `free_int` is never called. The 6 popped heap `int`s (3 per stack, 4 bytes each) are never freed. Fix: `free(val1);` and `free(val2);` after they are printed in the pop loop.",
+   "explain": "Pop frees only the node; a popped element belongs to the caller."
+  },
+  {
+   "id": "c25-q-10",
+   "type": "output",
+   "topic": "c25-remove",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct node *add_front(struct node *head, int elem) {\n    struct node *n = malloc(sizeof(struct node));\n    n->elem = elem;\n    n->next = head;\n    return n;\n}\n\nstruct node *remove_first(struct node *head, int target) {\n    struct node *prev = NULL;\n    struct node *cur = head;\n    while (cur && cur->elem != target) {\n        prev = cur;\n        cur = cur->next;\n    }\n    if (!cur) {\n        return head;\n    }\n    if (!prev) {\n        head = cur->next;\n    } else {\n        prev->next = cur->next;\n    }\n    free(cur);\n    return head;\n}\n\nint main(void) {\n    struct node *list = NULL;\n    for (int v = 1; v <= 4; v++) {\n        list = add_front(list, v * v);\n    }\n    list = remove_first(list, 4);\n    list = remove_first(list, 16);\n    list = remove_first(list, 5);\n    for (struct node *n = list; n; n = n->next) {\n        printf(\"%d\\n\", n->elem);\n    }\n    while (list) {\n        struct node *next = list->next;\n        free(list);\n        list = next;\n    }\n    return 0;\n}",
+   "answer": "9\n1",
+   "explain": "`add_front` puts each new value in front, so the list is `[16,9,4,1]`. Removing 4 (middle) gives `[16,9,1]`; removing 16 (the head, `prev == NULL`) gives `[9,1]`; 5 is not found, so nothing changes. The loop prints the remaining elements one per line."
+  },
+  {
+   "id": "c25-q-11",
+   "type": "short",
+   "topic": "c25-remove",
+   "q": "What is wrong with this code, which should remove `cur` (not the head; `prev` is the node before it)?\n\n```c\nfree(cur);\nprev->next = cur->next;\n```",
+   "answer": "It reads `cur->next` after `cur` was freed: a use-after-free, undefined behaviour. Swap the lines: `prev->next = cur->next;` first, then `free(cur);`.",
+   "explain": "gcc warns `pointer 'cur' used after 'free'` and valgrind reports an invalid read. It might seem to work, but the freed memory may already be reused."
+  },
+  {
+   "id": "c25-q-12",
+   "type": "short",
+   "topic": "c25-remove",
+   "q": "A function `void remove_value(struct node *head, int target)` removes the first node holding `target` correctly when it is in the middle, but the program misbehaves when the target is the first node. Why, and what is the usual fix?",
+   "answer": "`head` is a copy of the caller's pointer. The function can free the first node and change its own `head`, but the caller's variable still points at the freed node (a dangling pointer). Fix: return the new head (`struct node *remove_value(...)`, called as `list = remove_value(list, x);`).",
+   "explain": "Same reason a function cannot change an `int` argument (Day 11): parameters are copies."
+  },
+  {
+   "id": "c25-q-13",
+   "type": "mcq",
+   "topic": "c25-remove",
+   "q": "`prev` and `cur` are adjacent nodes in a list `[a, ..., prev, cur, x, y]`. Which single statement removes `cur` from the list without losing `x` and `y`?",
+   "options": [
+    "`prev->next = NULL;`",
+    "`cur = cur->next;`",
+    "`prev->next = cur->next;`",
+    "`prev = cur->next;`"
+   ],
+   "answer": 2,
+   "explain": "Only C changes a link stored in the list. A cuts off `cur`, `x` and `y` (they leak). B and D only change local pointer variables; the list is unchanged. (After C, call `free(cur)`.)"
+  }
+ ],
+ "write": [
+  {
+   "id": "c25-w-01",
+   "topic": "c25-remove",
+   "stage": "worked",
+   "marks": 6,
+   "prompt": "Using `struct node { int elem; struct node *next; };`, write `struct node *remove_first(struct node *head, int target)`: it removes the first node whose `elem` is `target`, frees it, and returns the (possibly new) head. If no node holds `target` (or the list is empty), it changes nothing and returns `head`.",
+   "starter": "",
+   "solution": "// Removes the first node holding target and frees it.\n// Returns the (possibly new) head of the list.\nstruct node *remove_first(struct node *head, int target) {\n    struct node *prev = NULL;      // the node before cur (none yet)\n    struct node *cur = head;\n    while (cur && cur->elem != target) {\n        prev = cur;                // prev follows one step behind cur\n        cur = cur->next;\n    }\n    if (!cur) {                    // empty list, or target not found\n        return head;\n    }\n    if (!prev) {                   // cur is the head\n        head = cur->next;\n    } else {                       // middle or last node\n        prev->next = cur->next;\n    }\n    free(cur);                     // unlink first, free last\n    return head;\n}",
+   "explain": "**Find.** `cur` starts at the head and `prev` at `NULL` (nothing is before the head). The loop condition tests `cur` first, so `cur->elem` is only read when `cur` is not `NULL` (`&&` stops early). Each step moves `prev` to `cur` and `cur` to the next node.\n\n**Not found.** The loop ends with `cur == NULL` if the end was reached. This also covers the empty list (the loop never runs). Return `head` unchanged.\n\n**Unlink.** If `prev` is still `NULL`, the walk stopped at the head: move the head to the second node (`NULL` if there is none). Otherwise make `prev` skip `cur`. When `cur` is the last node, `cur->next` is `NULL` and `prev` becomes the new last node: no extra case.\n\n**Free.** Only after unlinking, because unlinking reads `cur->next`. Return `head`, since the caller's pointer must change when the head is removed. With the test `main` of the lesson (list `[10,20,30,40,50]`, removing 30, 10, 50, 99):\n\n```\n$ ./remove\n[10,20,30,40,50]\n[10,20,40,50]\n[20,40,50]\n[20,40]\n[20,40]\n```\n\nvalgrind reports `6 allocs, 6 frees`.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`prev = NULL`, `cur = head`; loop advances both, `prev` one step behind"
+    },
+    {
+     "marks": 1,
+     "item": "loop condition tests `cur != NULL` before reading `cur->elem`"
+    },
+    {
+     "marks": 1,
+     "item": "not found / empty list: returns `head` unchanged"
+    },
+    {
+     "marks": 1,
+     "item": "head case: `head = cur->next`"
+    },
+    {
+     "marks": 1,
+     "item": "other cases: `prev->next = cur->next`"
+    },
+    {
+     "marks": 1,
+     "item": "`free(cur)` after unlinking, and returns `head`"
+    }
+   ],
+   "pitfalls": [
+    "`while (cur->elem != target && cur)`: tests `cur` too late, so the end of the list dereferences `NULL`.",
+    "`free(cur)` before `prev->next = cur->next`: use-after-free.",
+    "Forgetting the head case: `prev->next` with `prev == NULL` crashes.",
+    "Returning nothing (`void`): the caller cannot see a new head."
+   ]
+  },
+  {
+   "id": "c25-w-02",
+   "topic": "c25-funcptr",
+   "stage": "faded",
+   "marks": 5,
+   "prompt": "Complete this program that uses the notebook's generic stack (`qlgstack.h`). It pushes a heap **copy** of each word, prints the stack, pops the top word and prints it, and releases everything with no leaks. The output must be:\n\n```\nbefore: top : cat, bee, ant : bottom\npopped cat\nafter: top : bee, ant : bottom\n```",
+   "starter": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"qlgstack.h\"\n\nvoid print_string(const void *elem) {\n    const char *str = ____;\n    printf(\"%s\", str);\n}\n\nvoid free_string(void *elem) {\n    ____;\n}\n\nint main(void) {\n    const char *words[] = {\"ant\", \"bee\", \"cat\"};\n    qlgstack *s = qlgstack_new();\n    if (!s) {\n        return 1;\n    }\n    for (int i = 0; i < 3; i++) {\n        char *copy = malloc(____);\n        if (!copy) {\n            qlgstack_free(s, free_string);\n            return 1;\n        }\n        strcpy(copy, words[i]);\n        qlgstack_push(s, copy);\n    }\n    qlgstack_print(\"before: \", s, \"\\n\", ____);\n\n    ____ p;\n    qlgstack_pop(s, ____);\n    char *top = p;\n    printf(\"popped %s\\n\", top);\n    ____;\n\n    qlgstack_print(\"after: \", s, \"\\n\", print_string);\n    qlgstack_free(s, ____);\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include \"qlgstack.h\"\n\nvoid print_string(const void *elem) {\n    const char *str = elem;\n    printf(\"%s\", str);\n}\n\nvoid free_string(void *elem) {\n    free(elem);\n}\n\nint main(void) {\n    const char *words[] = {\"ant\", \"bee\", \"cat\"};\n    qlgstack *s = qlgstack_new();\n    if (!s) {\n        return 1;\n    }\n    for (int i = 0; i < 3; i++) {\n        char *copy = malloc(strlen(words[i]) + 1);\n        if (!copy) {\n            qlgstack_free(s, free_string);\n            return 1;\n        }\n        strcpy(copy, words[i]);\n        qlgstack_push(s, copy);\n    }\n    qlgstack_print(\"before: \", s, \"\\n\", print_string);\n\n    void *p;\n    qlgstack_pop(s, &p);\n    char *top = p;\n    printf(\"popped %s\\n\", top);\n    free(top);\n\n    qlgstack_print(\"after: \", s, \"\\n\", print_string);\n    qlgstack_free(s, free_string);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`print_string` converts: `const char *str = elem;` and `free_string` calls `free(elem)`"
+    },
+    {
+     "marks": 1,
+     "item": "`malloc(strlen(words[i]) + 1)`: room for the null character"
+    },
+    {
+     "marks": 1,
+     "item": "passes `print_string` (the function's name, no parentheses) to `qlgstack_print`"
+    },
+    {
+     "marks": 1,
+     "item": "`void *p;` and `qlgstack_pop(s, &p);`"
+    },
+    {
+     "marks": 1,
+     "item": "`free(top);` after printing, and `qlgstack_free(s, free_string);` at the end"
+    }
+   ],
+   "pitfalls": [
+    "`qlgstack_print(..., print_string(...))`: that CALLS the function; pass its name only.",
+    "`char *p; qlgstack_pop(s, &p);`: `char **` is not `void **` (warning).",
+    "Forgetting `free(top)`: pop frees only the node, so one word leaks.",
+    "`qlgstack_free(s, NULL)` here: the two remaining heap copies leak.",
+    "`malloc(strlen(words[i]))`: one byte short for `'\\0'`."
+   ]
+  },
+  {
+   "id": "c25-w-03",
+   "topic": "c25-remove",
+   "stage": "blank",
+   "marks": 8,
+   "examNote": "Modeled on the December 2016 final, Q5 (deleting a node from a linked list and returning its data), with a different node to delete.",
+   "prompt": "You are given these types:\n\n```c\n// A single node in a linked list\nstruct ListNode {\n    int data;                  // the data in this node\n    struct ListNode *next;     // pointer to the next node\n};\n\n// Refer to a linked list with a pointer to the first node\ntypedef struct ListNode *LinkedList;\n```\n\nThe `next` pointer in the last node of a list is `NULL`.\n\nWrite a function with the header `int deleteLast(LinkedList list)` that deletes the **last** node of the list and returns the number that was inside it. It must also free the heap space used by the deleted node, so that there is no memory leak. If the list is empty or has only one node, the function must do nothing and return 0.\n\nExample (`addToEnd` and `printList` are helper functions you do not write):\n\n```\nfull list: [7,14,21,28,35]\ndeleted 35, list is [7,14,21,28]\ndeleted 28, list is [7,14,21]\ndeleted 21, list is [7,14]\ndeleted 14, list is [7]\ndeleted 0, list is [7]\n```",
+   "starter": "",
+   "solution": "// Deletes the last node of list and returns the number it held.\n// If list is empty or has only one node, does nothing and returns 0.\nint deleteLast(LinkedList list) {\n    if (list == NULL || list->next == NULL) {\n        return 0;\n    }\n    struct ListNode *prev = list;          // the node before cur\n    struct ListNode *cur = list->next;     // at least 2 nodes, so cur is not NULL\n    while (cur->next != NULL) {            // stop when cur is the last node\n        prev = cur;\n        cur = cur->next;\n    }\n    int val = cur->data;                   // save the data BEFORE freeing\n    prev->next = NULL;                     // prev becomes the new last node\n    free(cur);\n    return val;\n}",
+   "explain": "Verified with a test program (`addToEnd` appends a `malloc`'d node) that prints exactly the example output; valgrind reports `6 allocs, 6 frees` after `main` frees the last remaining node.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "correct header `int deleteLast(LinkedList list)`"
+    },
+    {
+     "marks": 2,
+     "item": "empty list and one-node list return 0 without changing anything, tested BEFORE using `list->next` / `list->next->next`"
+    },
+    {
+     "marks": 2,
+     "item": "walks with a pointer to the node before the last (here `prev`/`cur`, stopping when `cur->next == NULL`)"
+    },
+    {
+     "marks": 1,
+     "item": "saves the data of the last node before freeing it"
+    },
+    {
+     "marks": 1,
+     "item": "sets the new last node's `next` to `NULL`"
+    },
+    {
+     "marks": 1,
+     "item": "frees the deleted node and returns its data"
+    }
+   ],
+   "pitfalls": [
+    "Testing `list->next == NULL` before `list == NULL`: an empty list dereferences `NULL`.",
+    "`return cur->data;` after `free(cur)`: use-after-free. Save it first.",
+    "Freeing the last node but not setting `prev->next = NULL`: the list now ends in a dangling pointer, and the next call reads freed memory.",
+    "Walking until `cur == NULL`: then you have gone one step too far and lost the last node.",
+    "Trying to handle the one-node list by freeing `list`: the caller's pointer would dangle, which is why the question says to do nothing."
+   ]
+  }
+ ]
+}
