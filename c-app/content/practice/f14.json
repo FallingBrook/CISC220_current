@@ -1,0 +1,272 @@
+{
+  "sourceId": "f14",
+  "source": "Final exam 2014",
+  "questions": [
+    {
+      "id": "f14-3",
+      "source": "Final exam 2014, Q3",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/IO",
+        "c/statements"
+      ],
+      "prompt": "**Question 3 (5 points): Basic C**\n\nWrite a C program which prompts the user to enter one or more integers. After each integer except the first, the program must report the difference between the last two integers entered. When the user enters a zero, the program must stop successfully (i.e. with a zero exit code).\n\nYou may ignore the possibility of I/O errors or input in non-integer format.\n\nFor example:\n```\nenter a number: 2\nenter a number: 5\ndifference = 3\nenter a number: 11\ndifference = 6\nenter a number: 20\ndifference = 9\nenter a number: 18\ndifference = -2\nenter a number: 25\ndifference = 7\nenter a number: 0\n```\n\nPlease write a whole C program, except that you may leave out the `#include`s at the beginning.",
+      "answer": "```c\nint main(void) {\n    int prev;\n    printf(\"enter a number: \");\n    scanf(\"%d\", &prev);\n    while (prev != 0) {\n        int curr;\n        printf(\"enter a number: \");\n        scanf(\"%d\", &curr);\n        if (curr == 0) {\n            break;\n        }\n        printf(\"difference = %d\\n\", curr - prev);\n        prev = curr;\n    }\n    return 0;\n}\n```",
+      "grading": "- The difference is **newest minus previous** (5 then 2 gives 3; 20 then 18 gives -2). Reversing the subtraction loses a mark.\n- No difference is printed after the first number, and none is printed for the terminating 0 (the example shows no `difference` line after `0`). Printing `difference = -25` for the 0 loses a mark.\n- If the very first number is 0 the program should stop at once (the model answer does; a loop that asks again first is a minor slip).\n- Exit status 0: `return 0;` from `main` or `exit(0)`/`exit(EXIT_SUCCESS)`. \n- Any loop shape is fine (`while (1)` with `break`, a `do`/`while`, a first-time flag). `scanf(\"%d\", &x)` is expected; forgetting the `&` is a real error.\n- `#include`s may be omitted per the question. Exact prompt wording is not essential but the output should match the example's format.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Prompts and reads integers with scanf in a loop (correct use of &)"
+        },
+        {
+          "marks": 1,
+          "item": "Keeps the previous value and updates it each iteration"
+        },
+        {
+          "marks": 1,
+          "item": "Prints difference = current - previous, only from the second number onward"
+        },
+        {
+          "marks": 1,
+          "item": "Stops when 0 is entered, without printing a difference for the 0 (including when 0 is the first number)"
+        },
+        {
+          "marks": 1,
+          "item": "Complete, compilable program that exits with status 0"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f14-3-v",
+      "source": "Variant of Final exam 2014, Q3",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/IO",
+        "c/statements"
+      ],
+      "prompt": "Write a C program which prompts the user to enter one or more non-negative integers. After each value except the first, the program must report the sum of the last two values entered. When the user enters a negative number, the program must stop successfully (i.e. with a zero exit code).\n\nYou may ignore the possibility of I/O errors or input in non-integer format.\n\nFor example:\n```\nenter a value: 4\nenter a value: 6\nsum = 10\nenter a value: 0\nsum = 6\nenter a value: 10\nsum = 10\nenter a value: -1\n```\n\nPlease write a whole C program, except that you may leave out the `#include`s at the beginning.",
+      "answer": "```c\nint main(void) {\n    int prev;\n    printf(\"enter a value: \");\n    scanf(\"%d\", &prev);\n    while (prev >= 0) {\n        int curr;\n        printf(\"enter a value: \");\n        scanf(\"%d\", &curr);\n        if (curr < 0) {\n            break;\n        }\n        printf(\"sum = %d\\n\", prev + curr);\n        prev = curr;\n    }\n    return 0;\n}\n```",
+      "grading": "- The stop condition is **any negative number**, not 0: 0 is a valid value (the example shows `0` producing `sum = 6`). Stopping on 0 loses a mark.\n- No sum is printed after the first value or for the terminating negative number.\n- If the first value is negative the program stops at once.\n- Exit status 0 via `return 0;` or `exit(0)`. Any loop shape is fine; `scanf(\"%d\", &x)` with the `&`.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Prompts and reads integers with scanf in a loop (correct use of &)"
+        },
+        {
+          "marks": 1,
+          "item": "Keeps the previous value and updates it each iteration"
+        },
+        {
+          "marks": 1,
+          "item": "Prints sum = previous + current, only from the second value onward"
+        },
+        {
+          "marks": 1,
+          "item": "Stops on a negative number (not on 0) without printing a sum for it"
+        },
+        {
+          "marks": 1,
+          "item": "Complete, compilable program that exits with status 0"
+        }
+      ],
+      "variantOf": "f14-3"
+    },
+    {
+      "id": "f14-4",
+      "source": "Final exam 2014, Q4",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/strings",
+        "c/allocating_and_deallocating_memory",
+        "c/pointers"
+      ],
+      "prompt": "**Question 4 (5 points): Pointers, Arrays & Strings**\n\nRecall that the `strcat` function in C takes two string parameters and replaces the first string with a concatenation of the two strings. For example:\n\n```c\nchar string1[20] = \"Happy \";\nchar string2[10] = \"Holidays\";\nstrcat(string1,string2);\n```\n\nAfter executing the above code, `string1` now contains `\"Happy Holidays\"`. This works out because `string1` was declared with length 20, so it had plenty of room for the concatenated string. The danger of `strcat` is that if `string1` had been declared with length 10 (more than enough room for its initial value, but not enough room for the concatenated string) it could have caused a segmentation fault or other kinds of hard-to-debug problems.\n\nFor this question, write a C function called `stringMerge` that can serve as an alternative to `strcat`. It should not change either of its parameters, but instead should return a result which is a concatenation of its two parameters. This new result string **must be allocated on the heap**. You may assume that the heap has enough space to store your new concatenated string.\n\nIt's OK if your new function calls C string functions such as `strcat`.\n\nFor example, the following code:\n```c\nchar string1[7] = \"Happy \";\nchar string2[9] = \"Holidays\";\nchar *greeting = stringMerge(string1, string2);\nprintf(\"%s\\n\", greeting);\n```\nwill print \"Happy Holidays\" with no problems, even though that string is longer than the space allocated for either `string1` or `string2`.",
+      "answer": "```c\nchar *stringMerge(const char *s1, const char *s2) {\n    char *result = malloc(strlen(s1) + strlen(s2) + 1);\n    strcpy(result, s1);\n    strcat(result, s2);\n    return result;\n}\n```",
+      "grading": "- Essential: `malloc` of **strlen(s1) + strlen(s2) + 1** bytes. Forgetting the `+ 1` for the null terminator loses a mark (classic error). `sizeof(s1)` is wrong: it is the size of a pointer inside the function.\n- The result must start as a copy of s1 (`strcpy`, or `result[0] = '\\0'` then two `strcat`s). Doing `strcat(result, s1)` on freshly malloc'd memory without initialising it is a bug (the memory is not guaranteed to be an empty string).\n- Must not modify s1 or s2: `strcat(s1, s2); return s1;` gets very little credit.\n- Returning a local array (`char result[100]; ... return result;`) is wrong: the array is not on the heap and dies when the function returns.\n- `const char *` parameters are nice but `char *` is fine. Checking `malloc` for NULL is optional (the question says the heap has room). A manual character-copy loop is an accepted alternative. `calloc` is fine.\n- The caller is responsible for `free`; the function itself must not free the result.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct signature: returns char *, takes two strings"
+        },
+        {
+          "marks": 2,
+          "item": "Allocates strlen(s1) + strlen(s2) + 1 bytes on the heap with malloc/calloc (1 mark lost if the +1 is missing or sizeof is used)"
+        },
+        {
+          "marks": 1,
+          "item": "Builds the concatenation correctly (copies s1 first, then appends s2; result properly null-terminated)"
+        },
+        {
+          "marks": 1,
+          "item": "Leaves both parameters unchanged and returns the heap pointer"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f14-4-v",
+      "source": "Variant of Final exam 2014, Q4",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/strings",
+        "c/allocating_and_deallocating_memory",
+        "c/pointers"
+      ],
+      "prompt": "Write a C function called `stringWrap` that takes two strings, `inner` and `outer`, and returns a new string made of `outer`, then `inner`, then `outer` again. It must not change either of its parameters. The new result string **must be allocated on the heap**. You may assume that the heap has enough space for the result.\n\nIt's OK if your function calls C string functions such as `strcpy` and `strcat`.\n\nFor example, the following code:\n```c\nchar word[6] = \"hello\";\nchar stars[4] = \"***\";\nchar *banner = stringWrap(word, stars);\nprintf(\"%s\\n\", banner);\nfree(banner);\n```\nprints `***hello***`, even though that string is much longer than either array. `stringWrap(\"\", \"--\")` returns `\"----\"`.",
+      "answer": "```c\nchar *stringWrap(const char *inner, const char *outer) {\n    size_t len = strlen(inner) + 2 * strlen(outer);\n    char *result = malloc(len + 1);\n    strcpy(result, outer);\n    strcat(result, inner);\n    strcat(result, outer);\n    return result;\n}\n```",
+      "grading": "- Size must be strlen(inner) + **2** * strlen(outer) + 1. Counting `outer` only once, or forgetting the `+ 1`, loses a mark. `sizeof` on a pointer parameter is wrong.\n- The first piece must be copied (`strcpy`) or the buffer set to `\"\"` before `strcat`; `strcat` onto uninitialised malloc memory is a bug.\n- Order matters: outer, inner, outer. Must not modify the parameters; must not return a local array.\n- `char *` instead of `const char *` is fine; NULL check on malloc optional; manual copy loops accepted.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct signature: returns char *, takes two strings"
+        },
+        {
+          "marks": 2,
+          "item": "Allocates strlen(inner) + 2*strlen(outer) + 1 bytes on the heap (1 mark lost if outer counted once or +1 missing)"
+        },
+        {
+          "marks": 1,
+          "item": "Builds outer+inner+outer correctly and null-terminated (first piece copied, not strcat onto uninitialised memory)"
+        },
+        {
+          "marks": 1,
+          "item": "Leaves both parameters unchanged and returns the heap pointer"
+        }
+      ],
+      "variantOf": "f14-4"
+    },
+    {
+      "id": "f14-6",
+      "source": "Final exam 2014, Q6",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/IO"
+      ],
+      "prompt": "**Question 6 (5 points): I/O in C**\n\nWrite a C program called `lineCount` that takes one command-line argument, which should be the name of a file, and prints a message on the standard output saying how many lines the file contains. Your program may assume that this program will be a text file in the usual format, which includes the fact that every line in the file will end with `'\\n'`. However, you may not assume anything else. The file could be empty (no characters at all) or could have a huge number of lines. You may not assume any limit on the length of the lines in the file.\n\nYour program must also be prepared to deal with errors. It must exit with a non-zero status and write an informative error message if any of the following occur:\n- the program is called with no command-line arguments, or more than one\n- the argument is not the name of an existing, readable file\n- a error occurs while attempting to read from the file\n\nImagine that you're writing this program to be a `bash` utility. Your users don't want to see your program crash; if they call it with bad arguments, or if the disk containing their file crashes while the program is running, they want to see a nice error message.\n\n(You may leave out the `#include`s.)",
+      "answer": "```c\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s filename\\n\", argv[0]);\n        exit(EXIT_FAILURE);\n    }\n    FILE *f = fopen(argv[1], \"r\");\n    if (!f) {\n        perror(argv[1]);\n        exit(EXIT_FAILURE);\n    }\n    long count = 0;\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        if (c == '\\n') {\n            count++;\n        }\n    }\n    if (ferror(f)) {\n        fprintf(stderr, \"error reading %s\\n\", argv[1]);\n        fclose(f);\n        exit(EXIT_FAILURE);\n    }\n    fclose(f);\n    printf(\"%s contains %ld lines\\n\", argv[1], count);\n    return 0;\n}\n```",
+      "grading": "- The key idea: because line length is unbounded, count `'\\n'` characters one at a time (`fgetc`/`getc`). An `fgets` into a fixed buffer that counts each call as a line is **wrong** for long lines (a 500-char line in a 100-byte buffer counts as several lines); it is acceptable only if it counts lines by checking whether the buffer ends in `'\\n'`. POSIX `getline` (not taught in the notebooks) also handles any length and is acceptable.\n- The character variable must be `int`, not `char`, so `EOF` is distinguished from a real byte (the notebook example uses `char`, but `int` is correct; don't take a mark off for `char` alone unless the grader wants to be strict).\n- Errors (each must give a message, ideally on stderr, and a non-zero exit): `argc != 2` (both too few and too many); `fopen` returns NULL (`perror` is ideal); after the loop, `ferror(f)` true means a read error. Checking only `feof` and not `ferror` misses the read-error case.\n- An empty file must print 0 lines. `long`/`int` counter both fine. `fclose` expected but minor. \"a error\" is the paper's typo for \"an error\".",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks argc != 2 with message and non-zero exit"
+        },
+        {
+          "marks": 1,
+          "item": "Checks fopen returning NULL with message (perror or similar) and non-zero exit"
+        },
+        {
+          "marks": 2,
+          "item": "Counts lines correctly with no line-length limit (fgetc loop counting '\\n', int variable compared with EOF); empty file gives 0"
+        },
+        {
+          "marks": 1,
+          "item": "Detects read errors with ferror (message + non-zero exit); prints the count and closes the file"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f14-6-v",
+      "source": "Variant of Final exam 2014, Q6",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/IO"
+      ],
+      "prompt": "Write a C program called `longestLine` that takes one command-line argument, which should be the name of a file, and prints a message on the standard output giving the number of characters in the longest line of the file (not counting the `'\\n'`). You may assume the file is a text file in which every line ends with `'\\n'`. You may not assume anything else: the file could be empty (then the answer is 0) or have a huge number of lines, and there is no limit on the length of a line.\n\nYour program must exit with a non-zero status and write an informative error message if:\n- the program is called with no command-line arguments, or more than one\n- the argument is not the name of an existing, readable file\n- an error occurs while reading from the file\n\n(You may leave out the `#include`s.)\n\nExample: if `poem.txt` contains the three lines `roses`, `are red` and `ok`, then `longestLine poem.txt` prints something like\n```\nlongest line in poem.txt has 7 characters\n```",
+      "answer": "```c\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s filename\\n\", argv[0]);\n        exit(EXIT_FAILURE);\n    }\n    FILE *f = fopen(argv[1], \"r\");\n    if (!f) {\n        perror(argv[1]);\n        exit(EXIT_FAILURE);\n    }\n    long longest = 0;\n    long current = 0;\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        if (c == '\\n') {\n            if (current > longest) {\n                longest = current;\n            }\n            current = 0;\n        }\n        else {\n            current++;\n        }\n    }\n    if (ferror(f)) {\n        fprintf(stderr, \"error reading %s\\n\", argv[1]);\n        fclose(f);\n        exit(EXIT_FAILURE);\n    }\n    fclose(f);\n    printf(\"longest line in %s has %ld characters\\n\", argv[1], longest);\n    return 0;\n}\n```",
+      "grading": "- Because line length is unbounded, a fixed `fgets` buffer with `strlen` is **wrong** unless it carefully accumulates lengths across partial reads. Reading character by character is the expected approach; `getline` (POSIX, not in the notebooks) is acceptable.\n- Must reset the current length to 0 at each `'\\n'` and must not count the `'\\n'` itself (off by one loses a mark).\n- `int c` compared with `EOF`. Error checks: `argc != 2`, `fopen` NULL, `ferror` after the loop; each with a message and non-zero exit.\n- Empty file prints 0. Since every line ends with `'\\n'`, no special handling of a final unterminated line is required (handling it anyway is fine).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks argc != 2 with message and non-zero exit"
+        },
+        {
+          "marks": 1,
+          "item": "Checks fopen returning NULL with message and non-zero exit"
+        },
+        {
+          "marks": 2,
+          "item": "Correctly tracks current and longest line length character by character (resets at '\\n', doesn't count '\\n', no length limit; empty file gives 0)"
+        },
+        {
+          "marks": 1,
+          "item": "Detects read errors with ferror (message + non-zero exit); prints the result and closes the file"
+        }
+      ],
+      "variantOf": "f14-6"
+    },
+    {
+      "id": "f14-7",
+      "source": "Final exam 2014, Q7",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/struct",
+        "c/pointers",
+        "c/linked_stack"
+      ],
+      "prompt": "**Question 7 (5 points): Structs**\n\nHere is a reminder of the linked list structure used in Assignment 6:\n\n```c\n// A single node in a linked list\nstruct ListNode {\n  int data; // the data in this node\n  struct ListNode *next; // points to next node, NULL in last node\n};\n\n// Refer to a linked list with a pointer to the first node\ntypedef struct ListNode *LinkedList;\n```\n\nThe `next` pointer in the last list element should be `NULL`.\n\nWrite a function called `listTotal` which takes a `LinkedList` as a parameter and returns the sum of all the data elements in the list.\n\nFor example, if `numList` looks like this:\n\n```\n[3] -> [1] -> [7] -> [5] -> NULL\n```\n\n`listTotal(numList)` should return 16.",
+      "answer": "```c\nint listTotal(LinkedList list) {\n    int total = 0;\n    for (struct ListNode *n = list; n != NULL; n = n->next) {\n        total += n->data;\n    }\n    return total;\n}\n```",
+      "grading": "- An empty list is a `NULL` pointer and must return 0; the loop condition `n != NULL` handles it. Using `while (n->next != NULL)` skips the last node and crashes on an empty list (lose 1-2 marks).\n- Use `->` (or `(*n).data`); `n.data` on a pointer is a type error.\n- Walking with the parameter itself (`list = list->next`) is fine since it is a local copy. A recursive version (`return list == NULL ? 0 : list->data + listTotal(list->next);`) is fully acceptable.\n- Must not modify or free the list. Return type `int` (`long` acceptable).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct signature: int listTotal(LinkedList list)"
+        },
+        {
+          "marks": 1,
+          "item": "Initialises the total to 0 and returns it"
+        },
+        {
+          "marks": 2,
+          "item": "Traverses every node with ->next until NULL, including the last node"
+        },
+        {
+          "marks": 1,
+          "item": "Adds ->data of each node; handles the empty (NULL) list"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f14-7-v",
+      "source": "Variant of Final exam 2014, Q7",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/struct",
+        "c/pointers",
+        "c/linked_stack"
+      ],
+      "prompt": "Here is a linked list structure:\n\n```c\n// A single node in a linked list\nstruct ListNode {\n  int data; // the data in this node\n  struct ListNode *next; // points to next node, NULL in last node\n};\n\n// Refer to a linked list with a pointer to the first node\ntypedef struct ListNode *LinkedList;\n```\n\nThe `next` pointer in the last list element is `NULL`.\n\nWrite a function called `listCount` which takes a `LinkedList` and an `int value` as parameters and returns the number of nodes whose data equals `value`.\n\nFor example, if `numList` looks like this:\n\n```\n[4] -> [2] -> [4] -> [9] -> [4] -> NULL\n```\n\n`listCount(numList, 4)` should return 3, `listCount(numList, 8)` should return 0, and `listCount(NULL, 4)` should return 0.",
+      "answer": "```c\nint listCount(LinkedList list, int value) {\n    int count = 0;\n    while (list != NULL) {\n        if (list->data == value) {\n            count++;\n        }\n        list = list->next;\n    }\n    return count;\n}\n```",
+      "grading": "- Loop must stop on `list != NULL`, not `list->next != NULL` (which skips the last node and crashes on an empty list).\n- Compare `->data == value` (not `=`). Use `->` on the pointer.\n- Recursive solution acceptable. Must not modify or free the list.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct signature: int listCount(LinkedList list, int value)"
+        },
+        {
+          "marks": 1,
+          "item": "Initialises the count to 0 and returns it"
+        },
+        {
+          "marks": 2,
+          "item": "Traverses every node with ->next until NULL, including the last node; empty list gives 0"
+        },
+        {
+          "marks": 1,
+          "item": "Counts exactly the nodes whose ->data == value"
+        }
+      ],
+      "variantOf": "f14-7"
+    }
+  ]
+}

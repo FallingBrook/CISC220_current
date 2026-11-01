@@ -1,0 +1,158 @@
+{
+  "sourceId": "f15",
+  "source": "Final exam 2015",
+  "questions": [
+    {
+      "id": "f15-4",
+      "source": "Final exam 2015, Q4",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/strings",
+        "c/arrays",
+        "c/allocating_and_deallocating_memory",
+        "c/pointers"
+      ],
+      "prompt": "**Question 4 (5 points): C Pointers, Arrays & Strings**\n\nWrite a C function called `firstChars` that takes just one parameter, an array of strings. The last element in the array of strings will be NULL. The `firstChars` function must return a string containing the first letter of each of the strings in the parameter array. The result of the `firstChars` function must be allocated on the heap. You may not make any assumptions about how many strings will be in the parameter array.\n\nFor example, here is a simple main program using the completed `firstChars` function:\n\n```c\nint main() {\n  char *holidays[] = {\"Xmas\",\"Kwanzaa\",\"Hanukkah\",\"NewYears\",NULL};\n  char *result = firstChars(holidays);\n  printf(\"%s\\n\", result);\n  free(result);\n  return 0;\n} // end main\n```\n\nThe output of this program should be\n```\nXKHN\n```",
+      "answer": "```c\nchar *firstChars(char *strings[]) {\n    int n = 0;\n    while (strings[n] != NULL) {\n        n++;\n    }\n    char *result = malloc(n + 1);\n    for (int i = 0; i < n; i++) {\n        result[i] = strings[i][0];\n    }\n    result[n] = '\\0';\n    return result;\n}\n```",
+      "grading": "- Must first count the strings by scanning to the NULL sentinel; `sizeof(strings)/sizeof(strings[0])` does **not** work on a parameter (it is a `char **`), so it loses the counting mark. A fixed-size buffer (e.g. `malloc(100)`) violates \"no assumptions about how many strings\" (lose a mark).\n- Allocate n + 1 bytes and write the `'\\0'` terminator at `result[n]`; missing either loses a mark.\n- `strings[i][0]` (or `*strings[i]`) is the first character. The paper doesn't say what to do with an empty string `\"\"`; copying its `'\\0'` would end the result early, but the question doesn't test this, so don't penalise it.\n- Parameter may be written `char *strings[]` or `char **strings`. With no strings (just NULL) the result should be the empty string. Returning a local array is wrong (not on the heap). NULL check on malloc optional.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Correct signature: char *firstChars(char *strings[]) (or char **)"
+        },
+        {
+          "marks": 1,
+          "item": "Counts the strings by looping until the NULL element (no sizeof trick, no fixed limit)"
+        },
+        {
+          "marks": 1,
+          "item": "Allocates n + 1 chars on the heap"
+        },
+        {
+          "marks": 1,
+          "item": "Copies strings[i][0] into result[i] for each string"
+        },
+        {
+          "marks": 1,
+          "item": "Null-terminates the result and returns it"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f15-4-v",
+      "source": "Variant of Final exam 2015, Q4",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/strings",
+        "c/arrays",
+        "c/allocating_and_deallocating_memory",
+        "c/pointers"
+      ],
+      "prompt": "Write a C function called `lastChars` that takes just one parameter, an array of strings. The last element in the array of strings will be NULL. The `lastChars` function must return a string containing the **last** character of each of the strings in the parameter array, in order. Empty strings (`\"\"`) have no last character and contribute nothing. The result must be allocated on the heap. You may not make any assumptions about how many strings will be in the parameter array.\n\nFor example:\n\n```c\nint main(void) {\n  char *fruit[] = {\"apple\", \"\", \"kiwi\", \"plum\", NULL};\n  char *result = lastChars(fruit);\n  printf(\"%s\\n\", result);\n  free(result);\n  return 0;\n}\n```\n\nThe output of this program should be\n```\neim\n```",
+      "answer": "```c\nchar *lastChars(char *strings[]) {\n    int n = 0;\n    while (strings[n] != NULL) {\n        n++;\n    }\n    char *result = malloc(n + 1);\n    int k = 0;\n    for (int i = 0; i < n; i++) {\n        size_t len = strlen(strings[i]);\n        if (len > 0) {\n            result[k] = strings[i][len - 1];\n            k++;\n        }\n    }\n    result[k] = '\\0';\n    return result;\n}\n```",
+      "grading": "- Count strings by scanning to NULL (no `sizeof` on the parameter, no fixed limit). Allocating n + 1 is enough even though empty strings are skipped; allocating exactly the number of non-empty strings + 1 (two passes) is also fine.\n- Last character is `strings[i][strlen(strings[i]) - 1]`. For `\"\"`, `strlen - 1` underflows (size_t) and reads out of bounds, so the empty-string check is essential.\n- Needs a separate output index (`k`) because skipped strings leave no gap; using `result[i]` leaves garbage/holes (lose a mark).\n- Must null-terminate at `result[k]`. Returning a local array is wrong.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Counts the strings by looping until NULL and allocates n + 1 chars on the heap"
+        },
+        {
+          "marks": 1,
+          "item": "Finds each string's last character with strlen(...) - 1"
+        },
+        {
+          "marks": 1,
+          "item": "Skips empty strings safely (no strlen-1 on \"\")"
+        },
+        {
+          "marks": 1,
+          "item": "Uses a separate output index so the result has no gaps"
+        },
+        {
+          "marks": 1,
+          "item": "Null-terminates the result and returns it"
+        }
+      ],
+      "variantOf": "f15-4"
+    },
+    {
+      "id": "f15-6",
+      "source": "Final exam 2015, Q6",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/IO",
+        "c/struct",
+        "c/strings",
+        "c/arrays"
+      ],
+      "prompt": "**Question 6 (5 points): C I/O and structs**\n\nHere is the definition of a `struct` type. You may assume it's included in your program; you don't have to write it in your answer book.\n\n```c\ntypedef struct {\n  char firstChar;\n  char lastChar;\n} initials;\n```\n\nWrite a function that will read the first five lines of a file and record the first and last characters of these lines. By the last character in the line I mean the last character before the end of line character (`'\\n'`). It's OK to assume that every line except the last one in the file ends with a `'\\n'`, but the last line in the file might not.\n\nThe function should take two parameters:\n1. The name of the input file (a string)\n2. An array of five structs of type `initials`.\n\nPut the first and last characters of the first line into `initials[0]`, the first and last characters of the second line into `initials[1]`, and so on.\n\nYour program must abort the program with an informative error message if any of the following things happen:\n- The file does not exist or you don't have read permission for it\n- The file contains less than 5 lines\n- A line in the file has less than 2 characters (not counting the end-of-line character)\n\nYou don't have to worry about any other sorts of I/O errors.\n\nYou may assume that no line in the file is more than 50 characters long and that all of the necessary C libraries for I/O have been included in your program.\n\nHere is a header for your function:\n```c\nvoid firstAndLast(char *filename, initials structArray[]);\n```",
+      "answer": "```c\nvoid firstAndLast(char *filename, initials structArray[]) {\n    FILE *f = fopen(filename, \"r\");\n    if (!f) {\n        perror(filename);\n        exit(EXIT_FAILURE);\n    }\n    char line[52];   // 50 chars + '\\n' + '\\0'\n    for (int i = 0; i < 5; i++) {\n        if (fgets(line, sizeof(line), f) == NULL) {\n            fprintf(stderr, \"error: %s has fewer than 5 lines\\n\", filename);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        size_t len = strlen(line);\n        if (len > 0 && line[len - 1] == '\\n') {\n            line[len - 1] = '\\0';\n            len--;\n        }\n        if (len < 2) {\n            fprintf(stderr, \"error: line %d of %s has fewer than 2 characters\\n\",\n                    i + 1, filename);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        structArray[i].firstChar = line[0];\n        structArray[i].lastChar = line[len - 1];\n    }\n    fclose(f);\n}\n```",
+      "grading": "- Buffer size: lines are at most 50 characters, so the buffer needs 50 + 1 (`'\\n'`) + 1 (`'\\0'`) = 52. `char line[51]` would split a 50-char line (the `'\\n'` would be read as a separate \"line\"); `char line[50]` is worse. A generous buffer (e.g. 100 or 256) is fine.\n- The last line might not end in `'\\n'`, so the `'\\n'` must be removed (or the last char found) **only if present**. Blindly using `line[strlen(line) - 2]` as the last char gets the 5th line wrong when it has no newline (lose a mark).\n- \"Fewer than 5 lines\" is detected by `fgets` returning NULL before 5 lines are read. A file of exactly 5 lines whose last line lacks `'\\n'` is valid.\n- Length check is on the line without its `'\\n'`: `len < 2` aborts (so a blank line or a 1-char line aborts).\n- \"Abort the program\": `exit(EXIT_FAILURE)` / `exit(1)` with a message (stderr preferred, `perror` for fopen). Returning silently from the function does not abort the program. `abort()` is also acceptable.\n- Character-by-character reading with `fgetc` is an accepted alternative if it handles the same cases. Lines beyond the fifth are ignored.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Opens the file and aborts with an informative message if fopen fails"
+        },
+        {
+          "marks": 1,
+          "item": "Reads 5 lines (fgets with a big enough buffer, or fgetc) and aborts with a message if fewer than 5 lines"
+        },
+        {
+          "marks": 1,
+          "item": "Handles the '\\n' correctly: strips/ignores it when present, works when the last line has none"
+        },
+        {
+          "marks": 1,
+          "item": "Aborts with a message if a line has fewer than 2 characters (excluding '\\n')"
+        },
+        {
+          "marks": 1,
+          "item": "Stores line[0] and the last character into structArray[i].firstChar / .lastChar for i = 0..4"
+        }
+      ],
+      "variantOf": null
+    },
+    {
+      "id": "f15-6-v",
+      "source": "Variant of Final exam 2015, Q6",
+      "kind": "long",
+      "marks": 5,
+      "topics": [
+        "c/IO",
+        "c/struct",
+        "c/strings",
+        "c/arrays"
+      ],
+      "prompt": "Here is the definition of a `struct` type. You may assume it's included in your program.\n\n```c\ntypedef struct {\n  char firstChar;\n  int length;\n} lineInfo;\n```\n\nWrite a function that will read the first **four** lines of a file and record, for each line, its first character and its length (the number of characters before the end-of-line character `'\\n'`). It's OK to assume that every line except the last one in the file ends with a `'\\n'`, but the last line in the file might not.\n\nThe function takes two parameters:\n1. The name of the input file (a string)\n2. An array of four structs of type `lineInfo`.\n\nPut the information for the first line into `info[0]`, the second line into `info[1]`, and so on.\n\nYour function must abort the program with an informative error message if any of the following things happen:\n- The file does not exist or you don't have read permission for it\n- The file contains fewer than 4 lines\n- One of the first four lines is empty (0 characters, not counting the end-of-line character)\n\nYou don't have to worry about any other sorts of I/O errors. You may assume that no line in the file is more than 80 characters long and that the necessary C libraries have been included.\n\nHere is a header for your function:\n```c\nvoid firstAndLength(const char *filename, lineInfo info[]);\n```\n\nExample: for a file containing the lines `abc`, `d`, `efgh`, `ij` (the last with no `'\\n'`), the array ends up holding `{'a',3}`, `{'d',1}`, `{'e',4}`, `{'i',2}`.",
+      "answer": "```c\nvoid firstAndLength(const char *filename, lineInfo info[]) {\n    FILE *f = fopen(filename, \"r\");\n    if (!f) {\n        perror(filename);\n        exit(EXIT_FAILURE);\n    }\n    char line[82];   // 80 chars + '\\n' + '\\0'\n    for (int i = 0; i < 4; i++) {\n        if (fgets(line, sizeof(line), f) == NULL) {\n            fprintf(stderr, \"error: %s has fewer than 4 lines\\n\", filename);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        size_t len = strlen(line);\n        if (len > 0 && line[len - 1] == '\\n') {\n            line[len - 1] = '\\0';\n            len--;\n        }\n        if (len == 0) {\n            fprintf(stderr, \"error: line %d of %s is empty\\n\", i + 1, filename);\n            fclose(f);\n            exit(EXIT_FAILURE);\n        }\n        info[i].firstChar = line[0];\n        info[i].length = (int) len;\n    }\n    fclose(f);\n}\n```",
+      "grading": "- Buffer must hold 80 chars + `'\\n'` + `'\\0'` = 82 (larger is fine; 80 or 81 splits a maximum-length line).\n- Length must exclude the `'\\n'` **only when present**: `strlen(line) - 1` unconditionally is wrong for a final line with no newline (in the example, `ij` would get length 1). Lose a mark.\n- Fewer than 4 lines: `fgets` returns NULL early. Empty line: length 0 after stripping (a lone `\"\\n\"`).\n- Abort = `exit(EXIT_FAILURE)`/`exit(1)` with a message; just `return` is not enough. Character-by-character `fgetc` solutions accepted.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Opens the file and aborts with an informative message if fopen fails"
+        },
+        {
+          "marks": 1,
+          "item": "Reads 4 lines with a big enough buffer and aborts with a message if fewer than 4"
+        },
+        {
+          "marks": 1,
+          "item": "Computes the length without the '\\n', correct whether or not the last line has one"
+        },
+        {
+          "marks": 1,
+          "item": "Aborts with a message if a line is empty"
+        },
+        {
+          "marks": 1,
+          "item": "Stores the first character and length into info[i] for i = 0..3"
+        }
+      ],
+      "variantOf": "f15-6"
+    }
+  ]
+}
