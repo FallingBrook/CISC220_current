@@ -1,0 +1,646 @@
+{
+ "day": 26,
+ "title": "Input and output, part 1",
+ "goal": "Use streams to read and write files: open them with fopen (checking for NULL), write with fputc/fputs/fprintf, read characters with fgetc, lines with fgets and formatted data with fscanf, detect end of file, and close them with fclose.",
+ "topics": [
+  {
+   "id": "c26-files",
+   "title": "Streams, FILE *, and opening, writing and closing files",
+   "notebook": "c/IO.ipynb",
+   "priority": "high",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Streams\n\nAlmost every program reads data (**input**) or writes data (**output**), together called **I/O**. C does not make you talk to the keyboard, the screen or the disk directly. Instead it gives you **streams**.\n\nA **stream** is simply a *source* or a *sink* of characters (or bytes): something you can read characters from one after another, or write characters to one after another. A stream can be connected to a file, to the terminal, or to a pipe, and your code looks the same in every case.\n\nEverything in today's lessons is declared in `<stdio.h>`, the header you have included since Day 1."
+    },
+    {
+     "type": "md",
+     "text": "### The `FILE` type and `FILE *`\n\nIn C a stream is represented by a structure of type **`FILE`** (all capitals). It is an **opaque type**: the standard does not tell you what is inside it, and you never create one yourself. The library creates it and hands you a **pointer** to it, a `FILE *`. Every stream function takes that `FILE *` to know which stream to use.\n\nThink of the `FILE *` as a ticket: you get it when you open a file, you show it every time you read or write, and you hand it back when you close the file."
+    },
+    {
+     "type": "md",
+     "text": "### The three standard streams\n\nWhen `main` starts, three streams are already open for you:\n\n| Name | Bash name | Normally connected to |\n|---|---|---|\n| `stdin` | standard input (`<`, pipes) | the keyboard |\n| `stdout` | standard output (`>`) | the terminal |\n| `stderr` | standard error (`2>`) | the terminal |\n\nYou already use two of them: `printf(...)` writes to `stdout`, and since Day 4 you write error messages with `fprintf(stderr, ...)`. That `f` stands for *file*: `fprintf` is `printf` with a stream as its first argument. So `fprintf(stdout, ...)` is exactly `printf(...)`.\n\n`fputs(str, stream)` writes a whole string to a stream. Unlike `printf` it does **no** formatting (a `%` is just a character) and it adds nothing at the end: you must put the `\\n` in the string yourself."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"1. printf writes to stdout\\n\");\n    fprintf(stdout, \"2. so does fprintf(stdout, ...)\\n\");\n    fprintf(stderr, \"3. this goes to stderr\\n\");\n    fputs(\"4. fputs(str, stdout) adds no newline of its own\\n\", stdout);\n    return 0;\n}",
+     "caption": "streams.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o streams streams.c\n$ ./streams\n1. printf writes to stdout\n2. so does fprintf(stdout, ...)\n3. this goes to stderr\n4. fputs(str, stdout) adds no newline of its own\n$ ./streams > out.txt\n3. this goes to stderr\n$ cat out.txt\n1. printf writes to stdout\n2. so does fprintf(stdout, ...)\n4. fputs(str, stdout) adds no newline of its own",
+     "caption": "Redirecting stdout to a file leaves only the stderr line on the screen, exactly as in Bash."
+    },
+    {
+     "type": "md",
+     "text": "### Three steps: open, use, close\n\nWorking with a file always has the same three steps:\n\n1. **Open** the file. This connects a stream to it and gives you a `FILE *`. The operating system sets aside some resources for the open file.\n2. **Read or write** through that `FILE *`.\n3. **Close** the file. This gives the resources back to the operating system.\n\n### `fopen`\n\n```c\nFILE *fopen(const char *filename, const char *mode);\n```\n\n- `filename` is a path. A relative path like `\"data.txt\"` is relative to the **current working directory** (where you ran the program), not to where the `.c` file is.\n- `mode` is a **string** saying what you want to do (next table).\n- It returns a `FILE *`, or **`NULL`** if the file could not be opened (it does not exist, you lack permission, the directory is missing, ...)."
+    },
+    {
+     "type": "md",
+     "text": "### Modes\n\nThe three basic modes (the notebook also lists `r+`, `w+` and `a+`, which allow reading **and** writing; they are on Day 27):\n\n| Mode | Meaning | If the file exists | If it does not exist |\n|---|---|---|---|\n| `\"r\"` | read | read from the start | **fails** (`NULL`) |\n| `\"w\"` | write | its contents are **destroyed** | a new empty file is created |\n| `\"a\"` | append | every write goes at the **end** | a new empty file is created |\n\nNotice the danger in `\"w\"`: opening a file for writing erases it immediately, even if you never write anything."
+    },
+    {
+     "type": "md",
+     "text": "### Always check for `NULL`, and use `perror`\n\nJust as with `malloc` (Day 18), test the pointer before you use it. For the message, the notebook uses **`perror`** (\"print error\", in `<stdio.h>`): `perror(\"text\")` prints `text`, a colon, a space, and the system's reason for the **last** failure, to `stderr`. (On Linux, `fopen` records that reason in a variable called `errno`; `perror` turns it into words.)"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    char pathname[] = \"no_such_file.txt\";\n    FILE *f = fopen(pathname, \"r\");\n    if (!f) {                       // same as f == NULL\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    printf(\"Successfully opened %s for reading\\n\", pathname);\n    fclose(f);\n    return 0;\n}",
+     "caption": "open_missing.c (the notebook's open.c, with a missing file)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o open_missing open_missing.c\n$ ./open_missing\nfopen() failed: No such file or directory\n$ echo $?\n1"
+    },
+    {
+     "type": "md",
+     "text": "### Writing a file, then `fclose`\n\nThe three output functions take the stream as an argument:\n\n| Function | Writes | Stream argument |\n|---|---|---|\n| `fputc(ch, f)` | one character | **last** |\n| `fputs(str, f)` | a string (without its `'\\0'`) | **last** |\n| `fprintf(f, format, ...)` | formatted text, like `printf` | **first** |\n\nWhen you are done, call `fclose(f)`:\n\n```c\nint fclose(FILE *stream);\n```\n\nOutput to files is collected in memory first and written in big pieces (Day 27 explains this *buffering*). `fclose` makes sure everything still waiting is delivered to the file, then disconnects the stream. After `fclose(f)` the pointer `f` must not be used again. `fclose` returns `EOF` if it fails, but there is usually nothing you can do about it, so its result is normally ignored."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"pets.txt\", \"w\");          // create (or empty) pets.txt\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fputs(\"cat\\n\", f);                         // a whole string\n    fprintf(f, \"%s has %d legs\\n\", \"dog\", 4);  // formatted, like printf\n    fputc('o', f);                             // one character at a time\n    fputc('k', f);\n    fputc('\\n', f);\n    fclose(f);                                 // flush and release the file\n    printf(\"wrote pets.txt\\n\");\n    return 0;\n}",
+     "caption": "write_pets.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o write_pets write_pets.c\n$ ./write_pets\nwrote pets.txt\n$ cat pets.txt\ncat\ndog has 4 legs\nok"
+    },
+    {
+     "type": "md",
+     "text": "Append mode keeps what is already there. Each run of this program adds one line to `log.txt`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: append_log message\\n\");\n        exit(EXIT_FAILURE);\n    }\n    FILE *f = fopen(\"log.txt\", \"a\");    // \"a\": add to the end, never erase\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fprintf(f, \"%s\\n\", argv[1]);\n    fclose(f);\n    return 0;\n}",
+     "caption": "append_log.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o append_log append_log.c\n$ ./append_log first\n$ ./append_log second\n$ cat log.txt\nfirst\nsecond"
+    },
+    {
+     "type": "check",
+     "q": "Which mode would you use to add lines to the end of an existing file without erasing it? And what does `fopen` return if you open a file that does not exist with mode `\"r\"`?",
+     "a": "`\"a\"` (append). With `\"r\"`, a missing file makes `fopen` return `NULL`."
+    },
+    {
+     "type": "why",
+     "q": "Why should every program call `fclose` on files it opened?",
+     "a": "Each open file uses operating system resources; repeatedly opening without closing eventually runs out of them. Also, output written with `fputs`/`fprintf` may still be waiting in memory: `fclose` delivers it to the file. (When `main` returns normally, the library closes open streams for you, but relying on that is poor style and will cost marks.)"
+    },
+    {
+     "type": "pitfall",
+     "text": "The mode is a **string**: `fopen(name, \"r\")`, not `fopen(name, 'r')`. And `fputs`/`fputc` take the stream **last** while `fprintf` takes it **first**: `fputs(\"hi\\n\", f)` but `fprintf(f, \"hi\\n\")`."
+    },
+    {
+     "type": "pitfall",
+     "text": "Opening an important file with `\"w\"` by mistake erases it at once. Use `\"r\"` to read and `\"a\"` to add."
+    },
+    {
+     "type": "try",
+     "text": "Compile and run `write_pets.c`, then `cat pets.txt`. Change `\"w\"` to `\"a\"`, run it twice, and `cat` again: the three lines appear twice. Then run `./open_missing` after `touch no_such_file.txt` and see the success message."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- A **stream** is a source or sink of characters. C represents it with an opaque `FILE` and you always use a `FILE *`.\n- `stdin`, `stdout`, `stderr` are open when `main` starts. `printf(...)` is `fprintf(stdout, ...)`.\n- Open, use, close. `FILE *f = fopen(name, mode);` with mode `\"r\"`, `\"w\"` (erases!) or `\"a\"`.\n- `fopen` returns `NULL` on failure: `if (!f) { perror(\"...\"); exit(EXIT_FAILURE); }`.\n- Write with `fputc(c, f)`, `fputs(s, f)`, `fprintf(f, fmt, ...)`. Finish with `fclose(f)`."
+    }
+   ]
+  },
+  {
+   "id": "c26-chars",
+   "title": "Reading characters with fgetc and detecting end of file",
+   "notebook": "c/IO.ipynb",
+   "priority": "high",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `fgetc`\n\n```c\nint fgetc(FILE *stream);\n```\n\n`fgetc` reads the **next** character from the stream and returns it. Each open file has a **file position** (where the next read happens); `fgetc` moves it forward by one, so calling it again gives the following character.\n\nWhen there is nothing left to read (or an error happens), `fgetc` returns the special constant **`EOF`** (\"end of file\", from `<stdio.h>`; on our system it is `-1`).\n\nThe return type is **`int`**, not `char`. A character comes back as an `unsigned char` value (0 to 255) converted to `int`, and `EOF` is a value **different from all of those**. So store the result in an `int`. (The notebook's examples use `char c`, which happens to work for ordinary text on our machines, but an `int` is the correct and portable choice.)"
+    },
+    {
+     "type": "md",
+     "text": "### The reading loop\n\nThis loop is worth memorizing. It reads, stores, and tests in one line:\n\n```c\nint c;\nwhile ((c = fgetc(f)) != EOF) {\n    // use c\n}\n```\n\nThe inner parentheses matter: `(c = fgetc(f))` first stores the character in `c`, and the value of that assignment is then compared with `EOF`. Without them, `c = fgetc(f) != EOF` would store the result of the comparison (0 or 1) in `c`, because `!=` has higher precedence than `=`."
+    },
+    {
+     "type": "md",
+     "text": "### `feof` and `ferror`: why did it stop?\n\n`EOF` means either \"no more data\" or \"something went wrong\". After the loop, two functions tell them apart. Each returns non-zero (true) or zero (false):\n\n- `feof(f)`: the **end-of-file indicator** is set, i.e. a read tried to go past the end.\n- `ferror(f)`: the **error indicator** is set, i.e. a real I/O error happened.\n\n`fgetc` sets one of these indicators when it returns `EOF`. Note the order: you check `feof` **after** a read has failed, not before reading. The program below (like the notebook's readfile1.c) reads `pets.txt` from lesson 1 and marks each newline. `putchar(c)` writes one character to `stdout`; it is the same as `fputc(c, stdout)`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"pets.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    int c;                       // int, not char: it must be able to hold EOF\n    int count = 0;\n    while ((c = fgetc(f)) != EOF) {\n        if (c == '\\n') {\n            printf(\"<NL>\\n\");\n        }\n        else {\n            putchar(c);\n        }\n        count++;\n    }\n    if (ferror(f)) {\n        fprintf(stderr, \"I/O error\\n\");\n    }\n    else if (feof(f)) {\n        printf(\"end of file after %d characters\\n\", count);\n    }\n    fclose(f);\n    printf(\"EOF is %d\\n\", EOF);\n    return 0;\n}",
+     "caption": "readchars.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o readchars readchars.c\n$ ./readchars\ncat<NL>\ndog has 4 legs<NL>\nok<NL>\nend of file after 22 characters\nEOF is -1",
+     "caption": "22 = 4 (\"cat\" + newline) + 15 + 3: every newline is a character too."
+    },
+    {
+     "type": "md",
+     "text": "### Reading standard input\n\n`stdin` is a stream like any other, so `fgetc(stdin)` reads one character the user typed (or piped in). It is so common that it has a short name: **`getchar()`** is `fgetc(stdin)`. You do not open or close `stdin`.\n\nThis program copies its input to its output in capital letters:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int c;\n    while ((c = getchar()) != EOF) {      // getchar() is fgetc(stdin)\n        if (c >= 'a' && c <= 'z') {\n            c = c - 'a' + 'A';            // Day 5: characters are numbers\n        }\n        putchar(c);                       // putchar(c) is fputc(c, stdout)\n    }\n    return 0;\n}",
+     "caption": "shout.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o shout shout.c\n$ echo \"hello, world 42\" | ./shout\nHELLO, WORLD 42\n$ ./shout < pets.txt\nCAT\nDOG HAS 4 LEGS\nOK"
+    },
+    {
+     "type": "md",
+     "text": "If you run `./shout` with no redirection, it waits for you to type. A line is processed when you press Enter. To signal **end of file from the keyboard**, press **Ctrl-D** at the start of a line: `getchar` then returns `EOF` and the loop ends."
+    },
+    {
+     "type": "check",
+     "q": "Why is `c` declared as `int` instead of `char` in `while ((c = fgetc(f)) != EOF)`?",
+     "a": "`fgetc` returns an `int`: any character as a value 0 to 255, or `EOF`, a value different from every character. An `int` can hold all of these so `EOF` can be told apart from real characters."
+    },
+    {
+     "type": "check",
+     "q": "A file contains exactly `hi` followed by a newline. How many times does the body of the `fgetc` loop run, and what does the next `fgetc` call return?",
+     "a": "3 times (`'h'`, `'i'`, `'\\n'`). The fourth call returns `EOF`, and `feof(f)` becomes true."
+    },
+    {
+     "type": "why",
+     "q": "Why not write `while (!feof(f)) { c = fgetc(f); putchar(c); }`?",
+     "a": "`feof` only becomes true **after** a read has already failed. The last time round, `fgetc` returns `EOF`, and the loop prints it as if it were a character before noticing. Test the value `fgetc` returned instead."
+    },
+    {
+     "type": "pitfall",
+     "text": "Forgetting the inner parentheses: `while (c = fgetc(f) != EOF)` compiles (with a warning) but stores 1 or 0 in `c`, so you print strange characters instead of the file."
+    },
+    {
+     "type": "try",
+     "text": "Run `./shout` with no arguments, type a few lines, then press Ctrl-D. Then try `./shout < shout.c` to shout your own source code."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `fgetc(f)` returns the next character as an `int`, or `EOF` at the end (or on error). Store it in an `int`.\n- Standard loop: `while ((c = fgetc(f)) != EOF) { ... }`.\n- After the loop, `feof(f)` (end reached) or `ferror(f)` (error) says why it stopped.\n- `getchar()` = `fgetc(stdin)`, `putchar(c)` = `fputc(c, stdout)`. Ctrl-D at the keyboard sends end of file."
+    }
+   ]
+  },
+  {
+   "id": "c26-lines",
+   "title": "Lines with fgets and formatted input with fscanf",
+   "notebook": "c/IO.ipynb",
+   "priority": "high",
+   "examNote": "File reading is a favourite long question. **Fall 2016 Q4** (10 points): a complete program that reads the file named on the command line line by line and compares neighbouring lines with `strcmp`. **Fall 2015 Q6** (5 points): a function that reads the first five lines of a file with error checks. **April 2022 Q6(a)** (10 points): `int read_strings(const char *filename, char *s[static 100])` reads every line into an array, stores at most 100, and returns the total count. Today's blank writing item has the same shape with new details. The pattern they all need: `fopen` + `NULL` check, an `fgets` (or `fscanf`) loop, removing the `\\n`, `fclose`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### `fgets`: one line at a time\n\n```c\nchar *fgets(char *str, int count, FILE *stream);\n```\n\n`fgets` reads characters into the array `str` until it has read a **newline**, or reached the **end of the file**, or read **`count - 1`** characters, whichever comes first. Then it adds `'\\0'`. Rules to remember:\n\n- The **newline is kept** in the string (if the line had one).\n- It returns `str` on success and **`NULL`** when nothing could be read (end of file or error). So the loop is `while (fgets(buf, size, f) != NULL)`.\n- `count` is normally the size of the array, so `fgets` can never write past its end. That makes it the safe way to read text.\n\nThe brackets in this program show exactly what each call stored:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    FILE *f = fopen(\"pets.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    char buf[100];\n    int line = 1;\n    while (fgets(buf, 100, f) != NULL) {\n        printf(\"%d: [%s]\\n\", line, buf);  // the brackets show the kept '\\n'\n        line++;\n    }\n    fclose(f);\n    return 0;\n}",
+     "caption": "readlines.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o readlines readlines.c\n$ ./readlines\n1: [cat\n]\n2: [dog has 4 legs\n]\n3: [ok\n]"
+    },
+    {
+     "type": "md",
+     "text": "### Removing the newline\n\nUsually you want the line *without* its `'\\n'` (to compare it, measure it, or print it differently). If the last character is `'\\n'`, overwrite it with `'\\0'`. Check first, because the last line of a file may have no newline, and a line that was too long for the buffer has none either."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    FILE *f = fopen(\"pets.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    char buf[100];\n    while (fgets(buf, 100, f) != NULL) {\n        size_t len = strlen(buf);\n        if (len > 0 && buf[len - 1] == '\\n') {\n            buf[len - 1] = '\\0';          // remove the newline\n        }\n        printf(\"[%s] has length %zu\\n\", buf, strlen(buf));\n    }\n    fclose(f);\n    return 0;\n}",
+     "caption": "chop.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o chop chop.c\n$ ./chop\n[cat] has length 3\n[dog has 4 legs] has length 14\n[ok] has length 2"
+    },
+    {
+     "type": "md",
+     "text": "### Lines longer than the buffer\n\nIf a line does not fit, `fgets` stops after `count - 1` characters and the **next** call continues with the rest of the same line. With a 6-character array, at most 5 characters fit:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    FILE *f = fopen(\"pets.txt\", \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    char buf[6];                      // room for at most 5 characters + '\\0'\n    while (fgets(buf, 6, f) != NULL) {\n        printf(\"[%s]\\n\", buf);\n    }\n    fclose(f);\n    return 0;\n}",
+     "caption": "smallbuf.c"
+    },
+    {
+     "type": "code",
+     "code": "$ ./smallbuf\n[cat\n]\n[dog h]\n[as 4 ]\n[legs\n]\n[ok\n]",
+     "caption": "\"dog has 4 legs\" was split over three calls. Only the last piece ends with a newline."
+    },
+    {
+     "type": "md",
+     "text": "To read standard input line by line, pass `stdin`: `fgets(buf, 100, stdin)`."
+    },
+    {
+     "type": "md",
+     "text": "### Formatted I/O: `fscanf` and `fprintf`\n\nThe notebook puts it in two sentences:\n\n- `fscanf` is identical to `sscanf` (Day 17) except that it reads from a **stream** instead of a string.\n- `fprintf` is identical to `printf` except that it writes to a stream instead of standard output.\n\nSo everything you know about `sscanf` carries over: the format string, `&` in front of number variables (no `&` for a `char` array), `%d`, `%lf`, `%s` (a word, stopping at whitespace), a width like `%19s` to protect the array, and spaces/newlines being skipped before numbers and words. The return value is also the same:\n\n- the number of variables successfully assigned, or\n- **`EOF`** if the input ended before the first conversion.\n\nThe usual loop asks for all the fields at once and stops as soon as fewer arrive: `while (fscanf(f, \"%19s %d\", name, &mark) == 2)`. This program writes a small data file with `fprintf`, then reads it back with `fscanf`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    // step 1: write a small data file with fprintf\n    FILE *out = fopen(\"marks.txt\", \"w\");\n    if (!out) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fprintf(out, \"%s %d\\n\", \"alice\", 81);\n    fprintf(out, \"%s %d\\n\", \"bob\", 67);\n    fprintf(out, \"%s %d\\n\", \"chen\", 90);\n    fclose(out);\n\n    // step 2: read it back with fscanf\n    FILE *in = fopen(\"marks.txt\", \"r\");\n    if (!in) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    char name[20];\n    int mark;\n    int count = 0;\n    int total = 0;\n    while (fscanf(in, \"%19s %d\", name, &mark) == 2) {\n        printf(\"%-6s %3d\\n\", name, mark);\n        count++;\n        total += mark;\n    }\n    fclose(in);\n    if (count > 0) {\n        printf(\"average = %.2f\\n\", (double) total / count);\n    }\n    return 0;\n}",
+     "caption": "marks.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o marks marks.c\n$ ./marks\nalice   81\nbob     67\nchen    90\naverage = 79.33\n$ cat marks.txt\nalice 81\nbob 67\nchen 90"
+    },
+    {
+     "type": "md",
+     "text": "### End of input or bad input?\n\nThe value that stopped the loop tells you why: `EOF` means the data ran out normally, `0` means `fscanf` met something that does not match (here, letters where a number was expected). A failed match does **not** move past the bad text, so looping again would fail forever: stop and report it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n// writes text into the file name, then reads ints from it with fscanf\nvoid scan_all(const char *name, const char *text) {\n    FILE *f = fopen(name, \"w\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fputs(text, f);\n    fclose(f);\n\n    f = fopen(name, \"r\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    int x;\n    int n;\n    while ((n = fscanf(f, \"%d\", &x)) == 1) {\n        printf(\"read %d\\n\", x);\n    }\n    printf(\"fscanf returned %d\\n\", n);\n    fclose(f);\n}\n\nint main(void) {\n    scan_all(\"good.txt\", \"10 20\\n30\\n\");\n    scan_all(\"bad.txt\", \"10 20\\nabc 30\\n\");\n    return 0;\n}",
+     "caption": "scanret.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o scanret scanret.c\n$ ./scanret\nread 10\nread 20\nread 30\nfscanf returned -1\nread 10\nread 20\nfscanf returned 0"
+    },
+    {
+     "type": "check",
+     "q": "`buf` is `char buf[10];` and the file's next line is `abcdefghijklm` plus a newline. What does `fgets(buf, 10, f)` store, and does it include the newline?",
+     "a": "It stores the first 9 characters, `abcdefghi`, followed by `'\\0'`. No newline: the next call continues with `jklm\\n`."
+    },
+    {
+     "type": "check",
+     "q": "Write the loop header that reads pairs like `oak 12` (a word of at most 29 characters and an `int`) from `f` into `char tree[30]` and `int h` until a pair cannot be read.",
+     "a": "`while (fscanf(f, \"%29s %d\", tree, &h) == 2)`"
+    },
+    {
+     "type": "why",
+     "q": "Why compare with `== 2` rather than `!= EOF` in the `fscanf` loop?",
+     "a": "`fscanf` can also return 0 or 1 when the data does not match. With `!= EOF` the loop would keep going with old or garbage values, and since a failed match does not consume the bad text, it would loop forever. `== 2` continues only when both variables really got new values."
+    },
+    {
+     "type": "pitfall",
+     "text": "`fgets` keeps the `'\\n'`. Forgetting this makes `strcmp(buf, \"yes\")` fail for the line `yes`, because `buf` holds `\"yes\\n\"`."
+    },
+    {
+     "type": "pitfall",
+     "text": "`%s` in `fscanf` reads one **word**, not a line: `\"dog has 4 legs\"` gives `dog`. Use `fgets` for whole lines."
+    },
+    {
+     "type": "try",
+     "text": "Edit `marks.txt` by hand (add a line `dee 75`, then a line `eve x`) and change `marks.c` so it only reads (delete step 1). What average do you get, and where does reading stop?"
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `fgets(buf, sizeof buf, f)` reads one line (at most size - 1 characters), **keeps the `\\n`**, adds `'\\0'`, and returns `NULL` at the end.\n- Remove the newline: `if (len > 0 && buf[len - 1] == '\\n') buf[len - 1] = '\\0';`.\n- A long line comes back in several pieces.\n- `fscanf(f, ...)` = `sscanf` on a stream; `fprintf(f, ...)` = `printf` to a stream.\n- Loop with `== number of fields`; afterwards `EOF` means the input ended, a smaller number means bad data."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c26-fc-01",
+   "topic": "c26-files",
+   "front": "What is a stream?",
+   "back": "A source or sink of characters (or bytes) that a program reads from or writes to one after another. It can be connected to a file, the terminal, or a pipe."
+  },
+  {
+   "id": "c26-fc-02",
+   "topic": "c26-files",
+   "front": "What type represents a stream in C, and how do you use it?",
+   "back": "The opaque type `FILE`. You never create one: library functions give you a `FILE *` and every stream function takes that pointer."
+  },
+  {
+   "id": "c26-fc-03",
+   "topic": "c26-files",
+   "front": "Name the three standard streams and what `printf` uses.",
+   "back": "`stdin`, `stdout`, `stderr` (open when `main` starts). `printf(...)` writes to `stdout`; it equals `fprintf(stdout, ...)`."
+  },
+  {
+   "id": "c26-fc-04",
+   "topic": "c26-files",
+   "front": "Declaration of `fopen` and what it returns on failure.",
+   "back": "`FILE *fopen(const char *filename, const char *mode);` It returns `NULL` if the file cannot be opened."
+  },
+  {
+   "id": "c26-fc-05",
+   "topic": "c26-files",
+   "front": "Modes `\"r\"`, `\"w\"`, `\"a\"`: what happens if the file exists / does not exist?",
+   "back": "`r`: read from the start / fail. `w`: contents destroyed / created. `a`: writes go at the end / created."
+  },
+  {
+   "id": "c26-fc-06",
+   "topic": "c26-files",
+   "front": "What does `perror(\"fopen\")` print, and where?",
+   "back": "To `stderr`: `fopen: ` followed by the system's reason for the last failure, e.g. `fopen: No such file or directory`."
+  },
+  {
+   "id": "c26-fc-07",
+   "topic": "c26-files",
+   "front": "Argument order of `fputc`, `fputs`, `fprintf`.",
+   "back": "`fputc(ch, f)` and `fputs(str, f)`: stream **last**. `fprintf(f, format, ...)`: stream **first**."
+  },
+  {
+   "id": "c26-fc-08",
+   "topic": "c26-files",
+   "front": "What does `fclose(f)` do?",
+   "back": "Delivers any output still waiting in the buffer, disconnects the stream from the file and releases the OS resources. `f` must not be used afterwards."
+  },
+  {
+   "id": "c26-fc-09",
+   "topic": "c26-chars",
+   "front": "What does `fgetc` return, and why is its type `int`?",
+   "back": "The next character as an `unsigned char` converted to `int`, or `EOF` at the end of the file or on error. `int` can hold every character value **and** `EOF`, which differs from all of them."
+  },
+  {
+   "id": "c26-fc-10",
+   "topic": "c26-chars",
+   "front": "Write the standard character-reading loop.",
+   "back": "`int c;`\n`while ((c = fgetc(f)) != EOF) { ... }`"
+  },
+  {
+   "id": "c26-fc-11",
+   "topic": "c26-chars",
+   "front": "`feof(f)` versus `ferror(f)`.",
+   "back": "Both are tested after a read returned `EOF`. `feof` is true if the end of the file was reached; `ferror` is true if an I/O error happened."
+  },
+  {
+   "id": "c26-fc-12",
+   "topic": "c26-chars",
+   "front": "`getchar()` and `putchar(c)` are short for...?",
+   "back": "`fgetc(stdin)` and `fputc(c, stdout)`."
+  },
+  {
+   "id": "c26-fc-13",
+   "topic": "c26-chars",
+   "front": "How do you send end of file from the keyboard on Linux?",
+   "back": "Press Ctrl-D at the start of a line."
+  },
+  {
+   "id": "c26-fc-14",
+   "topic": "c26-lines",
+   "front": "What does `fgets(buf, n, f)` read, and what does it return?",
+   "back": "Up to and including a newline, or to end of file, or at most `n - 1` characters; then adds `'\\0'`. Returns `buf`, or `NULL` if nothing could be read."
+  },
+  {
+   "id": "c26-fc-15",
+   "topic": "c26-lines",
+   "front": "Does `fgets` keep the newline? How do you remove it?",
+   "back": "Yes. `size_t len = strlen(buf); if (len > 0 && buf[len - 1] == '\\n') buf[len - 1] = '\\0';`"
+  },
+  {
+   "id": "c26-fc-16",
+   "topic": "c26-lines",
+   "front": "How are `fscanf` and `fprintf` related to functions you know?",
+   "back": "`fscanf` is `sscanf` reading from a stream instead of a string; `fprintf` is `printf` writing to a stream instead of `stdout`."
+  },
+  {
+   "id": "c26-fc-17",
+   "topic": "c26-lines",
+   "front": "What can `fscanf` return, and what does each mean?",
+   "back": "The number of variables assigned (all of them = success, fewer = data did not match), or `EOF` if the input ended before the first conversion."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c26-q-01",
+   "topic": "c26-files",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"q3.txt\", \"w\");\n    fputs(\"first\\n\", f);\n    fclose(f);\n\n    f = fopen(\"q3.txt\", \"w\");\n    fputs(\"second\\n\", f);\n    fclose(f);\n\n    f = fopen(\"q3.txt\", \"a\");\n    fputs(\"third\\n\", f);\n    fclose(f);\n\n    f = fopen(\"q3.txt\", \"r\");\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        putchar(c);\n    }\n    fclose(f);\n    return 0;\n}",
+   "answer": "second\nthird",
+   "explain": "The second `fopen(..., \"w\")` destroys `first`. Mode `\"a\"` then adds `third` after `second`. Reading back prints both remaining lines."
+  },
+  {
+   "id": "c26-q-02",
+   "topic": "c26-files",
+   "type": "mcq",
+   "q": "Which call opens `scores.txt` so that new text is added after the existing contents?",
+   "options": [
+    "`fopen(\"scores.txt\", \"w\")`",
+    "`fopen(\"scores.txt\", \"a\")`",
+    "`fopen(\"scores.txt\", 'a')`",
+    "`fopen(\"scores.txt\", \"r\")`"
+   ],
+   "answer": 1,
+   "explain": "`\"a\"` appends. `\"w\"` erases the file first, `\"r\"` only reads, and `'a'` is a `char`, not the string the mode must be."
+  },
+  {
+   "id": "c26-q-03",
+   "topic": "c26-files",
+   "type": "short",
+   "q": "Write the statements that open the file whose name is in `argv[1]` for reading and, if that fails, print the system's reason with `perror` and exit with status 1.",
+   "answer": "```c\nFILE *f = fopen(argv[1], \"r\");\nif (f == NULL) {\n    perror(argv[1]);\n    exit(EXIT_FAILURE);\n}\n```",
+   "explain": "`fopen` returns `NULL` on failure. `perror` adds `: No such file or directory` (or another reason) to your text and writes it to `stderr`. `exit` needs `<stdlib.h>`; `EXIT_FAILURE` is 1 on Linux."
+  },
+  {
+   "id": "c26-q-04",
+   "topic": "c26-files",
+   "type": "short",
+   "q": "A program writes 3 lines to a file with `fprintf`, then the programmer deletes the `fclose(f);` line. Give two reasons this is a bad idea.",
+   "answer": "(1) The open file keeps holding operating system resources; a program that opens many files without closing them eventually cannot open any more. (2) Output may still be waiting in the stream's buffer; `fclose` is what guarantees it is delivered to the file (for example before the program reopens the file to read it).",
+   "explain": "Returning from `main` does close streams, but code that reopens the same file, or runs for a long time, depends on `fclose` being called. Exams expect it."
+  },
+  {
+   "id": "c26-q-05",
+   "topic": "c26-chars",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"q4.txt\", \"w\");\n    fputs(\"a b\\nc\\n\", f);\n    fclose(f);\n\n    f = fopen(\"q4.txt\", \"r\");\n    int c;\n    int n = 0;\n    while ((c = fgetc(f)) != EOF) {\n        if (c != ' ' && c != '\\n') {\n            n++;\n        }\n    }\n    printf(\"%d %d\\n\", n, feof(f) != 0);\n    fclose(f);\n    return 0;\n}",
+   "answer": "3 1",
+   "explain": "The file holds `a`, space, `b`, newline, `c`, newline. Only `a`, `b`, `c` are counted. After the loop ended because of the end of the file, `feof(f)` is non-zero, so `feof(f) != 0` is 1."
+  },
+  {
+   "id": "c26-q-06",
+   "topic": "c26-chars",
+   "type": "short",
+   "q": "This loop is meant to print a file. Find the bug and fix it.\n\n```c\nchar c;\nwhile (c = fgetc(f) != EOF) {\n    putchar(c);\n}\n```",
+   "answer": "Missing parentheses: `!=` is done first, so `c` gets 1 (or 0) instead of the character, so the program prints the invisible character with code 1 once for each character in the file. Write `while ((c = fgetc(f)) != EOF)`. Also declare `int c;` so that `EOF` can be told apart from every real character.",
+   "explain": "`gcc -Wall` warns: *suggest parentheses around assignment used as truth value*. Read warnings: they are usually bugs."
+  },
+  {
+   "id": "c26-q-07",
+   "topic": "c26-chars",
+   "type": "mcq",
+   "q": "Which is equivalent to `getchar()`?",
+   "options": [
+    "`fgetc(stdout)`",
+    "`fgetc(stdin)`",
+    "`fgets(stdin)`",
+    "`fputc(stdin)`"
+   ],
+   "answer": 1,
+   "explain": "`getchar()` reads one character from standard input, which is the stream `stdin`."
+  },
+  {
+   "id": "c26-q-08",
+   "topic": "c26-lines",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"q1.txt\", \"w\");\n    fputs(\"abcdefg\\nhi\\n\", f);\n    fclose(f);\n\n    f = fopen(\"q1.txt\", \"r\");\n    char buf[4];\n    while (fgets(buf, 4, f) != NULL) {\n        printf(\"[%s]\", buf);\n    }\n    printf(\"\\n\");\n    fclose(f);\n    return 0;\n}",
+   "answer": "[abc][def][g\n][hi\n]",
+   "explain": "With a 4-element array, `fgets` reads at most 3 characters. `abcdefg` is split into `abc`, `def`, then `g` plus its newline (the newline is kept). `hi\\n` fits in one call. The brackets show where each call's string starts and ends."
+  },
+  {
+   "id": "c26-q-09",
+   "topic": "c26-lines",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"q5.txt\", \"w\");\n    fprintf(f, \"%s:%d\\n\", \"ab\", 12);\n    fputs(\"xyz\", f);\n    fclose(f);\n\n    f = fopen(\"q5.txt\", \"r\");\n    char buf[50];\n    while (fgets(buf, 50, f) != NULL) {\n        printf(\"%zu \", strlen(buf));\n    }\n    printf(\"\\n\");\n    fclose(f);\n    return 0;\n}",
+   "answer": "6 3 ",
+   "explain": "The file is `ab:12\\n` then `xyz` with no newline. The first line is 6 characters **including** the `\\n` that `fgets` keeps; the last line has no newline, so its length is 3. The output ends with a space and a newline."
+  },
+  {
+   "id": "c26-q-10",
+   "topic": "c26-lines",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"q2.txt\", \"w\");\n    fprintf(f, \"%d %d five %d\\n\", 3, 4, 6);\n    fclose(f);\n\n    f = fopen(\"q2.txt\", \"r\");\n    int x;\n    int sum = 0;\n    int n;\n    while ((n = fscanf(f, \"%d\", &x)) == 1) {\n        sum += x;\n    }\n    printf(\"sum = %d, n = %d\\n\", sum, n);\n    fclose(f);\n    return 0;\n}",
+   "answer": "sum = 7, n = 0",
+   "explain": "`3` and `4` are read and added. At `five`, `%d` cannot match, so `fscanf` returns 0 (not `EOF`) and the loop stops. The `6` after it is never read."
+  },
+  {
+   "id": "c26-q-11",
+   "topic": "c26-lines",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\n// (NULL checks left out to keep the quiz short)\nint main(void) {\n    FILE *f = fopen(\"q6.txt\", \"w\");\n    fputs(\"ann 7\\nbo 12\\ncy 5\\n\", f);\n    fclose(f);\n\n    f = fopen(\"q6.txt\", \"r\");\n    char name[20];\n    int k;\n    int best = 0;\n    char who[20] = \"nobody\";\n    while (fscanf(f, \"%19s %d\", name, &k) == 2) {\n        if (k > best) {\n            best = k;\n            sprintf(who, \"%s\", name);\n        }\n    }\n    fclose(f);\n    printf(\"%s %d\\n\", who, best);\n    return 0;\n}",
+   "answer": "bo 12",
+   "explain": "Each `fscanf` reads one name and one number (newlines are skipped like spaces). The largest number is 12, read with `bo`, and `sprintf` (Day 17) copied the name into `who`. The loop ends when `fscanf` returns `EOF`."
+  },
+  {
+   "id": "c26-q-12",
+   "topic": "c26-lines",
+   "type": "short",
+   "q": "After `fgets(line, 100, f)` read the line `yes` from a file, `strcmp(line, \"yes\")` is not 0. Why, and what is the fix?",
+   "answer": "`fgets` keeps the newline, so `line` holds `\"yes\\n\"`. Remove it first: `size_t n = strlen(line); if (n > 0 && line[n - 1] == '\\n') line[n - 1] = '\\0';` and then compare.",
+   "explain": "This is the most common `fgets` bug, and exactly the step needed in exam questions that compare or measure lines (Fall 2016 Q4, April 2022 Q6)."
+  },
+  {
+   "id": "c26-q-13",
+   "topic": "c26-lines",
+   "type": "short",
+   "q": "You want to read a file of whole sentences, one per line, like `the cat sat`. Should you use `fscanf(f, \"%99s\", buf)` or `fgets(buf, 100, f)`? Explain.",
+   "answer": "`fgets`. `%s` stops at whitespace, so `fscanf` would read `the`, then `cat`, then `sat` as three separate words. `fgets` reads the whole line (with its newline).",
+   "explain": "Use `fscanf` for data made of separate fields (words, numbers); use `fgets` for lines."
+  }
+ ],
+ "write": [
+  {
+   "id": "c26-w-01",
+   "topic": "c26-chars",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write a function `int count_lines(const char *filename)` that returns the number of lines in the file, or -1 if the file cannot be opened. A last line that does not end with a newline still counts. Use `fgetc`. Include a `main` that creates a test file and calls the function on it and on a missing file.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Returns the number of lines in the file, or -1 if it cannot be opened.\n// A last line without a '\\n' still counts as a line.\nint count_lines(const char *filename) {\n    FILE *f = fopen(filename, \"r\");\n    if (f == NULL) {\n        return -1;\n    }\n    int lines = 0;\n    int prev = '\\n';              // pretend the file starts after a newline\n    int c;\n    while ((c = fgetc(f)) != EOF) {\n        if (c == '\\n') {\n            lines++;\n        }\n        prev = c;\n    }\n    if (prev != '\\n') {           // last line had no newline\n        lines++;\n    }\n    fclose(f);\n    return lines;\n}\n\nint main(void) {\n    FILE *f = fopen(\"three.txt\", \"w\");\n    if (!f) {\n        perror(\"fopen() failed\");\n        exit(EXIT_FAILURE);\n    }\n    fputs(\"one\\ntwo\\nthree\", f);  // no newline at the very end\n    fclose(f);\n\n    printf(\"three.txt: %d\\n\", count_lines(\"three.txt\"));\n    printf(\"missing.txt: %d\\n\", count_lines(\"missing.txt\"));\n    return 0;\n}",
+   "explain": "Open with `\"r\"` and return -1 on `NULL`, as the prompt asks (the function reports the problem; it does not exit). Read with the standard `int c` / `fgetc` / `EOF` loop and count the newlines. The tricky part is a last line without `\\n`: remember the previous character in `prev`. It starts as `'\\n'` so that an **empty** file gives 0, not 1. After the loop, if the last character read was not a newline there is one more line. Close the file before returning. `main` builds `three.txt` with `fputs` so the test does not depend on files that may not exist.\n\n```\n$ gcc -std=c17 -Wall -o count_lines count_lines.c\n$ ./count_lines\nthree.txt: 3\nmissing.txt: -1\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`fopen(filename, \"r\")` and returns -1 when it gives `NULL`"
+    },
+    {
+     "marks": 1,
+     "item": "`int c` and the loop `while ((c = fgetc(f)) != EOF)`"
+    },
+    {
+     "marks": 1,
+     "item": "counts `'\\n'` characters"
+    },
+    {
+     "marks": 1,
+     "item": "handles a last line without newline (and an empty file gives 0)"
+    },
+    {
+     "marks": 1,
+     "item": "calls `fclose` and returns the count"
+    }
+   ],
+   "pitfalls": [
+    "Declaring `char c`.",
+    "Counting only newlines: a file ending without `\\n` is one short.",
+    "Returning before `fclose`.",
+    "Testing `feof(f)` before reading instead of testing what `fgetc` returned."
+   ]
+  },
+  {
+   "id": "c26-w-02",
+   "topic": "c26-lines",
+   "stage": "faded",
+   "marks": 6,
+   "prompt": "Complete `longest_line`. It copies the longest line of the file (without its newline) into `longest` and returns that line's number (counting from 1; the first one if several lines tie). It returns 0 for an empty file and -1 if the file cannot be opened. Every line has fewer than 99 characters. For a file with the lines `zebra`, `anteater`, `bat`, `flamingo` it stores `anteater` and returns 2.",
+   "starter": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n// Copies the longest line of the file (without its '\\n') into longest and\n// returns its line number (the first one if several tie). Returns 0 for an\n// empty file and -1 if the file cannot be opened. Lines are shorter than 99 chars.\nint longest_line(const char *filename, char longest[static 100]) {\n    FILE *f = ____;\n    if (____) {\n        return -1;\n    }\n    char buf[100];\n    int line = 0;\n    int best_line = 0;\n    size_t best_len = 0;\n    longest[0] = '\\0';\n    while (____) {\n        line++;\n        size_t len = strlen(buf);\n        if (____) {\n            ____;\n            len--;\n        }\n        if (best_line == 0 || len > best_len) {\n            best_len = len;\n            best_line = line;\n            ____;\n        }\n    }\n    ____;\n    return best_line;\n}",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n// Copies the longest line of the file (without its '\\n') into longest and\n// returns its line number (the first one if several tie). Returns 0 for an\n// empty file and -1 if the file cannot be opened. Lines are shorter than 99 chars.\nint longest_line(const char *filename, char longest[static 100]) {\n    FILE *f = fopen(filename, \"r\");\n    if (!f) {\n        return -1;\n    }\n    char buf[100];\n    int line = 0;\n    int best_line = 0;\n    size_t best_len = 0;\n    longest[0] = '\\0';\n    while (fgets(buf, 100, f) != NULL) {\n        line++;\n        size_t len = strlen(buf);\n        if (len > 0 && buf[len - 1] == '\\n') {\n            buf[len - 1] = '\\0';\n            len--;\n        }\n        if (best_line == 0 || len > best_len) {\n            best_len = len;\n            best_line = line;\n            strcpy(longest, buf);\n        }\n    }\n    fclose(f);\n    return best_line;\n}",
+   "explain": "Open with `\"r\"` and check for `NULL`. Read with `fgets(buf, 100, f) != NULL`. Strip the newline only when it is there. The test `best_line == 0 || len > best_len` takes the first line unconditionally (so a file whose lines are all empty still returns 1), and uses `>` rather than `>=` so a later line of the same length does not replace an earlier one. Copy with `strcpy` (Day 16): `longest = buf` would not compile, arrays cannot be assigned. Close the file before returning. Tested with the file from the prompt:\n\n```\nline 2: anteater\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`fopen(filename, \"r\")`, -1 on `NULL`"
+    },
+    {
+     "marks": 1,
+     "item": "`fgets(buf, 100, f) != NULL` loop with a line counter"
+    },
+    {
+     "marks": 1,
+     "item": "removes the newline only if present"
+    },
+    {
+     "marks": 1,
+     "item": "keeps the first longest line (`>` not `>=`)"
+    },
+    {
+     "marks": 1,
+     "item": "copies with `strcpy(longest, buf)`"
+    },
+    {
+     "marks": 1,
+     "item": "`fclose(f)` and returns the line number"
+    }
+   ],
+   "pitfalls": [
+    "Comparing lengths without removing the newline: lines that end with `\\n` count one character too many, so they beat an equally long last line that has no newline.",
+    "`>=` reports the last of several equally long lines.",
+    "`longest = buf;` (arrays cannot be assigned) or keeping a pointer to `buf`, which is overwritten by the next `fgets`."
+   ]
+  },
+  {
+   "id": "c26-w-03",
+   "topic": "c26-lines",
+   "stage": "blank",
+   "marks": 8,
+   "prompt": "Write the function\n\n```c\nint read_ints(const char *filename, int a[static 50])\n```\n\nthat opens the file named `filename`, reads all of the integers in it, and closes the file. The integers are separated by spaces and/or newlines (any number per line). Store the integers in `a` in the order they appear (the first in `a[0]`, and so on), but store **at most 50**; the function returns the **total** number of integers in the file, even if it is more than 50. Reading stops at the end of the file or at the first thing that is not an integer. If the file cannot be opened, print an informative error message to standard error and exit the program with a failure status.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nint read_ints(const char *filename, int a[static 50]) {\n    FILE *f = fopen(filename, \"r\");\n    if (f == NULL) {\n        perror(filename);\n        exit(EXIT_FAILURE);\n    }\n    int count = 0;\n    int x;\n    while (fscanf(f, \"%d\", &x) == 1) {\n        if (count < 50) {\n            a[count] = x;\n        }\n        count++;\n    }\n    fclose(f);\n    return count;\n}",
+   "explain": "Same shape as April 2022 Q6(a), with integers instead of lines. The counter `count` keeps going past 50, but only the first 50 values are stored, so `a` never overflows. `fscanf(...) == 1` stops both at the end of the file (`EOF`) and at non-numeric text (0). Tested with a file of the numbers 10, 20, ..., 600 (60 values, 8 per line), and with a missing file:\n\n```\n$ ./read_ints\nn = 60, a[0] = 10, a[49] = 500\nmissing.txt: No such file or directory\n$ echo $?\n1\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`fopen(filename, \"r\")`"
+    },
+    {
+     "marks": 2,
+     "item": "on `NULL`: message to `stderr` (`perror` or `fprintf(stderr, ...)`) and `exit(EXIT_FAILURE)`"
+    },
+    {
+     "marks": 2,
+     "item": "loop `while (fscanf(f, \"%d\", &x) == 1)` (the `&`, the `== 1`)"
+    },
+    {
+     "marks": 1,
+     "item": "stores only while `count < 50`, but counts every integer"
+    },
+    {
+     "marks": 1,
+     "item": "`fclose(f)`"
+    },
+    {
+     "marks": 1,
+     "item": "returns the total count"
+    }
+   ],
+   "pitfalls": [
+    "`fscanf(f, \"%d\", x)` without `&`.",
+    "`while (fscanf(...) != EOF)`: loops forever on a non-number.",
+    "Stopping at 50 and returning 50 instead of the real total.",
+    "Writing `a[count]` before checking `count < 50`.",
+    "Forgetting `fclose`."
+   ]
+  }
+ ]
+}
