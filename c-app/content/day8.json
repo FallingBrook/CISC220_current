@@ -1,0 +1,542 @@
+{
+ "day": 8,
+ "title": "Declarations and integers in depth",
+ "goal": "Read and write declarations, split a program into header and source files, know each integer type's size and range, and predict two's complement values, unsigned wrap-around and signed/unsigned conversions.",
+ "topics": [
+  {
+   "id": "c8-declarations",
+   "title": "Declarations, definitions and header files",
+   "notebook": "c/declarations.ipynb",
+   "priority": "medium",
+   "examNote": "Exam questions give you function headers and declarations to complete, and old exams sometimes declare a function that is *defined in another file that will be linked with this one*. Know the difference between a declaration and a definition, and be able to write a header file with an include guard.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Declaring versus defining\n\nA **declaration** tells the compiler that a name exists and what its type is, so it can check that you use the name correctly. You have written many already:\n\n```c\nint x;                 // x is an int\nint a, b, c;           // three ints in one declaration\nint n = 5, m;          // n starts at 5; m is NOT initialised\nconst int days = 7;    // the const is part of the type: const int\n```\n\nNote the third line: `= 5` belongs only to `n`. Each name in a list gets its own initialiser or none. An uninitialised local variable holds no particular value, and reading it is undefined behaviour (the notebook's `var1.c` prints garbage that changes from run to run).\n\nA **definition** is a declaration that also creates the thing. For a variable, the notebook uses *definition* for a declaration that gives an initial value. For a function, the definition is the header plus the body `{ ... }`. A function **declaration** (Day 4 called it a *prototype*) is the header followed by `;`:\n\n```c\ndouble max2(double x, double y);              // declaration: no body\n\ndouble max2(double x, double y) {             // definition: has a body\n    if (x >= y) {\n        return x;\n    }\n    return y;\n}\n```"
+    },
+    {
+     "type": "md",
+     "text": "### Reading a declaration\n\nStart at the **name**. Read what is on its **right** first (`[n]` means *array of n*, `( ... )` means *function taking ... and returning*), then what is on its **left** (`*` means *pointer to*, then the type).\n\n| declaration | read it as |\n|---|---|\n| `unsigned long n;` | n is an unsigned long |\n| `int a[5];` | a is an array of 5 int |\n| `double max2(double x, double y);` | max2 is a function taking two doubles and returning a double |\n| `char *argv[]` | argv is an array of pointers to char (each one is a string) |\n| `const int x = 1;` | x is a const int: read only |\n\nPointers get their own days later (Day 11); for now just read `*` as *pointer to*. One trap: the `*` belongs to the name next to it, not to the type. `int *p, q;` makes `p` a pointer to int but `q` a plain `int`."
+    },
+    {
+     "type": "check",
+     "q": "Read these declarations aloud: `long totals[12];` and `int count(const char s[], char c);`. In `int i = 0, j;`, what is `j` at the start?",
+     "a": "`totals` is an array of 12 long. `count` is a function taking a string `s` (a const char array) and a char `c`, and returning an int. `j` is not initialised: only `i` gets the `= 0`."
+    },
+    {
+     "type": "md",
+     "text": "### Using a function defined in another file\n\nIf a file only *declares* a function, the compiler can still compile that file: it trusts the declaration and leaves a note for the linker (Day 1: `gcc -c` stops after making the `.o` object file). The **linker** later joins the object files and connects each call to the one definition.\n\nThe notebook's example splits a program: `max2.c` defines `max2`, and `uses_max2.c` calls it. Below, the same idea with a function `min2`. The best way to share a declaration is a **header file** (`.h`) that each `.c` file includes:\n\n```c\n#ifndef MIN2_H\n#define MIN2_H\n\n// min2.h\n\nint min2(int x, int y);\n\n#endif\n```\n\n```c\n// min2.c\n\n#include \"min2.h\"\n\nint min2(int x, int y) {\n    if (x <= y) {\n        return x;\n    }\n    return y;\n}\n```\n\n```c\n// usemin.c\n\n#include <stdio.h>\n#include \"min2.h\"\n\nint main(void) {\n    printf(\"%d\\n\", min2(min2(7, -2), 4));\n    return 0;\n}\n```\n\nYour own headers use quotes, `#include \"min2.h\"` (look in this folder); library headers use angle brackets, `<stdio.h>`. Compile each file with `-c`, then link the object files:\n\n```\n$ gcc -Wall -c min2.c\n$ gcc -Wall -c usemin.c\n$ gcc -o usemin usemin.o min2.o\n$ ./usemin\n-2\n```\n\nOr all at once: `gcc -Wall -o usemin min2.c usemin.c`. If you forget `min2.c`, the compile works but the **link** fails:\n\n```\n$ gcc -Wall -o usemin usemin.c\n/usr/bin/ld: /tmp/ccuqatKr.o: in function `main':\nusemin.c:(.text+0x13): undefined reference to `min2'\ncollect2: error: ld returned 1 exit status\n```"
+    },
+    {
+     "type": "md",
+     "text": "### The include guard, and why not `#include \"min2.c\"`\n\n`#ifndef MIN2_H` means *if MIN2_H is not defined yet, keep the lines up to `#endif`*. The next line, `#define MIN2_H`, defines it. So the first time the header is included its declarations are kept, and if it is included again in the same file they are skipped. The name is the file name in capitals with `.` changed to `_`.\n\nA common beginner mistake is `#include \"min2.c\"`. `#include` pastes the whole file in, so the **definition** of `min2` is now in two places. Compiling with `min2.c` as well gives a linker error, because a function name can be defined only once in the whole program (functions have **external linkage**, unless marked `static`):\n\n```\n$ gcc -Wall -o bad min2.c badmin.c\n/usr/bin/ld: /tmp/ccJ1G0mv.o: in function `min2':\nbadmin.c:(.text+0x0): multiple definition of `min2'; /tmp/ccGz7uDY.o:min2.c:(.text+0x0): first defined here\ncollect2: error: ld returned 1 exit status\n```\n\nRule: **headers hold declarations; `.c` files hold definitions; include only `.h` files.**"
+    },
+    {
+     "type": "why",
+     "q": "Why put the declaration in a header instead of typing it at the top of each file that uses the function?",
+     "a": "One copy means one place to change. If you typed the declaration in several files and later changed the function's parameters, a file with an old copy would still compile but call the function wrongly. And `min2.c` includes its own header, so the compiler checks that the definition matches the declaration."
+    },
+    {
+     "type": "try",
+     "text": "Make the three files `min2.h`, `min2.c` and `usemin.c` from this lesson in one folder. Run `gcc -Wall -c min2.c`, `gcc -Wall -c usemin.c`, `ls *.o`, then `gcc -o usemin usemin.o min2.o` and `./usemin`. Then try `gcc -Wall -o usemin usemin.c` alone and read the linker error."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- A declaration says a name exists and gives its type; a definition also creates it (a variable with its initial value, a function with its body).\n- `int n = 5, m;` initialises only `n`. `const` is part of the type (`const int`).\n- Read a declaration from the name: right first (`[]` array of, `()` function), then left (`*` pointer to, then the type). In `int *p, q;` only `p` is a pointer.\n- `gcc -c` compiles to a `.o` file; linking joins `.o` files. `undefined reference` = a missing definition; `multiple definition` = defined twice.\n- Headers (`.h`) hold declarations inside an include guard (`#ifndef NAME_H` / `#define NAME_H` / `#endif`). Never `#include` a `.c` file."
+    }
+   ]
+  },
+  {
+   "id": "c8-int-types",
+   "title": "The integer types: sizes, ranges and literals",
+   "notebook": "c/integers.ipynb",
+   "priority": "high",
+   "examNote": "Know the size of `char`, `short`, `int`, `long` and `long long` on 64-bit Linux, the ranges of 8-bit signed and unsigned numbers, the `printf` conversion for each type, and that `<limits.h>` holds the limits. The writing exercise below is modelled on Fall 2014 Q3 (a whole program that prints the difference between successive integers), with command-line arguments instead of keyboard input and a type choice that matters.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### More integer types than Java\n\nC has a family of integer types. Each comes in a **signed** version (can be negative) and an **unsigned** version (0 and up only). The C standard only gives a *minimum* width; the real size depends on the compiler and machine:\n\n| type | at least | on our 64-bit Linux | `printf` |\n|---|---|---|---|\n| `signed char` / `unsigned char` | 8 bits | 1 byte | `%d` |\n| `short` / `unsigned short` | 16 bits | 2 bytes | `%d` |\n| `int` / `unsigned int` | 16 bits | 4 bytes | `%d` / `%u` |\n| `long` / `unsigned long` | 32 bits | 8 bytes | `%ld` / `%lu` |\n| `long long` / `unsigned long long` | 64 bits | 8 bytes | `%lld` / `%llu` |\n\n(`short` is short for `short int`, `long` for `long int`. A `char` or `short` is turned into an `int` when passed to `printf`, so `%d` works.)\n\nThe standard does promise an order: `1 == sizeof(char) <= sizeof(short) <= sizeof(int) <= sizeof(long) <= sizeof(long long)`. On 64-bit Windows `long` is only 4 bytes, so code that assumes `long` is 8 bytes is not portable. If you need an exact width, `<stdint.h>` has types such as `int32_t` and `uint8_t`.\n\nPlain `char` is a third, separate type: the compiler decides whether it is signed or unsigned (on the usual x86-64 Linux machines it is signed). Use `char` for text and `signed char` / `unsigned char` when you mean small numbers."
+    },
+    {
+     "type": "md",
+     "text": "### `sizeof` and `<limits.h>`\n\n`sizeof` is an operator that gives the size in **bytes** of a type or a variable, as a `size_t` (print with `%zu`). The header `<limits.h>` names the smallest and largest value of each type on your machine: `CHAR_BIT` (bits in a byte, 8), `SCHAR_MIN`, `SCHAR_MAX`, `UCHAR_MAX`, `SHRT_MIN`, `SHRT_MAX`, `INT_MIN`, `INT_MAX`, `UINT_MAX`, `LONG_MIN`, `LONG_MAX`, `LLONG_MIN`, `LLONG_MAX` and more. Unsigned types have no `_MIN`: their minimum is always 0."
+    },
+    {
+     "type": "code",
+     "caption": "sizes.c",
+     "code": "#include <limits.h>\n#include <stdio.h>\n\nint main(void) {\n    printf(\"char:      %zu byte,  %d to %d\\n\", sizeof(char), CHAR_MIN, CHAR_MAX);\n    printf(\"short:     %zu bytes, %d to %d\\n\", sizeof(short), SHRT_MIN, SHRT_MAX);\n    printf(\"int:       %zu bytes, %d to %d\\n\", sizeof(int), INT_MIN, INT_MAX);\n    printf(\"long:      %zu bytes, %ld to %ld\\n\", sizeof(long), LONG_MIN, LONG_MAX);\n    printf(\"long long: %zu bytes, %lld to %lld\\n\", sizeof(long long), LLONG_MIN, LLONG_MAX);\n    printf(\"unsigned int max: %u\\n\", UINT_MAX);\n    printf(\"bits in a char: %d\\n\", CHAR_BIT);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "caption": "output on 64-bit Linux",
+     "code": "$ gcc -Wall -o sizes sizes.c\n$ ./sizes\nchar:      1 byte,  -128 to 127\nshort:     2 bytes, -32768 to 32767\nint:       4 bytes, -2147483648 to 2147483647\nlong:      8 bytes, -9223372036854775808 to 9223372036854775807\nlong long: 8 bytes, -9223372036854775808 to 9223372036854775807\nunsigned int max: 4294967295\nbits in a char: 8"
+    },
+    {
+     "type": "md",
+     "text": "An n-bit **unsigned** number covers 0 to 2^n − 1 (8 bits: 0 to 255). An n-bit **signed** number covers −2^(n−1) to 2^(n−1) − 1 (8 bits: −128 to 127). So `int` (32 bits) goes up to 2147483647, about 2.1 billion, and `unsigned int` to about 4.3 billion.\n\n### `bool`\n\n`#include <stdbool.h>` gives the type `bool` and the values `true` (1) and `false` (0). A `bool` holds only 0 or 1: assigning any non-zero value stores 1, so `bool b = 7;` makes `b` equal to 1."
+    },
+    {
+     "type": "check",
+     "q": "What is the largest value of a 16-bit `unsigned short`? Of a 16-bit `short`? Which `printf` conversion prints a `long`?",
+     "a": "2^16 − 1 = 65535. 2^15 − 1 = 32767 (the smallest is −32768). `%ld` (`%lu` for `unsigned long`)."
+    },
+    {
+     "type": "md",
+     "text": "### Integer literals: decimal, hex, octal, suffixes\n\nA **literal** is a number written in the code. Its prefix picks the base:\n\n- `255` is decimal.\n- `0xFF` (or `0xff`) is **hexadecimal**, base 16: digits 0–9 and A–F (10–15). `0x1F` = 1 × 16 + 15 = 31. Each hex digit is exactly 4 bits, so `0xFF` = `11111111`.\n- `010` is **octal** (base 8) because of the leading 0. It means 8, not 10!\n\nA **suffix** picks the type: no suffix is `int` (if it fits), `U` makes it unsigned, `L` makes it `long`, `LL` makes it `long long`, and `UL` / `ULL` combine them. The notebook writes `INT_MIN - 1L` so the subtraction is done in `long`, which does not overflow."
+    },
+    {
+     "type": "code",
+     "caption": "lits.c",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"%d %d %d\\n\", 0x1F, 0xff, 010);\n    printf(\"%zu %zu %zu\\n\", sizeof(10), sizeof(10L), sizeof(10LL));\n    printf(\"%u\\n\", 4000000000U);\n    printf(\"%d\\n\", 'A' + 0x20);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "caption": "output",
+     "code": "$ ./lits\n31 255 8\n4 8 8\n4000000000\n97"
+    },
+    {
+     "type": "pitfall",
+     "text": "Never pad a decimal number with a leading zero in C code: `int code = 0123;` is octal 83. (A leading zero in a *string* such as `\"0123\"` passed to `atoi` is fine: `atoi` reads decimal.)"
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- On 64-bit Linux: `char` 1 byte, `short` 2, `int` 4, `long` 8, `long long` 8. The standard gives only minimums and the order char ≤ short ≤ int ≤ long ≤ long long.\n- n bits: unsigned 0 to 2^n − 1; signed −2^(n−1) to 2^(n−1) − 1. 8 bits: 0..255 and −128..127.\n- `sizeof` gives bytes as a `size_t` (`%zu`). `<limits.h>` has `INT_MAX`, `INT_MIN`, `UINT_MAX`, `LONG_MAX`, `CHAR_BIT`, ...\n- `printf`: `%d` int, `%u` unsigned, `%ld` long, `%lu` unsigned long, `%lld` long long, `%llu` unsigned long long.\n- `0x1F` is hex (31), `010` is octal (8). Suffixes: `U` unsigned, `L` long, `LL` long long. `bool` (from `<stdbool.h>`) holds only 0 or 1."
+    }
+   ]
+  },
+  {
+   "id": "c8-twos",
+   "title": "Two's complement, overflow and mixing types",
+   "notebook": "c/integers.ipynb",
+   "priority": "high",
+   "examNote": "Expect to convert between 8-bit two's complement and decimal by hand, give a type's range, predict the output of unsigned wrap-around, and explain why `-1 < 1u` is false and why signed overflow is undefined behaviour.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Two's complement in full\n\nDay 5 met two's complement briefly. Here is the notebook's rule: in an n-bit two's complement number, the **most significant bit is worth −2^(n−1)**; the other bits are worth what they are in unsigned. For 8 bits the places are −128, 64, 32, 16, 8, 4, 2, 1.\n\n| bits | sum | value |\n|---|---|---|\n| `01101011` | 64 + 32 + 8 + 2 + 1 | 107 |\n| `11101011` | −128 + 64 + 32 + 8 + 2 + 1 | −21 |\n| `01111111` | 64 + 32 + 16 + 8 + 4 + 2 + 1 | 127 (most positive) |\n| `10000000` | −128 | −128 (most negative) |\n| `11111111` | −128 + 127 | −1 |\n\nSo a leftmost 0 means the same value as unsigned, and a leftmost 1 means negative.\n\n**Negating:** flip every bit and add 1. 56 is `00111000`; flip gives `11000111`; add 1 gives `11001000` = −128 + 64 + 8 = −56. To read a negative pattern quickly you can also negate it: `11101011` flipped is `00010100` (20), plus 1 is 21, so the pattern is −21."
+    },
+    {
+     "type": "check",
+     "q": "What is `10110110` as an 8-bit two's complement number? Write −100 in 8-bit two's complement.",
+     "a": "−128 + 32 + 16 + 4 + 2 = −74. 100 = `01100100`; flip: `10011011`; add 1: `10011100` (check: −128 + 16 + 8 + 4 = −100)."
+    },
+    {
+     "type": "md",
+     "text": "### The range is lopsided\n\nThere are 128 negative values (−128 to −1) but only 127 positive ones (1 to 127), because 0 uses one of the patterns with a leftmost 0. So **−(−128) does not fit**: 128 needs 9 bits. For `int` the same is true of `INT_MIN`: `-x`, `abs(x)`, `-1 * x` and `x / -1` have no `int` answer when `x` is `INT_MIN`. The notebook's `oops.c` tries these; the result is **undefined behaviour**: the C standard says nothing about what happens, so the output can change with the compiler, the options or the machine. Never rely on it.\n\n`abs` (for `int`), `labs` (`long`) and `llabs` (`long long`) live in `<stdlib.h>`, not `<math.h>`. C has no overloading, so each type needs its own function."
+    },
+    {
+     "type": "md",
+     "text": "### Overflow: unsigned wraps, signed is undefined\n\n**Unsigned** arithmetic is defined to **wrap around**: the result is taken modulo 2^n (like a car odometer rolling over). For 8 bits, 250 + 10 = 260 becomes 260 − 256 = 4, and 0 − 1 becomes 255.\n\n**Signed** overflow (a result outside `INT_MIN`..`INT_MAX`) is **undefined behaviour**. Do not think of it as \"wrapping to a negative number\": the compiler is allowed to assume it never happens. The safe way is to check *before* doing the arithmetic, or to use a wider type (`long long`)."
+    },
+    {
+     "type": "code",
+     "caption": "wrap.c",
+     "code": "#include <limits.h>\n#include <stdio.h>\n\nint main(void) {\n    unsigned int u = UINT_MAX;\n    u = u + 1;                  // wraps around to 0\n    printf(\"%u\\n\", u);\n    u = 0;\n    u = u - 1;                  // wraps around to UINT_MAX\n    printf(\"%u\\n\", u);\n\n    unsigned char c = 250;\n    c = c + 10;                 // 260 does not fit: 260 - 256 = 4\n    printf(\"%d\\n\", c);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "caption": "output",
+     "code": "$ ./wrap\n0\n4294967295\n4"
+    },
+    {
+     "type": "md",
+     "text": "### Conversions and promotions\n\nC converts between integer types silently, much more freely than Java:\n\n- **Promotion:** in arithmetic, a `char` or `short` (signed or unsigned) is first converted to `int`. So `x + y` for two `unsigned char` values is an `int` and cannot wrap at 255.\n- **To an unsigned type:** the value is taken modulo 2^n. −1 becomes the largest value (`255` for `unsigned char`, `UINT_MAX` for `unsigned int`); −3 becomes 253.\n- **To a signed type that cannot hold the value:** the result is *implementation-defined* (each compiler documents it; gcc wraps). Avoid relying on it.\n- **Mixing `int` with `unsigned int`** in one operation (including `<`, `>`, `==`): the `int` is converted to `unsigned int` first. This is one of the *usual arithmetic conversions*: the operands get a common type, and unsigned wins when the sizes are equal."
+    },
+    {
+     "type": "code",
+     "caption": "promo.c",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned char x = 200;\n    unsigned char y = 100;\n    int sum = x + y;            // x and y are promoted to int first\n    unsigned char small = x + y;\n    printf(\"%d %d\\n\", sum, small);\n    printf(\"%zu\\n\", sizeof(x + y));\n    signed char s = -1;\n    unsigned char t = s;        // -1 becomes 255\n    printf(\"%d %d\\n\", s, t);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "caption": "output",
+     "code": "$ ./promo\n300 44\n4\n-1 255"
+    },
+    {
+     "type": "md",
+     "text": "`x + y` is an `int` (4 bytes) worth 300. Only when it is stored into `small`, an `unsigned char`, does it wrap: 300 − 256 = 44.\n\n### The signed/unsigned comparison trap"
+    },
+    {
+     "type": "code",
+     "caption": "compare.c",
+     "code": "#include <stdio.h>\n\nint main(void) {\n    int a = -1;\n    unsigned int b = 1;\n    if (a < b) {\n        puts(\"-1 < 1\");\n    } else {\n        puts(\"-1 is NOT less than 1 ?!\");\n    }\n    printf(\"%u\\n\", (unsigned int) a);\n    return 0;\n}"
+    },
+    {
+     "type": "code",
+     "caption": "output",
+     "code": "$ gcc -Wall -o compare compare.c\n$ ./compare\n-1 is NOT less than 1 ?!\n4294967295"
+    },
+    {
+     "type": "md",
+     "text": "`a` is converted to `unsigned int`, so −1 becomes 4294967295, which is not less than 1. `-Wall` gives **no** warning here; `-Wextra` does:\n\n```\n$ gcc -Wall -Wextra -o compare compare.c\ncompare.c: In function 'main':\ncompare.c:6:11: warning: comparison of integer expressions of different signedness: 'int' and 'unsigned int' [-Wsign-compare]\n```\n\nThe same trap hides in `size_t`, which is unsigned: `strlen(s) - 1` for an empty string is not −1 but a huge number, and a loop `for (size_t i = n - 1; i >= 0; i--)` never ends because `i >= 0` is always true."
+    },
+    {
+     "type": "why",
+     "q": "Why does C define unsigned overflow but not signed overflow?",
+     "a": "Unsigned numbers have one obvious representation, so wrapping modulo 2^n is the same on every machine. Signed numbers were allowed several representations (ones' complement, two's complement, sign and magnitude), so the result of an overflow differed between machines and the standard left it undefined. Compilers now use that freedom to optimise, for example by assuming `x + 1 > x` is always true for a signed `x`."
+    },
+    {
+     "type": "check",
+     "q": "`unsigned int n = 0;` What does `printf(\"%u\\n\", n - 1);` print on our machines? And is `-3 < 2u` true?",
+     "a": "4294967295 (`UINT_MAX`): unsigned subtraction wraps. `-3 < 2u` is false (0): −3 is converted to unsigned (4294967293), which is bigger than 2."
+    },
+    {
+     "type": "try",
+     "text": "Compile `compare.c` with `gcc -Wall` and then with `gcc -Wall -Wextra`, and compare the messages. From now on, try `-Wextra` on your own programs as well."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Two's complement: the top bit is worth −2^(n−1). Negate by flipping and adding 1. 8 bits: −128 to 127; `11111111` is −1.\n- The most negative value has no positive partner: `-INT_MIN` and `abs(INT_MIN)` are undefined behaviour.\n- Unsigned arithmetic wraps modulo 2^n (defined). Signed overflow is undefined: check first, or use a wider type.\n- `char` and `short` are promoted to `int` in arithmetic. Converting to unsigned takes the value modulo 2^n (−1 → max).\n- `int` mixed with `unsigned int` becomes unsigned: `-1 < 1u` is false. Watch `size_t`: `strlen(\"\") - 1` is huge. `-Wextra` warns."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c8-fc-01",
+   "topic": "c8-declarations",
+   "front": "Declaration versus definition (functions)?",
+   "back": "Declaration: header + `;` (says the function exists and its types). Definition: header + body `{ ... }`. A program needs exactly one definition of each function it calls."
+  },
+  {
+   "id": "c8-fc-02",
+   "topic": "c8-declarations",
+   "front": "In `int n = 5, m;`, what is `m`?",
+   "back": "Not initialised. The `= 5` belongs only to `n`. Reading `m` before assigning it is undefined behaviour."
+  },
+  {
+   "id": "c8-fc-03",
+   "topic": "c8-declarations",
+   "front": "How do you read `char *argv[]`?",
+   "back": "From the name: right first, then left. argv is an **array** of **pointers to char** (an array of strings)."
+  },
+  {
+   "id": "c8-fc-04",
+   "topic": "c8-declarations",
+   "front": "What does an include guard look like?",
+   "back": "`#ifndef MAX2_H`\n`#define MAX2_H`\n... declarations ...\n`#endif`\nIt stops the declarations being included twice in one file."
+  },
+  {
+   "id": "c8-fc-05",
+   "topic": "c8-declarations",
+   "front": "`undefined reference to 'f'` vs `multiple definition of 'f'`?",
+   "back": "Both are **linker** errors. Undefined reference: no definition of `f` was linked (missing `.c`/`.o` file). Multiple definition: `f` is defined twice, e.g. because a `.c` file was `#include`d."
+  },
+  {
+   "id": "c8-fc-06",
+   "topic": "c8-declarations",
+   "front": "What does `gcc -c file.c` make?",
+   "back": "An object file `file.o`: compiled but not linked. Link object files with `gcc -o prog a.o b.o`."
+  },
+  {
+   "id": "c8-fc-07",
+   "topic": "c8-int-types",
+   "front": "Sizes on 64-bit Linux: char, short, int, long, long long?",
+   "back": "1, 2, 4, 8, 8 bytes. (The standard only guarantees minimums and the order.)"
+  },
+  {
+   "id": "c8-fc-08",
+   "topic": "c8-int-types",
+   "front": "Range of an n-bit unsigned and an n-bit signed (two's complement) integer?",
+   "back": "Unsigned: 0 to 2^n − 1. Signed: −2^(n−1) to 2^(n−1) − 1. For 8 bits: 0..255 and −128..127."
+  },
+  {
+   "id": "c8-fc-09",
+   "topic": "c8-int-types",
+   "front": "Where are `INT_MAX`, `UINT_MAX` and `LONG_MIN`? Where is `abs`?",
+   "back": "`<limits.h>`. `abs`, `labs`, `llabs` are in `<stdlib.h>`."
+  },
+  {
+   "id": "c8-fc-10",
+   "topic": "c8-int-types",
+   "front": "`printf` conversions for long, unsigned long, long long, size_t?",
+   "back": "`%ld`, `%lu`, `%lld`, `%zu`."
+  },
+  {
+   "id": "c8-fc-11",
+   "topic": "c8-int-types",
+   "front": "What are `0x1F`, `010` and `10L`?",
+   "back": "31 (hex), 8 (octal, because of the leading 0), and 10 as a `long`."
+  },
+  {
+   "id": "c8-fc-12",
+   "topic": "c8-int-types",
+   "front": "What does `bool b = 7;` store?",
+   "back": "1 (`true`). A `bool` holds only 0 or 1; any non-zero value becomes 1."
+  },
+  {
+   "id": "c8-fc-13",
+   "topic": "c8-twos",
+   "front": "Value of the 8-bit two's complement pattern `11111111`? `10000000`?",
+   "back": "−1 and −128. The leftmost bit is worth −128."
+  },
+  {
+   "id": "c8-fc-14",
+   "topic": "c8-twos",
+   "front": "How do you negate a two's complement number?",
+   "back": "Flip every bit, then add 1. 5 = `00000101` → `11111010` → `11111011` = −5."
+  },
+  {
+   "id": "c8-fc-15",
+   "topic": "c8-twos",
+   "front": "Unsigned overflow vs signed overflow?",
+   "back": "Unsigned wraps around modulo 2^n (well defined: `UINT_MAX + 1` is 0). Signed overflow is **undefined behaviour**."
+  },
+  {
+   "id": "c8-fc-16",
+   "topic": "c8-twos",
+   "front": "Why is `-1 < 1u` false?",
+   "back": "Mixing `int` with `unsigned int` converts the `int` to unsigned: −1 becomes `UINT_MAX` (4294967295), which is not less than 1."
+  },
+  {
+   "id": "c8-fc-17",
+   "topic": "c8-twos",
+   "front": "What happens to `unsigned char` operands in `a + b`?",
+   "back": "They are promoted to `int` first, so the sum is an `int` and can exceed 255. It wraps only if stored back into an `unsigned char`."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c8-q-01",
+   "topic": "c8-twos",
+   "type": "output",
+   "q": "What does this program print (64-bit Linux)?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned char c = 255;\n    c = c + 1;\n    printf(\"%d\\n\", c);\n    unsigned int u = 0;\n    u = u - 2;\n    printf(\"%u\\n\", u);\n    return 0;\n}",
+   "answer": "0\n4294967294",
+   "explain": "`c + 1` is 256, which wraps to 0 when stored in an `unsigned char`. `0 - 2` in `unsigned int` wraps to 2^32 − 2 = 4294967294. Both are well defined because the types are unsigned."
+  },
+  {
+   "id": "c8-q-02",
+   "topic": "c8-int-types",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    printf(\"%d %d %d\\n\", 0x10, 010, 10);\n    printf(\"%d\\n\", 0xFF + 1);\n    return 0;\n}",
+   "answer": "16 8 10\n256",
+   "explain": "`0x10` is hex 16, `010` is octal 8, `10` is decimal 10. `0xFF` is 255, plus 1 is 256 (an `int`, no wrapping)."
+  },
+  {
+   "id": "c8-q-03",
+   "topic": "c8-twos",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    int i = -5;\n    unsigned int n = 3;\n    if (i < n) {\n        puts(\"less\");\n    } else {\n        puts(\"not less\");\n    }\n    printf(\"%d\\n\", i < (int) n);\n    return 0;\n}",
+   "answer": "not less\n1",
+   "explain": "In `i < n`, `i` is converted to `unsigned int` and −5 becomes 4294967291, which is not less than 3. With the cast `(int) n` both sides are `int`, so −5 < 3 is true: 1."
+  },
+  {
+   "id": "c8-q-04",
+   "topic": "c8-twos",
+   "type": "output",
+   "q": "What does this program print (64-bit Linux, where `size_t` is 64 bits)?",
+   "code": "#include <stdio.h>\n#include <string.h>\n\nint main(void) {\n    char s[] = \"\";\n    size_t last = strlen(s) - 1;\n    printf(\"%zu\\n\", last);\n    return 0;\n}",
+   "answer": "18446744073709551615",
+   "explain": "`strlen(\"\")` is 0 and `size_t` is unsigned, so 0 − 1 wraps to 2^64 − 1. Check for an empty string before computing `strlen(s) - 1`."
+  },
+  {
+   "id": "c8-q-05",
+   "topic": "c8-twos",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    unsigned char a = 130;\n    unsigned char b = 140;\n    int s = a + b;\n    unsigned char t = a + b;\n    printf(\"%d %d\\n\", s, t);\n    return 0;\n}",
+   "answer": "270 14",
+   "explain": "`a` and `b` are promoted to `int`, so `a + b` is 270. Stored in an `unsigned char`, 270 wraps to 270 − 256 = 14."
+  },
+  {
+   "id": "c8-q-06",
+   "topic": "c8-twos",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nint main(void) {\n    signed char s = -3;\n    unsigned char u = s;\n    printf(\"%d %d\\n\", s, u);\n    printf(\"%u\\n\", (unsigned int) -1);\n    return 0;\n}",
+   "answer": "-3 253\n4294967295",
+   "explain": "Converting −3 to `unsigned char` gives −3 + 256 = 253 (the same bits, `11111101`). Converting −1 to `unsigned int` gives `UINT_MAX`."
+  },
+  {
+   "id": "c8-q-07",
+   "topic": "c8-int-types",
+   "type": "output",
+   "q": "What does this program print (64-bit Linux)?",
+   "code": "#include <stdbool.h>\n#include <stdio.h>\n\nint main(void) {\n    bool b = 7;\n    int x = 1, y, z = 3;\n    y = x + z;\n    printf(\"%d %d\\n\", b, y);\n    printf(\"%zu %zu\\n\", sizeof(char), sizeof(long));\n    return 0;\n}",
+   "answer": "1 4\n1 8",
+   "explain": "A `bool` stores any non-zero value as 1. `y` is assigned 1 + 3 = 4 (it was declared without a value, which is fine because it is assigned before use). `sizeof(char)` is always 1; `long` is 8 bytes on 64-bit Linux."
+  },
+  {
+   "id": "c8-q-08",
+   "topic": "c8-int-types",
+   "type": "output",
+   "q": "What does this program print (64-bit Linux)?",
+   "code": "#include <limits.h>\n#include <stdio.h>\n\nint main(void) {\n    printf(\"%d\\n\", SCHAR_MAX + 1);\n    printf(\"%d\\n\", UCHAR_MAX);\n    printf(\"%zu\\n\", sizeof(10L) + sizeof(10));\n    return 0;\n}",
+   "answer": "128\n255\n12",
+   "explain": "`SCHAR_MAX` is 127, and `127 + 1` is computed in `int`, so 128 (no overflow). `UCHAR_MAX` is 255. `10L` is a `long` (8 bytes) and `10` an `int` (4 bytes): 12."
+  },
+  {
+   "id": "c8-q-09",
+   "topic": "c8-twos",
+   "type": "short",
+   "q": "Convert the 8-bit two's complement number `11001010` to decimal, and write −37 in 8-bit two's complement. Show your work.",
+   "answer": "`11001010` = −128 + 64 + 8 + 2 = −54. 37 = `00100101`; flip: `11011010`; add 1: `11011011`.",
+   "explain": "Check: −128 + 64 + 16 + 8 + 2 + 1 = −37. Or negate `11001010`: flip `00110101` (53), add 1: 54, so the value is −54."
+  },
+  {
+   "id": "c8-q-10",
+   "topic": "c8-twos",
+   "type": "short",
+   "q": "`int x = INT_MIN;` Explain why `int y = -x;` is a bug, and say what output you can expect from printing `y`.",
+   "answer": "In two's complement `INT_MIN` is −2147483648 but `INT_MAX` is only 2147483647, so the true answer 2147483648 does not fit in an `int`. That is signed overflow, which is undefined behaviour: you cannot expect any particular output.",
+   "explain": "The range is lopsided: there is one more negative value than positive. The same applies to `abs(x)`, `-1 * x` and `x / -1`."
+  },
+  {
+   "id": "c8-q-11",
+   "topic": "c8-declarations",
+   "type": "short",
+   "q": "A student writes `#include \"stack.c\"` in `main.c` and compiles with `gcc -o prog stack.c main.c`. What goes wrong, and what should they do instead?",
+   "answer": "The linker reports `multiple definition` of the functions in `stack.c`: `#include` pasted their definitions into `main.c`, so each is defined twice. Instead put the declarations in `stack.h` (with an include guard), `#include \"stack.h\"` in both `.c` files, and compile both `.c` files.",
+   "explain": "Headers hold declarations, `.c` files hold definitions, and each function must be defined exactly once in the whole program."
+  },
+  {
+   "id": "c8-q-12",
+   "topic": "c8-twos",
+   "type": "mcq",
+   "q": "Which of these has **undefined behaviour**? (`int` is 32 bits.)",
+   "options": [
+    "`int i = INT_MAX; i = i + 1;`",
+    "`unsigned int u = UINT_MAX; u = u + 1;`",
+    "`unsigned char c = 0; c = c - 1;`",
+    "`long long n = (long long) INT_MAX + 1;`"
+   ],
+   "answer": 0,
+   "explain": "Signed overflow is undefined. Unsigned arithmetic wraps (to 0 and to 255). The last one does the addition in `long long`, where 2147483648 fits."
+  },
+  {
+   "id": "c8-q-13",
+   "topic": "c8-declarations",
+   "type": "mcq",
+   "q": "After `int *p, q;`, what is the type of `q`?",
+   "options": [
+    "`int`",
+    "`int *` (pointer to int)",
+    "it is a compile error",
+    "`const int`"
+   ],
+   "answer": 0,
+   "explain": "The `*` belongs to the name next to it. Only `p` is a pointer; `q` is a plain `int`. Write `int *p, *q;` to get two pointers."
+  },
+  {
+   "id": "c8-q-14",
+   "topic": "c8-int-types",
+   "type": "short",
+   "q": "Which `printf` conversions print an `unsigned int`, a `long`, a `long long` and a `size_t`? Give the range of a 16-bit `short` and a 16-bit `unsigned short`.",
+   "answer": "`%u`, `%ld`, `%lld`, `%zu`. `short`: −32768 to 32767. `unsigned short`: 0 to 65535.",
+   "explain": "Signed n bits: −2^(n−1) to 2^(n−1) − 1. Unsigned n bits: 0 to 2^n − 1."
+  }
+ ],
+ "write": [
+  {
+   "id": "c8-w-01",
+   "topic": "c8-declarations",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "A function `long rect_area(int w, int h)` returns the area of a w by h rectangle. Split a program into three files: a header `area.h` that declares the function (with an include guard), `area.c` that defines it, and `main.c` that prints `rect_area(3, 4)` and `rect_area(100000, 100000)`. Make sure the second call does not overflow `int`. Give the commands to compile each file separately and link them.",
+   "starter": "",
+   "solution": "#ifndef AREA_H\n#define AREA_H\n\n// area.h\n\nlong rect_area(int w, int h);\n\n#endif\n\n// area.c\n\n#include \"area.h\"\n\nlong rect_area(int w, int h) {\n    return (long) w * h;        // multiply as long, so the product does not overflow int\n}\n\n// main.c\n\n#include <stdio.h>\n#include \"area.h\"\n\nint main(void) {\n    printf(\"%ld\\n\", rect_area(3, 4));\n    printf(\"%ld\\n\", rect_area(100000, 100000));\n    return 0;\n}\n\n// commands:\n// gcc -Wall -c area.c\n// gcc -Wall -c main.c\n// gcc -o main main.o area.o",
+   "explain": "The header holds only the declaration, wrapped in `#ifndef AREA_H` / `#define AREA_H` / `#endif`. Both `.c` files include it with quotes, so the compiler checks the definition and the calls against the same declaration. `100000 * 100000` is 10^10, far above `INT_MAX` (about 2.1 × 10^9), and `int * int` would be signed overflow (undefined behaviour). The cast `(long) w` makes the multiplication happen in `long` (8 bytes on Linux), because `h` is converted to `long` too. Output:\n\n```\n$ gcc -Wall -c area.c\n$ gcc -Wall -c main.c\n$ gcc -o main main.o area.o\n$ ./main\n12\n10000000000\n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`area.h` has a correct include guard (`#ifndef`, `#define`, `#endif`)"
+    },
+    {
+     "marks": 1,
+     "item": "`area.h` contains only the declaration `long rect_area(int w, int h);`"
+    },
+    {
+     "marks": 1,
+     "item": "`area.c` and `main.c` both `#include \"area.h\"`; nobody includes a `.c` file"
+    },
+    {
+     "marks": 1,
+     "item": "multiplication done in `long` (cast before multiplying); printed with `%ld`"
+    },
+    {
+     "marks": 1,
+     "item": "`gcc -c` for each file, then link the two `.o` files"
+    }
+   ],
+   "pitfalls": [
+    "Writing `(long) (w * h)`: the multiplication already overflowed in `int` before the cast.",
+    "Printing a `long` with `%d`: wrong conversion, and `-Wall` warns.",
+    "Putting the function body in the header: two files that include it would both define it."
+   ]
+  },
+  {
+   "id": "c8-w-02",
+   "topic": "c8-twos",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Signed overflow is undefined behaviour, so you must check *before* adding. Complete `add_ok` so that it returns `true` exactly when `a + b` fits in an `int`. It must never compute an `a + b` that overflows. Expected output: `0`, `1`, `0`, `1` on four lines.",
+   "starter": "#include <limits.h>\n#include <stdbool.h>\n#include <stdio.h>\n\n// returns true if a + b fits in an int (the addition would not overflow)\nbool add_ok(int a, int b) {\n    if (b > 0 && a > ____) {\n        return false;           // a + b would be bigger than INT_MAX\n    }\n    if (b < 0 && ____) {\n        return false;           // a + b would be smaller than INT_MIN\n    }\n    return ____;\n}\n\nint main(void) {\n    printf(\"%d\\n\", add_ok(INT_MAX, 1));\n    printf(\"%d\\n\", add_ok(INT_MAX - 1, 1));\n    printf(\"%d\\n\", add_ok(INT_MIN, -1));\n    printf(\"%d\\n\", add_ok(-5, 7));\n    return 0;\n}",
+   "solution": "#include <limits.h>\n#include <stdbool.h>\n#include <stdio.h>\n\n// returns true if a + b fits in an int (the addition would not overflow)\nbool add_ok(int a, int b) {\n    if (b > 0 && a > INT_MAX - b) {\n        return false;           // a + b would be bigger than INT_MAX\n    }\n    if (b < 0 && a < INT_MIN - b) {\n        return false;           // a + b would be smaller than INT_MIN\n    }\n    return true;\n}\n\nint main(void) {\n    printf(\"%d\\n\", add_ok(INT_MAX, 1));\n    printf(\"%d\\n\", add_ok(INT_MAX - 1, 1));\n    printf(\"%d\\n\", add_ok(INT_MIN, -1));\n    printf(\"%d\\n\", add_ok(-5, 7));\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "positive case compares `a > INT_MAX - b` (rearranged so nothing overflows)"
+    },
+    {
+     "marks": 1,
+     "item": "negative case compares `a < INT_MIN - b`"
+    },
+    {
+     "marks": 1,
+     "item": "returns `true` when neither test fails"
+    },
+    {
+     "marks": 1,
+     "item": "never computes `a + b` itself"
+    }
+   ],
+   "pitfalls": [
+    "Writing `if (a + b > INT_MAX)`: an `int` can never be bigger than `INT_MAX`, and the addition has already overflowed (undefined behaviour).",
+    "`INT_MAX - b` is safe only when `b > 0`, and `INT_MIN - b` only when `b < 0`: that is why each test checks the sign of `b` first."
+   ]
+  },
+  {
+   "id": "c8-w-03",
+   "topic": "c8-int-types",
+   "stage": "blank",
+   "marks": 6,
+   "prompt": "Write a complete C program `diffs` that takes one or more integer command-line arguments. For each argument in order, print `number: X`. After each number except the first, also print `difference = D`, where D is that number minus the previous one. When the number is 0, print `number: 0` and stop with exit status 0 (ignore any later arguments). With no arguments, print a usage message to standard error and exit with status 1. Each argument fits in an `int`, but a difference might not (for example `2000000000 -2000000000`), so choose your types so the output is always right. Use `atoll` from `<stdlib.h>` (like `atoi`, but returns a `long long`).\n\nExample: `./diffs 2 5 11 0 4` prints\n\n```\nnumber: 2\nnumber: 5\ndifference = 3\nnumber: 11\ndifference = 6\nnumber: 0\n```",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    if (argc < 2) {\n        fprintf(stderr, \"Usage: diffs n1 n2 ...\\n\");\n        return 1;\n    }\n    long long prev = 0;\n    for (int i = 1; i < argc; i++) {\n        long long cur = atoll(argv[i]);\n        printf(\"number: %lld\\n\", cur);\n        if (cur == 0) {\n            return 0;           // stop at the first 0\n        }\n        if (i > 1) {\n            printf(\"difference = %lld\\n\", cur - prev);\n        }\n        prev = cur;\n    }\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "checks `argc < 2`: message on stderr, exit status 1"
+    },
+    {
+     "marks": 1,
+     "item": "loops over `argv[1]` to `argv[argc - 1]`, converting each"
+    },
+    {
+     "marks": 1,
+     "item": "uses `long long` (and `%lld`) so the difference cannot overflow"
+    },
+    {
+     "marks": 1,
+     "item": "prints the difference for every number except the first, as current minus previous"
+    },
+    {
+     "marks": 1,
+     "item": "stops at 0 after printing it, with exit status 0"
+    },
+    {
+     "marks": 1,
+     "item": "remembers the previous number correctly"
+    }
+   ],
+   "pitfalls": [
+    "Using `int` for the difference: 2000000000 − (−2000000000) = 4000000000 overflows `int` (undefined behaviour).",
+    "Printing a difference for the first number, or computing previous − current instead of current − previous.",
+    "Printing `%d` for a `long long`: use `%lld`."
+   ]
+  }
+ ]
+}
