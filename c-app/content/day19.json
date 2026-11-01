@@ -1,0 +1,666 @@
+{
+ "day": 19,
+ "title": "Dynamic memory, part 2",
+ "goal": "Let a function set the caller's pointer with int **, grow heap arrays and strings safely with realloc, avoid double frees, and put structs, arrays of structs and arrays of strings on the heap.",
+ "topics": [
+  {
+   "id": "c19-ptrptr",
+   "title": "Pointers to pointers: letting a function set the caller's pointer",
+   "notebook": "c/allocating_and_deallocating_memory.ipynb",
+   "priority": "high",
+   "examNote": "Expect to read and write `int **` parameters (*a function that returns a new array through a parameter*), and to explain in a sentence why `int *` is not enough. The same idea, one level down, is Day 11's `swap`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### The rule you already know\n\nDay 11's big rule: C passes arguments **by value**. A function gets **copies** of the arguments, so it can change a caller's variable only if the caller passes the variable's **address**. The notebook's `pass_by_value.c` shows it again:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nvoid bad_addone(double x) {\n    x = x + 1;\n}\n\nvoid good_addone(double *x) {\n    *x = *x + 1;\n}\n\nint main(void) {\n    double y = 3.0;\n    printf(\"before            : y = %f\\n\", y);\n\n    bad_addone(y);\n    printf(\"after bad_addone  : y = %f\\n\", y);\n\n    good_addone(&y);\n    printf(\"after good_addone : y = %f\\n\", y);\n\n    return 0;\n}",
+     "caption": "pass_by_value.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o pass_by_value pass_by_value.c\n$ ./pass_by_value\nbefore            : y = 3.000000\nafter bad_addone  : y = 3.000000\nafter good_addone : y = 4.000000"
+    },
+    {
+     "type": "md",
+     "text": "`bad_addone` adds 1 to its own copy `x`, which dies when it returns. `good_addone` gets `&y`, a `double *`, and changes `y` through `*x`.\n\n### Now the variable is a pointer\n\nYesterday (Day 18) a function gave a new heap array back by **returning** it: `int *a = countdown(5);`. The notebook shows an alternative: the caller passes its pointer variable and the function **stores** the new address in it. Watch what happens if we pass the pointer the ordinary way:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n// WRONG: arr is a copy of the caller's pointer\nvoid intarray_bad(size_t len, int *arr) {\n    arr = malloc(len * sizeof(int));   // changes only the copy\n    if (arr) {\n        arr[0] = -99;\n    }\n}\n\nint main(void) {\n    int *a = NULL;\n    intarray_bad(10, a);\n    if (a == NULL) {\n        printf(\"a is still NULL\\n\");\n    }\n    free(a);                           // free(NULL): does nothing\n    return 0;\n}",
+     "caption": "bad_intarray.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o bad_intarray bad_intarray.c\n$ ./bad_intarray\na is still NULL"
+    },
+    {
+     "type": "md",
+     "text": "Exactly the `bad_addone` bug, one level up: `arr` is a **copy** of `a`. Assigning `arr = malloc(...)` changes the copy only, so `a` stays `NULL`. Worse, when the function returns, the copy `arr` dies and the 40-byte block has no pointer left: a **leak**. valgrind agrees:"
+    },
+    {
+     "type": "code",
+     "code": "$ valgrind --leak-check=full ./bad_intarray\n...\n==24933== 40 bytes in 1 blocks are definitely lost in loss record 1 of 1\n==24933==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)\n==24933==    by 0x1091AC: intarray_bad (bad_intarray.c:6)\n==24933==    by 0x1091E9: main (bad_intarray.c:14)\n..."
+    },
+    {
+     "type": "md",
+     "text": "### The fix: pass the address of the pointer\n\nTo change `y` (a `double`) we passed `&y` (a `double *`). To change `a` (an `int *`) we must pass `&a`, and its type is **`int **`**, \"pointer to pointer to int\". Here is the notebook's `return_arr2.c` (with the size fixed: the notebook writes `malloc(len)`, which is `len` **bytes**; Day 18 explained why it must be `len * sizeof(int)`):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n// Caller passes a pointer to a pointer that stores the result of malloc\nvoid intarray(size_t len, int **arr) {\n    if (len == 0) {\n        len = 1;\n    }\n    int *buf = malloc(len * sizeof(int));  // lifetime of the array starts here\n    buf[0] = -99;                          // write in a test value\n    *arr = buf;                            // sets the CALLER's pointer\n}\n\nint main(void) {\n    int *a;\n    intarray(10, &a);\n    printf(\"a[0] = %d\\n\", a[0]);\n    free(a);                               // lifetime of the array ends here\n    return 0;\n}",
+     "caption": "return_arr2.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o return_arr2 return_arr2.c\n$ ./return_arr2\na[0] = -99"
+    },
+    {
+     "type": "md",
+     "text": "Read it in three steps, exactly as the notebook does:\n\n| Expression | Type | What it is |\n|---|---|---|\n| `a` (in `main`) | `int *` | the caller's pointer variable |\n| `&a` (the argument) | `int **` | the address of that variable |\n| `arr` (the parameter) | `int **` | a copy of `&a`: it points at `a` |\n| `*arr` | `int *` | **`a` itself**, so `*arr = buf;` sets `a` |\n| `(*arr)[0]` or `**arr` | `int` | the first element of the array |\n\nAll you add is one star per level: a `T` is changed through a `T *`; a `T *` is changed through a `T **`.\n\nNote that this version, like the notebook's, does not check `buf` for `NULL`, to stay short. In your own code, check it."
+    },
+    {
+     "type": "md",
+     "text": "### Two levels in one picture\n\nThis small program follows the arrows from `pp` to `a` to the heap array:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *a = malloc(3 * sizeof(int));  // a: int *, points at the heap array\n    if (!a) {\n        return 1;\n    }\n    a[0] = 7;\n    a[1] = 8;\n    a[2] = 9;\n    int **pp = &a;                     // pp: int **, points at the variable a\n\n    printf(\"a[1]     = %d\\n\", a[1]);\n    printf(\"(*pp)[1] = %d\\n\", (*pp)[1]);  // *pp is a\n    printf(\"**pp     = %d\\n\", **pp);      // *a, that is a[0]\n\n    free(*pp);                         // same as free(a)\n    return 0;\n}",
+     "caption": "levels.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o levels levels.c\n$ ./levels\na[1]     = 8\n(*pp)[1] = 8\n**pp     = 7"
+    },
+    {
+     "type": "md",
+     "text": "Draw it as boxes: `pp` holds the address of `a`; `a` holds the address of the heap array `7 8 9`. `*pp` follows one arrow (to `a`); `**pp` follows two (to `a[0]`).\n\nThe brackets in `(*pp)[1]` matter: `[]` binds tighter than `*`, so `*pp[1]` would mean `*(pp[1])`, a pointer **next to** `a`, which does not exist."
+    },
+    {
+     "type": "pitfall",
+     "text": "With `int **arr`, `*arr[i] = 5;` means `*(arr[i])`: it treats `arr` as an array of pointers and, for `i > 0`, reads a pointer that does not exist (undefined behaviour). Write `(*arr)[i] = 5;`, or, simpler, fill a local `int *buf` and assign `*arr = buf;` once at the end, as the notebook does."
+    },
+    {
+     "type": "md",
+     "text": "### Why bother, when you could return the pointer?\n\nBecause the return value is then free for something else, such as a success/failure code or a count. A common pattern:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n// Makes a new array holding 1, 4, 9, ..., n * n and stores its address\n// in *out. Returns 0 on success, or -1 (and leaves *out alone) on failure.\nint make_squares(size_t n, int **out) {\n    if (n == 0) {\n        return -1;\n    }\n    int *sq = malloc(n * sizeof(int));\n    if (!sq) {\n        return -1;\n    }\n    for (size_t i = 0; i < n; i++) {\n        sq[i] = (int) ((i + 1) * (i + 1));\n    }\n    *out = sq;               // give the caller the new array\n    return 0;\n}\n\nint main(void) {\n    int *s = NULL;\n    if (make_squares(5, &s) != 0) {\n        fprintf(stderr, \"make_squares failed\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < 5; i++) {\n        printf(\"%d \", s[i]);\n    }\n    printf(\"\\n\");\n    free(s);\n    return 0;\n}",
+     "caption": "squares_out.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o squares_out squares_out.c\n$ ./squares_out\n1 4 9 16 25 "
+    },
+    {
+     "type": "check",
+     "q": "`char *msg;` is declared in `main`. A function `void make_msg(char **out)` will store the address of a new heap string in `msg`. Write the call.",
+     "a": "`make_msg(&msg);` (inside the function: `*out = buf;`)."
+    },
+    {
+     "type": "why",
+     "q": "Inside `intarray`, why does `arr = buf;` do nothing for the caller, while `*arr = buf;` works?",
+     "a": "`arr` is the function's own copy of the address `&a`. Changing `arr` makes the copy point somewhere else; the caller never sees it. `*arr` is the object `arr` points at, which is the caller's `a`, so `*arr = buf;` stores into `a`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- C passes by value: to change a caller's variable of type `T`, the function needs a `T *` and the caller passes `&var`.\n- So to change a caller's **pointer** (`int *a`), the parameter must be `int **` and the call is `f(&a)`.\n- Inside: `*arr` is the caller's pointer (`*arr = buf;`), `(*arr)[i]` or `**arr` is an element. Brackets: `(*arr)[i]`, not `*arr[i]`.\n- Assigning to the parameter itself (`arr = malloc(...)`) changes only the copy: the caller's pointer is unchanged and the block leaks.\n- Returning the pointer and passing `int **` are both fine; the `**` way leaves the return value free for a status or a count."
+    }
+   ]
+  },
+  {
+   "id": "c19-realloc",
+   "title": "realloc, and freeing safely",
+   "notebook": "c/allocating_and_deallocating_memory.ipynb",
+   "priority": "high",
+   "examNote": "The April 2022 final (Q3(c), 2 points) asked how to use `realloc` so that one heap string can *safely* hold a longer string. \"Safely\" means: enough bytes (length + 1 for the `'\\0'`), the result in a **temporary**, a `NULL` test, then assign. Also know why a double free is a bug and why `p = NULL;` after `free` helps.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Changing the size of a block\n\nSometimes a heap array turns out too small (you read more values than expected), or a heap string must hold a longer string. `realloc` (\"re-allocate\") changes the size of a block you got from `malloc`, `calloc` or `realloc`:\n\n```c\nvoid *realloc(void *ptr, size_t new_sz);\n```\n\n- `ptr` points at a valid (not yet freed) block. If `ptr` is `NULL`, `realloc` behaves exactly like `malloc(new_sz)`.\n- `new_sz` is the **new size in bytes** (not the extra bytes). For `n` ints: `n * sizeof(int)`.\n- It returns a pointer to the start of the resized block, or `NULL` if it fails.\n\nThe notebook describes what it does *as though* it took four steps:\n\n1. allocate a new block of `new_sz` bytes;\n2. copy the old contents (as much as fits) into it;\n3. free the old block;\n4. return a pointer to the new block.\n\n(It may be smarter and grow the block in place, but you cannot count on that.) Two consequences:\n\n- On **success**, the old contents are kept, any extra space is **uninitialized**, and the old pointer `ptr` is **no longer valid**: do not use it or free it.\n- On **failure** (`NULL`), nothing happened: `ptr` is still valid and still holds the old data, and **you still have to free it**."
+    },
+    {
+     "type": "md",
+     "text": "### The notebook's example: a longer string"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    char *str = malloc(5);\n    strcpy(str, \"CISC\");\n    printf(\"str = %s\\n\", str);\n\n    char *tmp = realloc(str, 8);\n    if (!tmp) {\n        // realloc failed, clean up and exit\n        free(str);\n        exit(EXIT_FAILURE);\n    }\n    // tmp contains the characters in str\n    printf(\"tmp = %s\\n\", tmp);\n\n    // reassign str to point at reallocated block of memory\n    str = tmp;\n\n    // use the extra memory\n    strcat(str, \"220\");\n    printf(\"str = %s\\n\", str);\n\n    // always free allocated memory when it is no longer needed\n    free(str);\n\n    return 0;\n}",
+     "caption": "realloc_str.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o realloc_str realloc_str.c\n$ ./realloc_str\nstr = CISC\ntmp = CISC\nstr = CISC220"
+    },
+    {
+     "type": "md",
+     "text": "Step by step:\n\n- `malloc(5)`: room for `\"CISC\"` (4 chars + `'\\0'`).\n- `realloc(str, 8)`: room for 7 chars + `'\\0'`, enough for `\"CISC220\"`. The result goes into a **new** variable `tmp`.\n- If `tmp` is `NULL`, `str` is still valid, so the program frees it and exits.\n- Otherwise the old characters are already in the new block (`tmp = CISC`), and `str = tmp;` makes `str` point at the new block. From now on, only `str` is used and freed.\n\n(The notebook's version prints `tmp` again on the last line; here it prints `str`. After `str = tmp;` both hold the same address, so the output is the same.)"
+    },
+    {
+     "type": "md",
+     "text": "### Why the temporary pointer?\n\nIt is tempting to write `str = realloc(str, 8);`. If `realloc` fails, it returns `NULL`, which **overwrites** the only pointer to the old block. The old block is still allocated, but nobody can free it: a leak. You can see it by asking for an impossible size:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *a = malloc(5 * sizeof(int));\n    if (!a) {\n        return 1;\n    }\n    a[0] = 42;\n    // ask for a million gigabytes: far more than the machine has, so it fails\n    a = realloc(a, 1000000000000000);   // BUG: a is overwritten with NULL...\n    if (!a) {\n        printf(\"realloc failed\\n\");\n        return 1;                       // ...so nothing points at the 5 ints now\n    }\n    free(a);\n    return 0;\n}",
+     "caption": "realloc_leak.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o realloc_leak realloc_leak.c\n$ valgrind --leak-check=full ./realloc_leak\n...\nrealloc failed\n...\n==22717== 20 bytes in 1 blocks are definitely lost in loss record 1 of 1\n==22717==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)\n==22717==    by 0x1091BE: main (realloc_leak.c:5)\n..."
+    },
+    {
+     "type": "md",
+     "text": "The 5 ints from line 5 are lost. (So even on Linux, `realloc` and `malloc` **do** return `NULL` for absurd sizes.) The safe pattern, every time:\n\n```c\nT *tmp = realloc(p, new_count * sizeof(T));\nif (!tmp) {\n    free(p);              // p is still valid: clean up\n    // print a message, exit or return an error\n}\np = tmp;                  // only now replace the old pointer\n```"
+    },
+    {
+     "type": "md",
+     "text": "### Growing an array as you go\n\nThe classic use: you do not know in advance how many values will come. Keep two numbers: `n`, how many elements are **used**, and `cap` (capacity), how many **fit**. When `n == cap`, double `cap` with `realloc`. Doubling (rather than adding 1) means only a few `realloc` calls even for long inputs."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    size_t cap = 2;                       // room for 2 ints to start\n    size_t n = 0;                         // how many are in use\n    int *a = malloc(cap * sizeof(int));\n    if (!a) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (int i = 1; i < argc; i++) {\n        if (n == cap) {                   // full: double the capacity\n            int *tmp = realloc(a, 2 * cap * sizeof(int));\n            if (!tmp) {\n                free(a);                  // a is still valid: free it\n                fprintf(stderr, \"out of memory\\n\");\n                return 1;\n            }\n            a = tmp;\n            cap = 2 * cap;\n            printf(\"grew to %zu\\n\", cap);\n        }\n        a[n] = atoi(argv[i]);\n        n++;\n    }\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\n%zu used, capacity %zu\\n\", n, cap);\n    free(a);\n    return 0;\n}",
+     "caption": "grow.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o grow grow.c\n$ ./grow 5 6 7 8 9\ngrew to 4\ngrew to 8\n5 6 7 8 9 \n5 used, capacity 8\n$ ./grow 1 2\n1 2 \n2 used, capacity 2"
+    },
+    {
+     "type": "check",
+     "q": "`double *v` points at a heap array of 10 doubles. Write the code that makes it hold 25 doubles, safely, keeping the first 10 values.",
+     "a": "```c\ndouble *tmp = realloc(v, 25 * sizeof(double));\nif (!tmp) {\n    free(v);\n    fprintf(stderr, \"out of memory\\n\");\n    exit(EXIT_FAILURE);\n}\nv = tmp;\n```\nThe size is the **total** in bytes, 25 * sizeof(double), not 15."
+    },
+    {
+     "type": "md",
+     "text": "### The double-free bug\n\nThe notebook's last rule about `free`: calling it **twice on the same pointer value** is undefined behaviour, the **double free** bug. On our machine the C library noticed and killed the program (gcc `-Wall` warned first):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *p = malloc(4 * sizeof(int));\n    p[0] = 1;\n    free(p);\n    printf(\"freed once\\n\");\n    free(p);                  // BUG: the same block freed twice\n    printf(\"freed twice\\n\");\n    return 0;\n}",
+     "caption": "double_free.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o double_free double_free.c\ndouble_free.c: In function 'main':\ndouble_free.c:9:5: warning: pointer 'p' used after 'free' [-Wuse-after-free]\n    9 |     free(p);                  // BUG: the same block freed twice\n      |     ^~~~~~~\ndouble_free.c:7:5: note: call to 'free' here\n    7 |     free(p);\n      |     ^~~~~~~\n$ ./double_free\nfreed once\nfree(): double free detected in tcache 2\nAborted"
+    },
+    {
+     "type": "md",
+     "text": "valgrind reports it as `Invalid free()`, with the lines of both `free` calls and of the `malloc`. Do not rely on a crash: other double frees go unnoticed and corrupt the heap, and the program fails later somewhere unrelated.\n\nDouble frees are rarely this obvious. Typical causes:\n\n- two pointers to the same block (`q = p;`), and both get freed;\n- freeing the old pointer after a **successful** `realloc` (the old block was already released by `realloc`);\n- freeing a block in a function, and then again in the caller.\n\n### Defence: set the pointer to `NULL` after `free`\n\nDefensive programmers (the notebook cites the CERT C guidelines) write\n\n```c\nfree(p);\np = NULL;\n```\n\nNow a second `free(p)` is `free(NULL)`, which does nothing, and a test `if (p != NULL)` tells you the block is gone:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *p = malloc(4 * sizeof(int));\n    p[0] = 1;\n    free(p);\n    p = NULL;                 // p no longer holds the old address\n    printf(\"freed once\\n\");\n    free(p);                  // free(NULL) does nothing: harmless\n    printf(\"freed twice\\n\");\n    if (p == NULL) {\n        printf(\"p is NULL: nothing to use\\n\");\n    }\n    return 0;\n}",
+     "caption": "null_after.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o null_after null_after.c\n$ ./null_after\nfreed once\nfreed twice\np is NULL: nothing to use"
+    },
+    {
+     "type": "pitfall",
+     "text": "`p = NULL;` protects only **that** variable. If another pointer `q` still holds the old address, `free(q)` is still a double free and `*q` is still a use-after-free. The real fix is knowing which pointer \"owns\" each block."
+    },
+    {
+     "type": "why",
+     "q": "Why can `realloc` make the old pointer invalid even when it succeeds?",
+     "a": "If the block cannot grow where it is, `realloc` allocates a new block somewhere else, copies the data and frees the old block. The old address then points at freed memory: using it is a use-after-free, and freeing it is a double free. Always continue with the pointer `realloc` returned."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `void *realloc(void *ptr, size_t new_sz);` resizes a heap block to `new_sz` **bytes in total**; keeps the old contents that fit; extra space is uninitialized. `realloc(NULL, n)` is `malloc(n)`.\n- On success use only the returned pointer: the old one is invalid. On failure (`NULL`) the old block is untouched and must still be freed.\n- Never `p = realloc(p, ...)`: use `tmp`, test it, then `p = tmp;`.\n- Growing array: track `n` (used) and `cap`; when `n == cap`, double `cap` with `realloc`. Strings: allocate `strlen + 1`.\n- Double free (freeing the same block twice) is undefined behaviour. `free(p); p = NULL;` makes a second `free(p)` harmless."
+    }
+   ]
+  },
+  {
+   "id": "c19-heapstructs",
+   "title": "Structs, arrays of structs and arrays of strings on the heap",
+   "notebook": "c/allocating_and_deallocating_memory.ipynb",
+   "priority": "high",
+   "examNote": "April 2022 Q3(b) (4 points) asked for an array of 5 strings of length 10 with `malloc` (\"six calls to malloc, one for the array and one for each string\"). Count your calls: 1 for the array of pointers + 1 per string, and the same number of `free`s. Struct questions (April 2022 Q4) also expect `->` through pointers.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### One struct on the heap\n\nAny type can live on the heap, including your own structs (Day 13). The size is `sizeof(struct point2)` (never add up the members yourself: there may be padding). `malloc` gives you a **pointer** to the struct, so you reach the members with `->` (Day 13: `p->x` means `(*p).x`). The notebook's `malloc_obj.c` does this inside `main`; here it is wrapped in a function that returns the new struct:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct point2 {\n    double x;\n    double y;\n};\n\n// Returns a new point on the heap, or NULL. The caller must free it.\nstruct point2 *make_point(double x, double y) {\n    struct point2 *p = malloc(sizeof(struct point2));\n    if (!p) {\n        return NULL;\n    }\n    p->x = x;                // p is a pointer, so use ->\n    p->y = y;\n    return p;\n}\n\nint main(void) {\n    struct point2 *q = make_point(0.5, -9.9);\n    if (!q) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    q->x = q->x * 2;\n    printf(\"q points at (%f, %f)\\n\", q->x, q->y);\n    printf(\"(*q).y = %f\\n\", (*q).y);\n    free(q);\n    return 0;\n}",
+     "caption": "heap_point.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o heap_point heap_point.c\n$ ./heap_point\nq points at (1.000000, -9.900000)\n(*q).y = -9.900000"
+    },
+    {
+     "type": "md",
+     "text": "Returning `p` is fine for the same reason as on Day 18: the struct is on the heap, so it outlives `make_point`. The caller must `free` it."
+    },
+    {
+     "type": "md",
+     "text": "### An array of structs\n\nAs for any array: count times the size of one element, `malloc(n * sizeof(struct point2))`. The result points at element 0, so `pts[i]` is a whole struct and you use **`.`**: `pts[i].x`. A pointer to one element (`&pts[i]` or `pts + i`) needs **`->`**."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct point2 {\n    double x;\n    double y;\n};\n\nint main(void) {\n    size_t n = 4;\n    struct point2 *pts = malloc(n * sizeof(struct point2));\n    if (!pts) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < n; i++) {\n        pts[i].x = i;            // pts[i] is a struct: use .\n        pts[i].y = 10.0 * i;\n    }\n    struct point2 *last = &pts[n - 1];   // a pointer to one element\n    last->y = -1.0;                      // a pointer: use ->\n    for (size_t i = 0; i < n; i++) {\n        printf(\"pts[%zu] = (%.1f, %.1f)\\n\", i, pts[i].x, pts[i].y);\n    }\n    free(pts);                   // one malloc, one free\n    return 0;\n}",
+     "caption": "heap_points.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o heap_points heap_points.c\n$ ./heap_points\npts[0] = (0.0, 0.0)\npts[1] = (1.0, 10.0)\npts[2] = (2.0, 20.0)\npts[3] = (3.0, -1.0)"
+    },
+    {
+     "type": "md",
+     "text": "The rule from Day 13 still decides between `.` and `->`: look at what is on the left.\n\n| Expression | Left side is | Write |\n|---|---|---|\n| `pts[i]` | a struct | `pts[i].x` |\n| `pts` | a pointer (to element 0) | `pts->x` (same as `pts[0].x`) |\n| `pts + i`, `&pts[i]` | a pointer | `(pts + i)->x` |\n\nOne `malloc` made the whole array, so **one** `free(pts)` releases it."
+    },
+    {
+     "type": "check",
+     "q": "Allocate an array of 12 `struct book` on the heap (pointer `shelf`) and set the `year` member of the last book to 1965.",
+     "a": "`struct book *shelf = malloc(12 * sizeof(struct book));` then `shelf[11].year = 1965;` (or `(shelf + 11)->year = 1965;`). Check `shelf` for `NULL` first."
+    },
+    {
+     "type": "md",
+     "text": "### Structs that point at more heap memory\n\nOften a struct member is itself a pointer to a heap block, for example a name of any length. Then there are **two levels** of allocation, and the frees must go in the **reverse order**: the inner blocks first, while you can still reach them, then the array that holds their pointers."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nstruct student {\n    char *name;      // points at a heap copy of the name\n    int grade;\n};\n\nint main(int argc, char *argv[]) {\n    size_t n = argc - 1;\n    if (n == 0) {\n        fprintf(stderr, \"usage: %s name ...\\n\", argv[0]);\n        return 1;\n    }\n    struct student *s = malloc(n * sizeof(struct student));\n    if (!s) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < n; i++) {\n        s[i].name = malloc(strlen(argv[i + 1]) + 1);   // + 1 for the '\\0'\n        if (!s[i].name) {\n            for (size_t j = 0; j < i; j++) {          // free what we made\n                free(s[j].name);\n            }\n            free(s);\n            fprintf(stderr, \"out of memory\\n\");\n            return 1;\n        }\n        strcpy(s[i].name, argv[i + 1]);\n        s[i].grade = 70 + 5 * (int) i;\n    }\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%s: %d\\n\", s[i].name, s[i].grade);\n    }\n    for (size_t i = 0; i < n; i++) {\n        free(s[i].name);     // first the names...\n    }\n    free(s);                 // ...then the array that held the pointers\n    return 0;\n}",
+     "caption": "students.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o students students.c\n$ ./students Ada Linus Grace\nAda: 70\nLinus: 75\nGrace: 80\n$ valgrind --leak-check=full ./students Ada Linus Grace\n...\n==22556==   total heap usage: 5 allocs, 5 frees, 4,160 bytes allocated\n==22556==\n==22556== All heap blocks were freed -- no leaks are possible\n..."
+    },
+    {
+     "type": "md",
+     "text": "Count: 1 array + 3 names = 4 of ours (the fifth is `printf`'s buffer), and 4 frees. A string copy needs `strlen(s) + 1` bytes: the `+ 1` is the `'\\0'` (Day 16).\n\nIf you called `free(s)` **first**, the `name` pointers would be gone with the array: three leaks (and reading `s[i].name` afterwards would be a use-after-free)."
+    },
+    {
+     "type": "md",
+     "text": "### An array of strings on the heap\n\nA string is reached through a `char *`, so an array of strings is an array of `char *`, and a heap array of them is a **`char **`**: a pointer to the first `char *` (just like `argv`, Day 3). It takes one `malloc` for the array of pointers and one for each string:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    size_t n = 3;\n    char **words = malloc(n * sizeof(char *));     // call 1: the array of pointers\n    if (!words) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < n; i++) {\n        words[i] = malloc(8);                      // calls 2-4: room for 7 chars + '\\0'\n        if (!words[i]) {\n            for (size_t j = 0; j < i; j++) {\n                free(words[j]);\n            }\n            free(words);\n            fprintf(stderr, \"out of memory\\n\");\n            return 1;\n        }\n    }\n    strcpy(words[0], \"heap\");\n    strcpy(words[1], \"stack\");\n    strcpy(words[2], \"static\");\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%zu: %s\\n\", i, words[i]);\n    }\n    for (size_t i = 0; i < n; i++) {\n        free(words[i]);                            // every string...\n    }\n    free(words);                                   // ...then the array\n    return 0;\n}",
+     "caption": "words.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o words words.c\n$ ./words\n0: heap\n1: stack\n2: static"
+    },
+    {
+     "type": "md",
+     "text": "Read the types: `words` is `char **`, `words[i]` is a `char *` (one string), `words[i][j]` is a `char`. Note `sizeof(char *)` (8 bytes, a pointer) in the first call, not `sizeof(char)`. To make one string longer later, `realloc` just that string: `char *tmp = realloc(words[1], 20); if (tmp) { words[1] = tmp; }`."
+    },
+    {
+     "type": "pitfall",
+     "text": "`malloc(n * sizeof(char))` for the array of pointers gives `n` **bytes**, room for only `n / 8` pointers. The element type of a `char **` array is `char *`."
+    },
+    {
+     "type": "try",
+     "text": "Copy students.c, compile with `-g`, and run it under `valgrind --leak-check=full` with three names. Then move `free(s);` above the loop that frees the names and recompile: gcc warns `pointer 's' may be used after 'free'`, and valgrind reports `Invalid read of size 8` (reading the 8-byte pointer `s[i].name` from the freed array). Put it back."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- One struct: `struct T *p = malloc(sizeof(struct T));`, members with `p->m`. A function may return it; the caller frees it.\n- Array of structs: `struct T *a = malloc(n * sizeof(struct T));`; `a[i].m` (struct on the left), `(a + i)->m` (pointer on the left). One `free(a)`.\n- Heap array of strings: `char **w = malloc(n * sizeof(char *));` then `w[i] = malloc(len + 1);` for each: `1 + n` mallocs.\n- Free inner blocks (names, strings) **before** the array that holds their pointers; one `free` per `malloc`.\n- If an allocation in a loop fails, free everything made so far before stopping."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c19-fc-01",
+   "topic": "c19-ptrptr",
+   "front": "Why can't `void f(int *arr) { arr = malloc(...); }` set the caller's pointer?",
+   "back": "`arr` is a **copy** of the caller's pointer (pass by value). Assigning to it changes only the copy, and the new block leaks when `f` returns."
+  },
+  {
+   "id": "c19-fc-02",
+   "topic": "c19-ptrptr",
+   "front": "What parameter type lets a function change a caller's `int *a`, and how is it called?",
+   "back": "`int **arr` (pointer to pointer to int); call `f(&a)`."
+  },
+  {
+   "id": "c19-fc-03",
+   "topic": "c19-ptrptr",
+   "front": "Inside `void f(int **arr)`, what are `arr`, `*arr` and `**arr`?",
+   "back": "`arr`: address of the caller's pointer (`int **`). `*arr`: the caller's pointer itself (`int *`). `**arr`: the first `int` it points to."
+  },
+  {
+   "id": "c19-fc-04",
+   "topic": "c19-ptrptr",
+   "front": "With `int **arr`, how do you write element `i` of the caller's array?",
+   "back": "`(*arr)[i]`. Without brackets, `*arr[i]` means `*(arr[i])`, which is wrong."
+  },
+  {
+   "id": "c19-fc-05",
+   "topic": "c19-ptrptr",
+   "front": "One-line rule for \"change it in a function\"?",
+   "back": "To change a `T`, pass a `T *`. To change a `T *`, pass a `T **`. The caller writes `&var`."
+  },
+  {
+   "id": "c19-fc-06",
+   "topic": "c19-realloc",
+   "front": "Prototype of `realloc`?",
+   "back": "`void *realloc(void *ptr, size_t new_sz);` in `<stdlib.h>`. `new_sz` is the **new total size in bytes**."
+  },
+  {
+   "id": "c19-fc-07",
+   "topic": "c19-realloc",
+   "front": "What does `realloc(NULL, n)` do?",
+   "back": "The same as `malloc(n)`."
+  },
+  {
+   "id": "c19-fc-08",
+   "topic": "c19-realloc",
+   "front": "After a successful `q = realloc(p, n)`, what about `p`?",
+   "back": "`p` is no longer valid: do not use it or free it. The old contents (as much as fits) are now in the block at `q`; extra space is uninitialized."
+  },
+  {
+   "id": "c19-fc-09",
+   "topic": "c19-realloc",
+   "front": "After a failed `realloc(p, n)` (returns `NULL`), what about `p`?",
+   "back": "Still valid and unchanged. You must still `free(p)` eventually."
+  },
+  {
+   "id": "c19-fc-10",
+   "topic": "c19-realloc",
+   "front": "Why not write `p = realloc(p, n);`?",
+   "back": "If it fails, `NULL` overwrites the only pointer to the old block: a memory leak. Use `tmp`, test it, then `p = tmp;`."
+  },
+  {
+   "id": "c19-fc-11",
+   "topic": "c19-realloc",
+   "front": "The four conceptual steps of `realloc`?",
+   "back": "1. allocate `new_sz` bytes; 2. copy the old contents that fit; 3. free the old block; 4. return the new block's address. (It may grow in place instead.)"
+  },
+  {
+   "id": "c19-fc-12",
+   "topic": "c19-realloc",
+   "front": "How does a growing heap array decide when to `realloc`?",
+   "back": "Track `n` (used) and `cap` (room). When `n == cap`, double `cap`: `realloc(a, 2 * cap * sizeof(T))`."
+  },
+  {
+   "id": "c19-fc-13",
+   "topic": "c19-realloc",
+   "front": "What is a double free, and the defensive habit against it?",
+   "back": "Calling `free` twice on the same block: undefined behaviour (glibc may abort with `free(): double free detected`). Habit: `free(p); p = NULL;` so a second `free(p)` does nothing."
+  },
+  {
+   "id": "c19-fc-14",
+   "topic": "c19-heapstructs",
+   "front": "Allocate one `struct point2` on the heap and set its `x` to 1.5.",
+   "back": "`struct point2 *p = malloc(sizeof(struct point2));` then `p->x = 1.5;`"
+  },
+  {
+   "id": "c19-fc-15",
+   "topic": "c19-heapstructs",
+   "front": "Array of `n` `struct item` on the heap; set element `i`'s `price`.",
+   "back": "`struct item *a = malloc(n * sizeof(struct item));` then `a[i].price = ...;` (or `(a + i)->price`)."
+  },
+  {
+   "id": "c19-fc-16",
+   "topic": "c19-heapstructs",
+   "front": "Heap array of 5 strings of length 10: how many `malloc` calls, and what are they?",
+   "back": "Six: `char **s = malloc(5 * sizeof(char *));` and, for each `i`, `s[i] = malloc(10 + 1);`."
+  },
+  {
+   "id": "c19-fc-17",
+   "topic": "c19-heapstructs",
+   "front": "In what order do you free a heap array of structs whose `name` members point to heap strings?",
+   "back": "Each `name` first, then the array. Freeing the array first loses (and makes invalid) the pointers to the names."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c19-q-01",
+   "topic": "c19-ptrptr",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nvoid aim(int *p, int **pp, int *target) {\n    p = target;\n    *pp = target;\n}\n\nint main(void) {\n    int x = 1;\n    int y = 2;\n    int *a = &x;\n    int *b = &x;\n    aim(a, &b, &y);\n    printf(\"%d %d\\n\", *a, *b);\n    return 0;\n}",
+   "answer": "1 2",
+   "explain": "`p` is a copy of `a`: `p = target;` changes only the copy, so `a` still points at `x` (1). `pp` holds `&b`, so `*pp = target;` changes `b` itself to point at `y` (2)."
+  },
+  {
+   "id": "c19-q-02",
+   "topic": "c19-ptrptr",
+   "type": "mcq",
+   "q": "`double *d;` is declared in `main`. What is the type of `&d`?",
+   "options": [
+    "`double`",
+    "`double *`",
+    "`double **`",
+    "`void *`"
+   ],
+   "answer": 2,
+   "explain": "`d` is a `double *`; the address of a `double *` is a pointer to it, a `double **`. That is the parameter type a function needs to change `d`."
+  },
+  {
+   "id": "c19-q-03",
+   "topic": "c19-ptrptr",
+   "type": "short",
+   "q": "A student wants `make(10, p)` to give `main`'s `int *p` a new heap array of 10 ints:\n\n```c\nvoid make(size_t n, int *arr) {\n    arr = malloc(n * sizeof(int));\n}\n```\n\nAfter the call, `p` is unchanged. Explain why, name the second bug this causes, and fix the function and the call.",
+   "answer": "C passes arguments by value: `arr` is a copy of `p`, so assigning to `arr` does not change `p`. The second bug is a memory leak: when `make` returns, `arr` dies and nothing points at the block. Fix:\n\n```c\nvoid make(size_t n, int **arr) {\n    *arr = malloc(n * sizeof(int));\n}\n```\n\ncalled as `make(10, &p);`. (Or return the pointer: `int *make(size_t n)` and `p = make(10);`.)",
+   "explain": "Same as the notebook's `bad_addone`, one level up: to change an `int *`, the function needs an `int **`, and the caller passes `&p`."
+  },
+  {
+   "id": "c19-q-04",
+   "topic": "c19-ptrptr",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nvoid fill(size_t n, int **out) {\n    int *buf = malloc(n * sizeof(int));\n    for (size_t i = 0; i < n; i++) {\n        buf[i] = 10 * (int) (n - i);\n    }\n    *out = buf;\n}\n\nint main(void) {\n    int *a = NULL;\n    int **pp = &a;\n    fill(3, pp);\n    printf(\"%d %d %d\\n\", a[0], **pp, (*pp)[2]);\n    free(a);\n    return 0;\n}",
+   "answer": "30 30 10",
+   "explain": "`fill` stores 30, 20, 10 and sets `a` through `*out` (`pp` holds `&a`, and `fill` gets a copy of it). `**pp` is `a[0]` = 30; `(*pp)[2]` is `a[2]` = 10."
+  },
+  {
+   "id": "c19-q-05",
+   "topic": "c19-realloc",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *a = malloc(3 * sizeof(int));\n    a[0] = 4;\n    a[1] = 5;\n    a[2] = 6;\n    int *tmp = realloc(a, 5 * sizeof(int));\n    if (!tmp) {\n        free(a);\n        return 1;\n    }\n    a = tmp;\n    a[3] = a[0] + a[2];\n    a[4] = a[3] * 2;\n    for (int i = 0; i < 5; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\n\");\n    free(a);\n    return 0;\n}",
+   "answer": "4 5 6 10 20 ",
+   "explain": "`realloc` keeps the first three values in the bigger block. Then `a[3] = 4 + 6 = 10` and `a[4] = 10 * 2 = 20`. (The output ends with a space before the newline.)"
+  },
+  {
+   "id": "c19-q-06",
+   "topic": "c19-realloc",
+   "type": "mcq",
+   "q": "`int *a` points at a heap array of `n` ints. Which code grows it to `2 * n` ints **safely**?",
+   "options": [
+    "`a = realloc(a, 2 * n);`",
+    "`a = realloc(a, 2 * n * sizeof(int));`",
+    "`int *t = realloc(a, 2 * n * sizeof(int)); if (!t) { free(a); exit(EXIT_FAILURE); } a = t;`",
+    "`int *t = realloc(a, n * sizeof(int)); free(a); a = t;`"
+   ],
+   "answer": 2,
+   "explain": "Option 1 has the wrong size (bytes, not ints) and leaks on failure. Option 2 leaks on failure (`NULL` overwrites `a`). Option 4 adds no room, and `free(a)` after a successful `realloc` is a double free (or a free of an invalid pointer)."
+  },
+  {
+   "id": "c19-q-07",
+   "topic": "c19-realloc",
+   "type": "short",
+   "q": "What is wrong with `buf = realloc(buf, 100);`, given that `buf` is the only pointer to its block?",
+   "answer": "If `realloc` fails it returns `NULL`, which is stored in `buf`. The old block is still allocated but no pointer to it remains: a memory leak (and the program can no longer clean up). Store the result in a temporary, test it, then assign it to `buf`.",
+   "explain": "On failure `realloc` leaves the old block untouched; you need its address to keep using it or to free it."
+  },
+  {
+   "id": "c19-q-08",
+   "topic": "c19-realloc",
+   "type": "short",
+   "q": "```c\nchar *s = malloc(6);\nstrcpy(s, \"hello\");\nchar *t = realloc(s, 12);\nif (!t) {\n    free(s);\n    exit(EXIT_FAILURE);\n}\nstrcat(t, \" heap\");\nfree(s);\nfree(t);\n```\n\nFind the bug.",
+   "answer": "`free(s);` near the end. After a **successful** `realloc`, `s` is no longer a valid pointer (the old block may already have been freed by `realloc`, or it is the same block as `t`). Freeing it is undefined behaviour: if the block grew in place, `s` and `t` hold the same address and freeing both is a double free; if it moved, `realloc` already freed the old block. Free only `t`. (Inside the `if`, `free(s)` is correct: on failure `s` is still valid.)",
+   "explain": "Rule: after success, continue with the returned pointer only. A clean version writes `s = t;` and later frees `s` once."
+  },
+  {
+   "id": "c19-q-09",
+   "topic": "c19-realloc",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    char *s = malloc(4);\n    strcpy(s, \"mem\");\n    char *t = realloc(s, 10);\n    if (!t) {\n        free(s);\n        return 1;\n    }\n    s = t;\n    strcat(s, \"ory\");\n    s[0] = 'M';\n    printf(\"%s %zu\\n\", s, strlen(s));\n    free(s);\n    return 0;\n}",
+   "answer": "Memory 6",
+   "explain": "`malloc(4)` holds `\"mem\"`. `realloc` to 10 bytes keeps `\"mem\"`, `strcat` makes `\"memory\"` (6 chars + `'\\0'` fits in 10), and `s[0] = 'M'` changes the first character."
+  },
+  {
+   "id": "c19-q-10",
+   "topic": "c19-realloc",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *p = NULL;\n    for (int k = 1; k <= 3; k++) {\n        int *tmp = realloc(p, k * sizeof(int));\n        if (!tmp) {\n            free(p);\n            return 1;\n        }\n        p = tmp;\n        p[k - 1] = k * k;\n        printf(\"%d:\", k);\n        for (int i = 0; i < k; i++) {\n            printf(\" %d\", p[i]);\n        }\n        printf(\"\\n\");\n    }\n    free(p);\n    p = NULL;\n    free(p);\n    printf(\"done\\n\");\n    return 0;\n}",
+   "answer": "1: 1\n2: 1 4\n3: 1 4 9\ndone",
+   "explain": "`p` starts as `NULL`, so the first `realloc` acts like `malloc(1 * sizeof(int))`. Each pass grows the array by one int and keeps the old values. At the end `free(p); p = NULL;` and the second `free(p)` is `free(NULL)`, which does nothing: no double free."
+  },
+  {
+   "id": "c19-q-11",
+   "topic": "c19-realloc",
+   "type": "short",
+   "q": "```c\nint *p = malloc(3 * sizeof(int));\nint *q = p;\nfree(p);\np = NULL;\nfree(q);\n```\n\nIs this code correct? Explain.",
+   "answer": "No. `q` holds the same address as `p`, so `free(q)` frees the same block a second time: a double free, undefined behaviour. Setting `p = NULL` only changes `p`; `q` still holds the old address. Free the block once, through one pointer.",
+   "explain": "`p = NULL;` after `free` is a good habit but protects only that one variable."
+  },
+  {
+   "id": "c19-q-12",
+   "topic": "c19-heapstructs",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct item {\n    int id;\n    double price;\n};\n\nint main(void) {\n    size_t n = 3;\n    struct item *shop = malloc(n * sizeof(struct item));\n    for (size_t i = 0; i < n; i++) {\n        shop[i].id = 100 + (int) i;\n        shop[i].price = 2.5 * (i + 1);\n    }\n    struct item *p = shop + 1;\n    p->price = p->price + 10;\n    (p + 1)->id = 7;\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%d %.2f\\n\", shop[i].id, shop[i].price);\n    }\n    free(shop);\n    return 0;\n}",
+   "answer": "100 2.50\n101 15.00\n7 7.50",
+   "explain": "The loop sets ids 100, 101, 102 and prices 2.5, 5.0, 7.5. `p = shop + 1` points at element 1: its price becomes 15.0. `(p + 1)` is element 2: its id becomes 7."
+  },
+  {
+   "id": "c19-q-13",
+   "topic": "c19-heapstructs",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct counter {\n    char label;\n    int count;\n};\n\nstruct counter *new_counter(char label) {\n    struct counter *c = malloc(sizeof(struct counter));\n    c->label = label;\n    c->count = 0;\n    return c;\n}\n\nvoid bump(struct counter *c, int times) {\n    for (int i = 0; i < times; i++) {\n        c->count++;\n    }\n}\n\nint main(void) {\n    struct counter *a = new_counter('a');\n    struct counter *b = a;\n    bump(a, 3);\n    bump(b, 2);\n    struct counter *c = new_counter('c');\n    bump(c, a->count);\n    printf(\"%c=%d %c=%d %c=%d\\n\", a->label, a->count, b->label, b->count, c->label, c->count);\n    free(a);\n    free(c);\n    return 0;\n}",
+   "answer": "a=5 a=5 c=5",
+   "explain": "`b = a` copies the **pointer**: both point at the same heap struct, so the two `bump` calls add 3 and 2 to one count (5). `c` is a new struct, bumped `a->count` = 5 times. Only two structs were allocated, so there are two `free` calls (freeing `b` as well would be a double free)."
+  },
+  {
+   "id": "c19-q-14",
+   "topic": "c19-heapstructs",
+   "type": "short",
+   "q": "Show how to use `malloc` to allocate memory for an array of 3 strings where each string has length 15. Store the result in `char **lines`. Then show how to release all of the memory. (No error checks needed.)",
+   "answer": "```c\nchar **lines = malloc(3 * sizeof(char *));\nfor (int i = 0; i < 3; i++) {\n    lines[i] = malloc(15 + 1);\n}\n// ... use them ...\nfor (int i = 0; i < 3; i++) {\n    free(lines[i]);\n}\nfree(lines);\n```",
+   "explain": "Four `malloc` calls: one for the array of 3 `char *` (note `sizeof(char *)`), one per string with room for 15 chars plus `'\\0'`. Four `free` calls, the strings before the array. This is the April 2022 Q3(b) pattern with different numbers."
+  }
+ ],
+ "write": [
+  {
+   "id": "c19-w-01",
+   "topic": "c19-ptrptr",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write a function `size_t copy_positive(const int a[], size_t n, int **out)` that makes a **new** heap array holding the positive values of `a` (in order), using exactly as many ints as needed, stores its address in the caller's pointer through `out`, and returns how many values it holds. If there are none, or `malloc` fails, it sets the caller's pointer to `NULL` and returns 0. Write a `main` that tests it on `{3, -1, 0, 8, -5, 2}`, prints the result and frees the memory.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Makes a new array holding the positive values of a[0..n-1], in order, and\n// stores its address in *out. Returns how many values it holds. If there are\n// none, or malloc fails, sets *out to NULL and returns 0. The caller must free *out.\nsize_t copy_positive(const int a[], size_t n, int **out) {\n    *out = NULL;\n    size_t count = 0;\n    for (size_t i = 0; i < n; i++) {        // pass 1: how many?\n        if (a[i] > 0) {\n            count++;\n        }\n    }\n    if (count == 0) {\n        return 0;\n    }\n    int *pos = malloc(count * sizeof(int)); // exactly the right size\n    if (!pos) {\n        return 0;\n    }\n    size_t k = 0;\n    for (size_t i = 0; i < n; i++) {        // pass 2: copy them\n        if (a[i] > 0) {\n            pos[k] = a[i];\n            k++;\n        }\n    }\n    *out = pos;                             // set the caller's pointer\n    return count;\n}\n\nint main(void) {\n    int data[] = {3, -1, 0, 8, -5, 2};\n    int *p;\n    size_t m = copy_positive(data, 6, &p);\n    for (size_t i = 0; i < m; i++) {\n        printf(\"%d \", p[i]);\n    }\n    printf(\"(%zu values)\\n\", m);\n    free(p);                                // free(NULL) is fine if m == 0\n    return 0;\n}",
+   "explain": "\"Exactly as many as needed\" means you must count first: pass 1 counts the positive values, then one `malloc(count * sizeof(int))`, then pass 2 copies them, with a separate index `k` for the new array. The caller's pointer is an `int *`, so the parameter is `int **out` and the caller passes `&p`. The array is built in a local `int *pos` and handed over at the end with `*out = pos;` (no `(*out)[k]` needed). Setting `*out = NULL` at the start means every early `return 0` leaves the caller with a safe value, and `free(p)` in `main` is then `free(NULL)` (harmless). Output:\n\n```\n$ ./copypos\n3 8 2 (3 values)\n```\n\nvalgrind: `2 allocs, 2 frees ... All heap blocks were freed` (one is `printf`'s).",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "parameter `int **out`; caller passes `&p`"
+    },
+    {
+     "marks": 1,
+     "item": "counts the positive values before allocating"
+    },
+    {
+     "marks": 1,
+     "item": "`malloc(count * sizeof(int))` with a `NULL` check"
+    },
+    {
+     "marks": 1,
+     "item": "copies with a separate index and stores `*out = pos;`, returns the count"
+    },
+    {
+     "marks": 1,
+     "item": "sets `*out = NULL` in the failure/empty cases; `main` frees the array"
+    }
+   ],
+   "pitfalls": [
+    "`out = pos;` assigns the local copy: the caller's pointer never changes and the block leaks.",
+    "Using `pos[i]` instead of a separate `k`: leaves gaps and writes past the end.",
+    "`malloc(n * sizeof(int))` works but is not \"exactly as many as needed\".",
+    "Writing `*out[k] = a[i];` instead of `(*out)[k]`."
+   ]
+  },
+  {
+   "id": "c19-w-02",
+   "topic": "c19-realloc",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Complete `push`: it appends `value` to a heap array whose address is in `*arr`, which holds `*n` values and has room for `*cap`. When the array is full it first doubles the capacity with `realloc`, safely. It returns 0 on success, or -1 if `realloc` fails (leaving the array as it was). The program should print\n\n```\n1 4 9 16 25 \nn = 5, cap = 8\n```",
+   "starter": "#include <stdio.h>\n#include <stdlib.h>\n\nint push(int **arr, size_t *n, size_t *cap, int value) {\n    if (*n == *cap) {\n        int *tmp = realloc(____, ____);\n        if (____) {\n            return -1;\n        }\n        ____ = tmp;\n        *cap = 2 * *cap;\n    }\n    ____ = value;\n    *n = *n + 1;\n    return 0;\n}\n\nint main(void) {\n    size_t n = 0;\n    size_t cap = 1;\n    int *a = malloc(cap * sizeof(int));\n    if (!a) {\n        return 1;\n    }\n    for (int v = 1; v <= 5; v++) {\n        if (push(____, &n, &cap, v * v) != 0) {\n            free(a);\n            return 1;\n        }\n    }\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\nn = %zu, cap = %zu\\n\", n, cap);\n    free(a);\n    a = NULL;\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Appends value to the heap array *arr, which holds *n values and has room\n// for *cap. If it is full, first doubles the capacity with realloc.\n// Returns 0 on success, -1 if realloc fails (the array is then unchanged).\nint push(int **arr, size_t *n, size_t *cap, int value) {\n    if (*n == *cap) {\n        int *tmp = realloc(*arr, 2 * *cap * sizeof(int));\n        if (!tmp) {\n            return -1;\n        }\n        *arr = tmp;\n        *cap = 2 * *cap;\n    }\n    (*arr)[*n] = value;\n    *n = *n + 1;\n    return 0;\n}\n\nint main(void) {\n    size_t n = 0;\n    size_t cap = 1;\n    int *a = malloc(cap * sizeof(int));\n    if (!a) {\n        return 1;\n    }\n    for (int v = 1; v <= 5; v++) {\n        if (push(&a, &n, &cap, v * v) != 0) {\n            free(a);\n            return 1;\n        }\n    }\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\nn = %zu, cap = %zu\\n\", n, cap);\n    free(a);\n    a = NULL;\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`realloc(*arr, 2 * *cap * sizeof(int))`: the caller's pointer, total size in bytes"
+    },
+    {
+     "marks": 1,
+     "item": "tests `!tmp` and only then `*arr = tmp;`"
+    },
+    {
+     "marks": 1,
+     "item": "`(*arr)[*n] = value;` with the brackets"
+    },
+    {
+     "marks": 1,
+     "item": "call `push(&a, &n, &cap, v * v)`"
+    }
+   ],
+   "pitfalls": [
+    "`realloc(arr, ...)`: `arr` is the address of `a`, not a heap block.",
+    "`*arr = realloc(*arr, ...)`: leaks if it fails.",
+    "`*arr[*n] = value;` means `*(arr[*n])`: wrong memory.",
+    "`realloc(*arr, 2 * *cap)`: bytes, not ints."
+   ]
+  },
+  {
+   "id": "c19-w-03",
+   "topic": "c19-heapstructs",
+   "stage": "blank",
+   "marks": 6,
+   "examNote": "Modeled on April 2022 final Q3(b) and Q3(c) (4 + 2 points), with different sizes and an added cleanup part.",
+   "prompt": "Write a `main` (with the `#include`s it needs) that shows how to:\n\n(a) use `malloc` to allocate memory for an array of 4 strings where each string can hold 12 characters (hint: five calls to `malloc`);\n\n(b) store the strings \"pointer\", \"heap\", \"struct\" and \"realloc\" in them;\n\n(c) use `realloc` so that the third string can **safely** store a null-terminated string of 30 characters, then append \"s on the heap\" to it and print all four strings;\n\n(d) release all of the memory.\n\nCheck every allocation for failure (free what you already have, print a message to standard error and exit with `EXIT_FAILURE`).",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(void) {\n    // (a) an array of 4 strings, each able to hold 12 characters\n    char **names = malloc(4 * sizeof(char *));      // 1 call for the array\n    if (!names) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    for (int i = 0; i < 4; i++) {\n        names[i] = malloc(12 + 1);                  // 4 calls: 12 chars + '\\0'\n        if (!names[i]) {\n            for (int j = 0; j < i; j++) {\n                free(names[j]);\n            }\n            free(names);\n            fprintf(stderr, \"out of memory\\n\");\n            exit(EXIT_FAILURE);\n        }\n    }\n\n    // (b) store the four strings\n    strcpy(names[0], \"pointer\");\n    strcpy(names[1], \"heap\");\n    strcpy(names[2], \"struct\");\n    strcpy(names[3], \"realloc\");\n\n    // (c) make names[2] big enough for 30 characters, safely\n    char *tmp = realloc(names[2], 30 + 1);\n    if (!tmp) {\n        for (int i = 0; i < 4; i++) {\n            free(names[i]);                         // names[2] is still valid\n        }\n        free(names);\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    names[2] = tmp;\n    strcat(names[2], \"s on the heap\");              // now 19 characters\n\n    for (int i = 0; i < 4; i++) {\n        printf(\"%s\\n\", names[i]);\n    }\n\n    // (d) release everything: the strings first, then the array\n    for (int i = 0; i < 4; i++) {\n        free(names[i]);\n    }\n    free(names);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "(a) `char **names = malloc(4 * sizeof(char *));`"
+    },
+    {
+     "marks": 1,
+     "item": "(a) a loop with `names[i] = malloc(12 + 1);` (room for the `'\\0'`)"
+    },
+    {
+     "marks": 1,
+     "item": "(b) `strcpy` into each string (not `names[i] = \"...\"`)"
+    },
+    {
+     "marks": 1,
+     "item": "(c) `realloc(names[2], 30 + 1)` into a temporary, tested, then `names[2] = tmp;`"
+    },
+    {
+     "marks": 1,
+     "item": "NULL tests that free earlier blocks before `exit(EXIT_FAILURE)`"
+    },
+    {
+     "marks": 1,
+     "item": "(d) frees each string, then the array: five `free` calls in that order"
+    }
+   ],
+   "pitfalls": [
+    "`malloc(4 * sizeof(char))` for the array: 4 bytes, not 4 pointers.",
+    "`malloc(12)`: no room for the `'\\0'` of a 12-character string.",
+    "`names[2] = realloc(names[2], 31);`: leaks if it fails.",
+    "`names[0] = \"pointer\";` makes the pointer point at a literal and leaks the block; freeing it later is undefined behaviour.",
+    "`free(names)` before freeing the strings."
+   ]
+  }
+ ]
+}
