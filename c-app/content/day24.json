@@ -1,0 +1,602 @@
+{
+  "day": 24,
+  "title": "A linked stack, part 2",
+  "goal": "Finish the linked stack: pop and free nodes in the safe order (save, unlink, free), walk the nodes to free and print them with a clean valgrind run, and package the stack as an opaque type in qlstack.h and qlstack.c that compiles together with demo.c.",
+  "topics": [
+    {
+      "id": "c24-pop",
+      "title": "Pop: save the element, unlink the node, free it",
+      "notebook": "c/linked_stack.ipynb",
+      "priority": "high",
+      "examNote": "Removing a node and freeing it is what the December 2016 final's Q5 (10 marks) tested: its function had to unlink one node of a `LinkedList`, free it, and return the node's data. Pop is the simplest case (the node is the first one). Day 25 does the harder case, a node in the middle. The order *save, unlink, free* is what markers look for.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### Where we are\n\nDay 23 built the stack's two structs, `qlstack_new`, `qlstack_is_empty`, `qlstack_size` and `qlstack_push`. Its programs never gave any memory back: valgrind reported the stack struct as *definitely lost* and the nodes as *indirectly lost*. Today you write the rest of the notebook's stack (`c/linked_stack.ipynb`, files in `c/src/qlstack/`):\n\n1. `qlstack_pop`: remove the top node (this lesson);\n2. `qlstack_free` and `qlstack_print`: walk the nodes to free or print them (lesson 2);\n3. split everything into `qlstack.h` and `qlstack.c`, hide the struct (an **opaque type**), and compile the notebook's `demo.c` with it (lesson 3)."
+        },
+        {
+          "type": "md",
+          "text": "### What pop must do\n\nPopping is push in reverse. The notebook says: get the element out of the current top node, remove that node from the stack, update `top` and `size`, and, because the node's life is over, **free** it.\n\n```c\nqlstack *qlstack_pop(qlstack *s, int *popped) {\n    if (!s) {\n        return NULL;\n    }\n    struct node *oldtop = s->top;\n    int elem = oldtop->elem;\n    s->top = oldtop->next;\n    s->size--;\n    free(oldtop);\n    if (popped) {\n        *popped = elem;\n    }\n    return s;\n}\n```\n\n- `int *popped` is an **output parameter** (Day 11): the caller passes the address of an `int`, and pop writes the element there with `*popped = elem;`. A function can only `return` one value, and pop's return value is already used for errors (as in push: `s`, or `NULL` when there is no stack).\n- If the caller does not care about the element, it passes `NULL` for `popped`; the `if (popped)` test then skips the write.\n- Nothing walks the list: pop changes a fixed number of pointers, so it is **O(1)**, like push."
+        },
+        {
+          "type": "md",
+          "text": "### Trace: pop the stack 3, 2, 1\n\nThe caller writes `int x; qlstack_pop(s, &x);`.\n\n**Before:**\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 3 | * ]---> [ 2 | * ]---> [ 1 | NULL ]\n       | size | 3 |\n       +------+---+\n```\n\n**`struct node *oldtop = s->top;`** Copy the address of the top node into a local. Now two pointers point at the node holding 3.\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 3 | * ]---> [ 2 | * ]---> [ 1 | NULL ]\n       | size | 3 |       ^\n       +------+---+       |\noldtop -------------------+\n```\n\n**`int elem = oldtop->elem;`** Save the element in a local variable: `elem` is 3.\n\n**`s->top = oldtop->next;`** This is the **unlink**: `top` skips over the old top node and points at the node holding 2. The old node is no longer part of the stack, but `oldtop` still points at it, so it is not lost.\n\n```\ns ---> +------+---+\n       | top  | *-+-------------------+\n       | size | 3 |                   |\n       +------+---+                   v\n                        [ 3 | * ]---> [ 2 | * ]---> [ 1 | NULL ]\n                          ^\noldtop -------------------+           elem: 3\n```\n\n**`s->size--;`** size is 2.\n\n**`free(oldtop);`** The node's memory goes back to the heap. `oldtop` is now a **dangling pointer** (Day 12): it still holds the old address, but you may not use it.\n\n```\ns ---> +------+---+\n       | top  | *-+-------------------+\n       | size | 2 |                   |\n       +------+---+                   v\n                        (freed)       [ 2 | * ]---> [ 1 | NULL ]\n                          ^\noldtop -------------------+           elem: 3\n   (dangling: do not use)\n```\n\n**`if (popped) { *popped = elem; }`** `popped` holds `&x`, so the caller's `x` becomes 3. Then `return s;`. The locals `oldtop` and `elem` die; the stack is 2, 1 with size 2."
+        },
+        {
+          "type": "check",
+          "q": "Popping the last element: the stack holds only `[ 7 | NULL ]`. What are `top` and `size` after `qlstack_pop(s, &x)`, and does pop need a special case for it?",
+          "a": "`s->top = oldtop->next;` copies the node's `next`, which is `NULL`, so `top` becomes `NULL` and `size` becomes 0: exactly an empty stack. No special case is needed (just as push needed none for an empty stack). `x` is 7."
+        },
+        {
+          "type": "md",
+          "text": "### Pop in a program\n\nPut the code of Day 23's `stack1.c` without its `main` into a file, add `qlstack_pop` from above, and then this `main`:"
+        },
+        {
+          "type": "code",
+          "code": "int main(void) {\n    qlstack *s = qlstack_new();\n    if (!s) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    for (int i = 1; i <= 3; i++) {\n        if (!qlstack_push(s, i)) {\n            fprintf(stderr, \"out of memory\\n\");\n            exit(EXIT_FAILURE);\n        }\n    }\n    printf(\"size %zu, top elem %d\\n\", qlstack_size(s), s->top->elem);\n\n    int x;\n    qlstack_pop(s, &x);\n    printf(\"popped %d, size %zu, top elem %d\\n\", x, qlstack_size(s), s->top->elem);\n\n    qlstack_pop(s, NULL);          // pop and throw the element away\n    printf(\"popped (discarded), size %zu, top elem %d\\n\", qlstack_size(s), s->top->elem);\n\n    while (!qlstack_is_empty(s)) {  // pop whatever is left\n        qlstack_pop(s, &x);\n        printf(\"popped %d, size %zu\\n\", x, qlstack_size(s));\n    }\n    printf(\"empty? %d, top is NULL? %d\\n\", qlstack_is_empty(s), s->top == NULL);\n    free(s);                        // the stack struct itself (no nodes are left)\n    return 0;\n}"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -g -o stack2 stack2.c\n$ ./stack2\nsize 3, top elem 3\npopped 3, size 2, top elem 2\npopped (discarded), size 1, top elem 1\npopped 1, size 0\nempty? 1, top is NULL? 1\n$ valgrind --leak-check=full ./stack2\n...\n==31808==   total heap usage: 5 allocs, 5 frees, 4,160 bytes allocated\n==31808==\n==31808== All heap blocks were freed -- no leaks are possible"
+        },
+        {
+          "type": "md",
+          "text": "Every node was popped (and so freed), and `main` freed the empty stack struct itself, so valgrind is happy. The five allocations are the stack struct, three nodes, and `printf`'s own output buffer (Day 18).\n\nThe loop `while (!qlstack_is_empty(s)) { qlstack_pop(s, &x); ... }` is the safe way to pop \"everything that is left\": it checks **before** each pop."
+        },
+        {
+          "type": "pitfall",
+          "text": "Popping an **empty** stack. Then `s->top` is `NULL`, so `oldtop->elem` dereferences a null pointer: **undefined behaviour** (often a crash, but nothing is guaranteed). The notebook's pop does not check for this; it is the caller's job. Always test `qlstack_is_empty(s)` (or the size) before you pop."
+        },
+        {
+          "type": "pitfall",
+          "text": "Freeing first and reading afterwards:\n\n```c\nfree(s->top);              // WRONG: the node is gone...\ns->top = s->top->next;     // ...but this reads its next member\n```\n\nAfter `free`, reading `->next` (or `->elem`) of that node is use-after-free, undefined behaviour (Day 18). gcc may warn (`-Wuse-after-free`) and valgrind reports *Invalid read*. The safe order is always: **save** what you need (the node pointer, the element), **unlink**, **then free**."
+        },
+        {
+          "type": "pitfall",
+          "text": "Unlinking without freeing (`s->top = s->top->next;` and nothing else) leaks the old top node: after the assignment no pointer to it is left. Forgetting `s->size--;` makes `qlstack_size` and `qlstack_is_empty` lie, so a later \"safe\" pop pops an empty stack."
+        },
+        {
+          "type": "why",
+          "q": "Why does `qlstack_pop` copy the element into the local `elem` before calling `free`, and write `*popped = elem;` only at the end?",
+          "a": "After `free(oldtop)` the node's memory is no longer yours, so `oldtop->elem` may not be read. Saving it in a local first keeps the value safe. (Writing `*popped = oldtop->elem;` before the `free` would also be correct; what matters is that nothing reads the node after it is freed.)"
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- Pop: check `s`; `struct node *oldtop = s->top;` `int elem = oldtop->elem;` `s->top = oldtop->next;` `s->size--;` `free(oldtop);` then `if (popped) { *popped = elem; }` and `return s;`.\n- The order is **save, unlink, free**. Never read a node after freeing it.\n- `int *popped` is an output parameter; the caller passes `&x`, or `NULL` to throw the element away.\n- Popping the last node leaves `top == NULL` and `size == 0` with no special case.\n- Popping an **empty** stack is undefined behaviour: check `qlstack_is_empty` first. Pop is O(1)."
+        }
+      ]
+    },
+    {
+      "id": "c24-free",
+      "title": "Free and print: walking the nodes",
+      "notebook": "c/linked_stack.ipynb",
+      "priority": "high",
+      "examNote": "Walking a linked list is a frequent exam task: Fall 2014 Q7 asked for a function that sums the `data` of every node of a `LinkedList`, and April 2022 Q5(d) asked for a function that walks the course stack's nodes (`s->top`, then `->next`) and counts matching elements. A function that frees a list is the same walk with the *save next, then free* step; write it from memory.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### Freeing a whole stack\n\n`qlstack_free` must give back **every** node and then the stack struct. The notebook points out that you could pop until the stack is empty, but it is simpler and faster to walk the nodes once and free each one:\n\n```c\nvoid qlstack_free(qlstack *s) {\n    if (!s) {\n        return;\n    }\n    // free all nodes\n    struct node *n = s->top;\n    while (n) {\n        struct node *next = n->next;\n        free(n);\n        n = next;\n    }\n    // free the stack\n    free(s);\n}\n```\n\n- `if (!s) return;`: like `free(NULL)`, freeing \"no stack\" does nothing.\n- The walk is Day 23's loop (`n` starts at `top`, moves with `n = n->next`, stops at `NULL`), with one change: the address of the next node is saved in `next` **before** `free(n)`, because after `free(n)` you may no longer read `n->next`.\n- The nodes are freed first and the struct last, because the struct holds `top`, the only way to reach the nodes."
+        },
+        {
+          "type": "md",
+          "text": "### Trace: free the stack 2, 1\n\n**Start:** `n = s->top;`\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 2 | * ]---> [ 1 | NULL ]\n       | size | 2 |       ^\n       +------+---+       |\nn ------------------------+\n```\n\n**Loop 1:** `next = n->next;` saves the node holding 1. `free(n);` frees the node holding 2. `n = next;`\n\n```\ns ---> +------+---+\n       | top  | *-+---> (freed)       [ 1 | NULL ]\n       | size | 2 |                     ^\n       +------+---+                     |\nn --------------------------------------+\n```\n\n(`s->top` now dangles, but nobody will use it: the struct is about to be freed too.)\n\n**Loop 2:** `next = n->next;` is `NULL`. `free(n);` frees the node holding 1. `n = next;` is `NULL`, so the loop stops.\n\n**`free(s);`** The struct goes too. Nothing is left on the heap. The caller's pointer variable still holds the old address, so it is dangling: do not use it again, and do not free it twice (double free, Day 19)."
+        },
+        {
+          "type": "pitfall",
+          "text": "The tempting short loop is wrong:\n\n```c\nfor (struct node *n = s->top; n != NULL; n = n->next) {\n    free(n);       // after this, n->next in the update part is use-after-free\n}\n```\n\nThe update `n = n->next` runs **after** the body, so it reads a node that was just freed. This small test program builds the list 3, 2, 1 and frees it with that loop; gcc warns and valgrind reports errors:"
+        },
+        {
+          "type": "code",
+          "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nint main(void) {\n    struct node *first = NULL;\n    for (int i = 1; i <= 3; i++) {          // build 3 -> 2 -> 1\n        struct node *n = malloc(sizeof(struct node));\n        if (!n) {\n            exit(EXIT_FAILURE);\n        }\n        n->elem = i;\n        n->next = first;\n        first = n;\n    }\n    // BROKEN: n->next is read AFTER free(n)\n    for (struct node *n = first; n != NULL; n = n->next) {\n        free(n);\n    }\n    printf(\"done\\n\");\n    return 0;\n}"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -g -o badfree badfree.c\nbadfree.c: In function 'main':\nbadfree.c:21:47: warning: pointer 'n' used after 'free' [-Wuse-after-free]\n   21 |     for (struct node *n = first; n != NULL; n = n->next) {\n      |                                             ~~^~~~~~~~~\nbadfree.c:22:9: note: call to 'free' here\n   22 |         free(n);\n      |         ^~~~~~~\n$ valgrind ./badfree\n...\n==32385== Invalid read of size 8\n==32385==    at 0x109226: main (badfree.c:21)\n==32385==  Address 0x4a7b0e8 is 8 bytes inside a block of size 16 free'd\n...\n==32385== ERROR SUMMARY: 3 errors from 1 contexts (suppressed: 0 from 0)"
+        },
+        {
+          "type": "md",
+          "text": "*Invalid read of size 8, 8 bytes inside a block of size 16*: the program read the 8-byte `next` pointer, which sits 8 bytes into a 16-byte node, after that node was freed. The program may still seem to work, which is why such bugs survive without valgrind. Fix: save `n->next` in a variable before `free(n)`, as `qlstack_free` does."
+        },
+        {
+          "type": "pitfall",
+          "text": "Freeing the struct first: `free(s); struct node *n = s->top; ...` reads `s->top` from freed memory. Free from the inside out: the nodes (reached through the struct) first, the struct last."
+        },
+        {
+          "type": "check",
+          "q": "Rewrite `qlstack_free` so that it frees the nodes by popping, as the notebook suggests is possible. Why does the notebook prefer the walk?",
+          "a": "`if (!s) { return; } while (!qlstack_is_empty(s)) { qlstack_pop(s, NULL); } free(s);` It is correct, but each pop also updates `top` and `size` and tests `popped`, work that is wasted when the whole stack is being destroyed. The walk only frees."
+        },
+        {
+          "type": "md",
+          "text": "### Printing a stack\n\n`qlstack_print` walks the nodes too, from the top to the bottom. It takes two optional strings: `pre` is printed before the stack and `post` after it, and either may be `NULL` (then it is skipped). The stack itself is printed as `top : 3, 2, 1 : bottom`.\n\n```c\nvoid qlstack_print(const char *pre, const qlstack *s, const char *post) {\n    if (pre) {\n        printf(\"%s\", pre);\n    }\n    printf(\"top : \");\n    if (!qlstack_is_empty(s)) {\n        struct node *n = s->top;\n        printf(\"%d\", n->elem);\n        n = n->next;\n        while (n) {\n            printf(\", %d\", n->elem);\n            n = n->next;\n        }\n    }\n    printf(\" : bottom\");\n    if (post) {\n        printf(\"%s\", post);\n    }\n}\n```\n\n- The first element is printed on its own, then every further one with `\", %d\"` in front: that puts commas **between** the elements and none at the end.\n- An empty stack prints `top : ` and then ` : bottom`, so you see `top :  : bottom` with **two** spaces between the colons.\n- `const qlstack *s`: printing does not change the stack. `s` itself must not be `NULL` (undefined behaviour)."
+        },
+        {
+          "type": "md",
+          "text": "### A program with no leaks\n\nAdd `qlstack_print` and `qlstack_free` to the file from lesson 1 and use this `main`. It frees the stack on the error path too, before `exit`."
+        },
+        {
+          "type": "code",
+          "code": "int main(void) {\n    qlstack *s = qlstack_new();\n    if (!s) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    qlstack_print(\"start: \", s, \"\\n\");\n    for (int i = 1; i <= 3; i++) {\n        if (!qlstack_push(s, 10 * i)) {\n            fprintf(stderr, \"out of memory\\n\");\n            qlstack_free(s);\n            exit(EXIT_FAILURE);\n        }\n        qlstack_print(\"pushed: \", s, \"\\n\");\n    }\n    int x;\n    qlstack_pop(s, &x);\n    printf(\"popped %d\\n\", x);\n    qlstack_print(NULL, s, NULL);\n    printf(\"\\n\");\n    qlstack_free(s);    // frees the 2 remaining nodes, then the struct\n    return 0;\n}"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -g -o stack3 stack3.c\n$ valgrind --leak-check=full ./stack3\n==1063== Memcheck, a memory error detector\n==1063== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.\n==1063== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info\n==1063== Command: ./stack3\n==1063==\nstart: top :  : bottom\npushed: top : 10 : bottom\npushed: top : 20, 10 : bottom\npushed: top : 30, 20, 10 : bottom\npopped 30\ntop : 20, 10 : bottom\n==1063==\n==1063== HEAP SUMMARY:\n==1063==     in use at exit: 0 bytes in 0 blocks\n==1063==   total heap usage: 5 allocs, 5 frees, 4,160 bytes allocated\n==1063==\n==1063== All heap blocks were freed -- no leaks are possible\n==1063==\n==1063== For lists of detected and suppressed errors, rerun with: -s\n==1063== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)"
+        },
+        {
+          "type": "md",
+          "text": "Compare with Day 23's `stack1`: there valgrind found *definitely lost: 16 bytes in 1 blocks* (the struct) and *indirectly lost: 48 bytes in 3 blocks* (the nodes). Here one node was freed by `qlstack_pop` and the other two plus the struct by `qlstack_free`: **every `malloc` has exactly one `free`**."
+        },
+        {
+          "type": "try",
+          "text": "Add qlstack_free(s); before return 0; in Day 23's stack1.c, compile with -g and run valgrind --leak-check=full ./stack1: the definitely/indirectly lost lines disappear. Then put the broken for loop from the pitfall into qlstack_free instead, recompile, and read gcc's warning and valgrind's Invalid read report. Change it back."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- `qlstack_free`: `if (!s) return;` walk with `struct node *next = n->next; free(n); n = next;` and finally `free(s);`.\n- Save `n->next` **before** `free(n)`. The `for` loop with `n = n->next` after `free(n)` is use-after-free (gcc `-Wuse-after-free`, valgrind *Invalid read*).\n- Free the nodes first, then the struct that leads to them. After `qlstack_free(s)` the caller's `s` dangles.\n- `qlstack_print(pre, s, post)` prints `pre`, then `top : a, b, c : bottom`, then `post`; `NULL` strings are skipped; empty prints `top :  : bottom`.\n- Clean valgrind: *All heap blocks were freed -- no leaks are possible*."
+        }
+      ]
+    },
+    {
+      "id": "c24-files",
+      "title": "An opaque stack type: qlstack.h, qlstack.c and demo.c",
+      "notebook": "c/linked_stack.ipynb",
+      "priority": "medium",
+      "examNote": "April 2022 Q5 began with *the generic stack data structure that we implemented in the course* and expected you to know its design (Q5(d) then printed the structs for you). The Fall 2014 exam's summary page showed a program split into `root.c`, `root.h` and `sqrt.c` with its compile commands. Be able to say what goes in a `.h` and a `.c` file, why the struct is hidden, and how to compile them together.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### Two ways to share a struct with users\n\nOn Day 20, `qstr.h` contained the whole `struct qstr { size_t length; size_t capacity; char *data; };`. Every file that includes the header can see the members, so any user could write `s->length = 99;` and break the string.\n\nThe stack is done differently. Its header contains only this line about the struct:\n\n```c\ntypedef struct qlstack_tag qlstack;\n```\n\nIt says \"there is a struct type called `struct qlstack_tag`, and `qlstack` is another name for it\", but **not** what is inside. A struct that has been named but whose members are not known is an **incomplete type** (Day 23 met the term in gcc's error message). The complete definition, `struct qlstack_tag { struct node *top; size_t size; };`, is written only in `qlstack.c`.\n\nA type whose inside is hidden from its users is called an **opaque type**. Users can only:\n\n- hold **pointers** to it: `qlstack *s = qlstack_new();` (every pointer has the same size, so the compiler needs nothing more);\n- pass those pointers to the functions declared in the header.\n\nThey cannot touch the members, declare a whole `qlstack` variable, or take `sizeof(qlstack)`, because the compiler does not know the struct's members or size in their file:"
+        },
+        {
+          "type": "code",
+          "code": "#include <stdio.h>\n#include \"qlstack.h\"\n\nint main(void) {\n    qlstack *s = qlstack_new();\n    qlstack_push(s, 7);\n    printf(\"%d\\n\", s->top->elem);     // try to peek directly\n    qlstack_free(s);\n    return 0;\n}"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o peek_bad peek_bad.c qlstack.c\npeek_bad.c: In function 'main':\npeek_bad.c:7:21: error: invalid use of incomplete typedef 'qlstack' {aka 'struct qlstack_tag'}\n    7 |     printf(\"%d\\n\", s->top->elem);     // try to peek directly\n      |                     ^~"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o var_bad var_bad.c qlstack.c\nvar_bad.c: In function 'main':\nvar_bad.c:5:13: error: storage size of 'st' isn't known\n    5 |     qlstack st;                        // a whole stack struct?\n      |             ^~\nvar_bad.c:6:28: error: invalid application of 'sizeof' to incomplete type 'qlstack' {aka 'struct qlstack_tag'}\n    6 |     printf(\"%zu\\n\", sizeof(qlstack));\n      |                            ^~~~~~~",
+          "caption": "var_bad.c tries `qlstack st;` and `sizeof(qlstack)` in a file that only includes qlstack.h (unused-variable warning not shown)"
+        },
+        {
+          "type": "md",
+          "text": "Inside `qlstack.c` the struct is complete, so there `s->top`, `s->size` and `malloc(sizeof(qlstack))` are all fine. That is why every function that touches nodes lives in `qlstack.c`.\n\n### Why hide the struct?\n\n- **Users cannot break it.** Only the stack's own functions change `top` and `size`, so `size` always matches the number of nodes and `top` always leads to a proper chain.\n- **The inside can change.** The notebook mentions that a stack could also be built with an array (like `qstr`). The author could rewrite `qlstack.c` that way, and `demo.c` would not need a single change, because it only ever used the functions.\n- You will meet another opaque type on Day 26: `FILE`, which you only ever use through a `FILE *`.\n\n### Why a `typedef` here (and not for `struct node`)?\n\nDay 13 gave the course's rule: don't `typedef` a struct just to avoid typing `struct`, because `struct` tells the reader \"this has members you use\". The exception is an **opaque** type: its users never touch members, so the fact that it is a struct does not matter to them, and the short name `qlstack` is all they need. `struct node` keeps its `struct`, and it does not appear in the header at all: users never see nodes.\n\nThe tag is `qlstack_tag` and the alias is `qlstack`. C would allow `typedef struct qlstack qlstack;` (same word twice), but using one name for two things is confusing, so the course adds `_tag` to the tag."
+        },
+        {
+          "type": "check",
+          "q": "A user of the opaque `qlstack` wants to look at the top element without popping it. Day 23 wrote `s->top->elem`. What must change so the user can peek, and in which files?",
+          "a": "Users cannot write `s->top->elem` (incomplete type). The library must offer a function: declare `int qlstack_peek(const qlstack *s);` in `qlstack.h` (with a comment: undefined behaviour if the stack is empty) and define it in `qlstack.c` as `return s->top->elem;`, where the struct is complete."
+        },
+        {
+          "type": "md",
+          "text": "### The header `qlstack.h`\n\nA header holds **declarations** (Day 8): what exists and how to call it. Here is the notebook's header with two small changes: `#include <stddef.h>` (where `size_t` is defined; see the pitfall below) and `(void)` for `qlstack_new` (Day 23)."
+        },
+        {
+          "type": "code",
+          "code": "#ifndef QLSTACK_H\n#define QLSTACK_H\n\n#include <stdbool.h>\n#include <stddef.h>\n\ntypedef struct qlstack_tag qlstack;\n\n/*\n * Returns a pointer to a newly allocated stack.\n * Returns a null pointer if the stack cannot be allocated.\n */\nqlstack *qlstack_new(void);\n\n/*\n * Returns true if s points at an empty stack, false otherwise.\n * Undefined behavior if s is a null pointer.\n */\nbool qlstack_is_empty(const qlstack *s);\n\n/*\n * Returns the number of elements in the stack pointed at by s.\n * Undefined behavior if s is a null pointer.\n */\nsize_t qlstack_size(const qlstack *s);\n\n/*\n * Pushes the specified element onto the top of the stack pointed\n * at by s.\n * Returns s, or a null pointer if s is a null pointer.\n */\nqlstack *qlstack_push(qlstack *s, int elem);\n\n/*\n * Pops the top element off the top of the stack pointed\n * at by s. If popped is not null then the popped element is written\n * into the object pointed at by popped.\n * Returns s, or a null pointer if s is a null pointer.\n */\nqlstack *qlstack_pop(qlstack *s, int *popped);\n\n/*\n * Prints a representation of the specified stack to standard out\n * with an optional preamble and postscript.\n * If pre is not null, then the string pre is printed before the\n * stack representation.\n * If post is not null, then the string post is printed after the\n * stack representation.\n * Undefined behavior if s is a null pointer.\n */\nvoid qlstack_print(const char *pre, const qlstack *s, const char *post);\n\n/*\n * Deallocates memory allocated for the stack pointed at by s.\n * Does nothing if s is NULL.\n */\nvoid qlstack_free(qlstack *s);\n\n#endif // QLSTACK_H",
+          "caption": "qlstack.h"
+        },
+        {
+          "type": "md",
+          "text": "- The include guard (`#ifndef QLSTACK_H` ... `#endif`, Day 8) stops the declarations being seen twice if a file includes the header twice.\n- `<stdbool.h>` is included because `qlstack_is_empty` returns a `bool`.\n- Each prototype has a comment saying what it does and when its behaviour is undefined. For a user of an opaque type, the header **is** the documentation: it is the only file they need to read."
+        },
+        {
+          "type": "pitfall",
+          "text": "The notebook's own `qlstack.h` uses `size_t` but includes only `<stdbool.h>`. It works in `demo.c` only because `demo.c` includes `<stdio.h>` (which also defines `size_t`) **before** `\"qlstack.h\"`. A file that includes the header first fails:\n\n```\n$ gcc -std=c17 -Wall -o first first.c qlstack.c\nIn file included from first.c:1:\nqlstack.h:24:1: error: unknown type name 'size_t'\n   24 | size_t qlstack_size(const qlstack *s);\n      | ^~~~~~\nqlstack.h:5:1: note: 'size_t' is defined in header '<stddef.h>'; did you forget to '#include <stddef.h>'?\n```\n\nRule: a header must include every header it needs itself, so that it works in any order. That is why our version adds `#include <stddef.h>`."
+        },
+        {
+          "type": "md",
+          "text": "### The implementation `qlstack.c`\n\n`qlstack.c` holds the **definitions**: it starts like this and then contains the seven functions you have written on Days 23 and 24 (`qlstack_new`, `qlstack_is_empty`, `qlstack_size`, `qlstack_push`, `qlstack_pop`, `qlstack_print`, `qlstack_free`), exactly as shown in the lessons.\n\n```c\n// qlstack.c\n\n#include <stdlib.h>\n#include <stdio.h>\n#include \"qlstack.h\"\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct qlstack_tag {\n    struct node *top;\n    size_t size;\n};\n```\n\nIt includes its **own** header, for two reasons:\n\n1. It needs the `typedef`: the functions are written with the name `qlstack`.\n2. The compiler then checks every definition against its declaration. If `qlstack.c` accidentally defined `int qlstack_size(...)` while the header promises `size_t`, gcc stops with an error:\n\n```\n$ gcc -std=c17 -Wall -c mism.c\nmism.c:31:5: error: conflicting types for 'qlstack_size'; have 'int(const qlstack *)' {aka 'int(const struct qlstack_tag *)'}\n   31 | int qlstack_size(const qlstack *s) {\n      |     ^~~~~~~~~~~~\nIn file included from mism.c:5:\nqlstack.h:25:8: note: previous declaration of 'qlstack_size' with type 'size_t(const qlstack *)' {aka 'long unsigned int(const struct qlstack_tag *)'}\n```\n\nWithout the `#include`, nothing would compare the two, and `demo.c` would call the function with the wrong idea of its return type."
+        },
+        {
+          "type": "md",
+          "text": "### `demo.c`: a user of the stack\n\nThe notebook's demo pushes each command line argument onto stack `q1` and its negative onto `q2`, printing both after every push; then it pops both stacks until they are empty, printing each popped value; then it frees both. It includes `\"qlstack.h\"` and never mentions a node or a member."
+        },
+        {
+          "type": "code",
+          "code": "#include <stdio.h>\n#include <stdlib.h>\n#include \"qlstack.h\"\n\nint main(int argc, char *argv[]) {\n    size_t n = argc - 1;\n    qlstack *q1 = qlstack_new();\n    qlstack *q2 = qlstack_new();\n\n    for (size_t i = 0; i < n; i++) {\n        int val1 = atoi(argv[i + 1]);\n        int val2 = -val1;\n        if (!qlstack_push(q1, val1)) {\n            fprintf(stderr, \"error pushing to q1\\n\");\n            qlstack_free(q1);\n            exit(EXIT_FAILURE);\n        }\n        if (!qlstack_push(q2, val2)) {\n            fprintf(stderr, \"error pushing to q2\\n\");\n            qlstack_free(q1);\n            exit(EXIT_FAILURE);\n        }\n        qlstack_print(\"q1 \", q1, \"\\n\");\n        qlstack_print(\"q2 \", q2, \"\\n\");\n    }\n\n    for (size_t i = 0; i < n; i++) {\n        int val1;\n        int val2;\n        char pre[100];\n        qlstack_pop(q1, &val1);\n        sprintf(pre, \"popped %d, q1 \", val1);\n        qlstack_print(pre, q1, \"\\n\");\n        \n        qlstack_pop(q2, &val2);\n        sprintf(pre, \"popped %d, q2 \", val2);\n        qlstack_print(pre, q2, \"\\n\");\n    }\n\n    qlstack_free(q1);\n    qlstack_free(q2);\n\n    return 0;\n}",
+          "caption": "demo.c (from c/src/qlstack/)"
+        },
+        {
+          "type": "md",
+          "text": "- `qlstack_print(pre, s, \"\\n\")` prints a label, the stack and a newline in one call.\n- `sprintf(pre, \"popped %d, q1 \", val1);` (Day 17) builds the label in the `char pre[100]` array first, so the popped value appears in it.\n- The pop loop runs exactly `n` times, the number of elements pushed, so it never pops an empty stack.\n- Both stacks are freed at the end. (On the push error path the notebook frees only `q1` before `exit`; freeing `q2` too would be cleaner.)"
+        },
+        {
+          "type": "md",
+          "text": "### Compiling several files together\n\nList every `.c` file on one `gcc` command; the header is **not** listed, because it is pulled in by `#include`:"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o demo demo.c qlstack.c\n$ ./demo 1 2 3\nq1 top : 1 : bottom\nq2 top : -1 : bottom\nq1 top : 2, 1 : bottom\nq2 top : -2, -1 : bottom\nq1 top : 3, 2, 1 : bottom\nq2 top : -3, -2, -1 : bottom\npopped 3, q1 top : 2, 1 : bottom\npopped -3, q2 top : -2, -1 : bottom\npopped 2, q1 top : 1 : bottom\npopped -2, q2 top : -1 : bottom\npopped 1, q1 top :  : bottom\npopped -1, q2 top :  : bottom\n$ valgrind --leak-check=full ./demo 1 2 3\n...\n==31503==   total heap usage: 9 allocs, 9 frees, 4,224 bytes allocated\n==31503==\n==31503== All heap blocks were freed -- no leaks are possible"
+        },
+        {
+          "type": "md",
+          "text": "9 allocations: two stack structs, six nodes, and `printf`'s buffer. Each `.c` file is compiled separately into machine code, and then the **linker** joins them (Day 8). `demo.c`'s calls to `qlstack_push` and the others are connected to the definitions from `qlstack.c` at that last step. If you forget `qlstack.c` on the command line, `demo.c` still compiles (the header declared everything), but linking fails:\n\n```\n$ gcc -std=c17 -Wall -o demo demo.c\n/usr/bin/ld: /tmp/cc65rzai.o: in function `main':\ndemo.c:(.text+0x43): undefined reference to `qlstack_new'\n...\ncollect2: error: ld returned 1 exit status\n```\n\nThe same build in steps (Day 8) makes one `.o` file per `.c` file and then links them:\n\n```\n$ gcc -std=c17 -Wall -c qlstack.c\n$ gcc -std=c17 -Wall -c demo.c\n$ gcc -o demo demo.o qlstack.o\n```\n\nIf you later change only `qlstack.c`, only that file needs compiling again; `demo.o` depends only on the header."
+        },
+        {
+          "type": "check",
+          "q": "In `demo.c`, suppose `qlstack_push(q2, val2)` fails on the second argument. The program frees `q1` and exits. What memory does valgrind report as lost, and how would you fix it?",
+          "a": "`q2` and its node(s) are never freed: the `q2` struct is lost, together with the one node already pushed onto it. Fix: call `qlstack_free(q2);` as well before `exit(EXIT_FAILURE);` (both calls are safe even if a stack is empty)."
+        },
+        {
+          "type": "try",
+          "text": "Copy c/src/qlstack/ (qlstack.h, qlstack.c, demo.c) into a new folder. Add #include <stddef.h> to qlstack.h. Build with gcc -std=c17 -Wall -o demo demo.c qlstack.c and run ./demo 4 9 7, then under valgrind --leak-check=full. Next, add a line printf(\"%zu\\n\", q1->size); to demo.c and read the incomplete-type error; remove it. Finally add int qlstack_peek(const qlstack *s); to the header, define it in qlstack.c, and print the top of q1 from demo.c."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- **Opaque type**: the header has only `typedef struct qlstack_tag qlstack;` (an incomplete type); the members are defined in `qlstack.c`. Users hold `qlstack *` pointers and call functions; `s->size`, `qlstack st;` and `sizeof(qlstack)` do not compile in their files.\n- Benefits: users cannot break the stack, and the inside can change without changing users' code.\n- The course uses `typedef` only for opaque types; the tag gets a `_tag` suffix. `struct node` is private to `qlstack.c`.\n- `qlstack.h`: include guard, the headers it needs (`<stdbool.h>`, `<stddef.h>`), the typedef, commented prototypes. `qlstack.c`: includes `\"qlstack.h\"`, defines the structs and all functions.\n- Build: `gcc -std=c17 -Wall -o demo demo.c qlstack.c` (all `.c` files, never the `.h`). Missing `qlstack.c` gives *undefined reference*."
+        }
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "id": "c24-fc-01",
+      "topic": "c24-pop",
+      "front": "The statements of `qlstack_pop` after the `if (!s)` check, in order?",
+      "back": "`struct node *oldtop = s->top;` `int elem = oldtop->elem;` `s->top = oldtop->next;` `s->size--;` `free(oldtop);` `if (popped) { *popped = elem; }` `return s;`"
+    },
+    {
+      "id": "c24-fc-02",
+      "topic": "c24-pop",
+      "front": "The safe order for removing a node?",
+      "back": "**Save** what you need (the node pointer, its element), **unlink** it, **then free** it. Never read a node after `free`."
+    },
+    {
+      "id": "c24-fc-03",
+      "topic": "c24-pop",
+      "front": "What is `int *popped` in `qlstack_pop(qlstack *s, int *popped)`, and what does passing `NULL` do?",
+      "back": "An output parameter: pop writes the element into `*popped` (the caller passes `&x`). With `NULL` the element is simply thrown away (`if (popped)` skips the write)."
+    },
+    {
+      "id": "c24-fc-04",
+      "topic": "c24-pop",
+      "front": "What happens if you pop an empty `qlstack`?",
+      "back": "Undefined behaviour: `s->top` is `NULL`, so `oldtop->elem` dereferences a null pointer. Check `qlstack_is_empty(s)` first."
+    },
+    {
+      "id": "c24-fc-05",
+      "topic": "c24-pop",
+      "front": "After popping the only node, what are `top` and `size`?",
+      "back": "`top` is `NULL` (it got the node's `next`) and `size` is 0. No special case is needed."
+    },
+    {
+      "id": "c24-fc-06",
+      "topic": "c24-pop",
+      "front": "What is wrong with `free(s->top); s->top = s->top->next;`?",
+      "back": "It reads `->next` of a node that was already freed (use-after-free, undefined behaviour). Save the pointer first: `struct node *old = s->top; s->top = old->next; free(old);`"
+    },
+    {
+      "id": "c24-fc-07",
+      "topic": "c24-free",
+      "front": "The loop body that frees every node starting at `n = s->top`?",
+      "back": "```c\nwhile (n) {\n    struct node *next = n->next;\n    free(n);\n    n = next;\n}\n```"
+    },
+    {
+      "id": "c24-fc-08",
+      "topic": "c24-free",
+      "front": "Why is `for (n = s->top; n != NULL; n = n->next) { free(n); }` wrong?",
+      "back": "The update `n = n->next` runs after `free(n)`, so it reads a freed node. gcc warns (`-Wuse-after-free`) and valgrind reports *Invalid read*."
+    },
+    {
+      "id": "c24-fc-09",
+      "topic": "c24-free",
+      "front": "In `qlstack_free`, why are the nodes freed before the stack struct?",
+      "back": "The struct holds `top`, the only way to reach the nodes. Free the struct first and `s->top` can no longer be read."
+    },
+    {
+      "id": "c24-fc-10",
+      "topic": "c24-free",
+      "front": "What does `qlstack_print(\"s: \", s, \"\\n\")` print for an empty stack, and for 3, 2, 1 (top first)?",
+      "back": "`s: top :  : bottom` (two spaces between the colons) and `s: top : 3, 2, 1 : bottom`, each followed by a newline."
+    },
+    {
+      "id": "c24-fc-11",
+      "topic": "c24-free",
+      "front": "What does valgrind print when every block was freed?",
+      "back": "`All heap blocks were freed -- no leaks are possible` (and `in use at exit: 0 bytes in 0 blocks`)."
+    },
+    {
+      "id": "c24-fc-12",
+      "topic": "c24-files",
+      "front": "What is an opaque type?",
+      "back": "A type whose inside is hidden from its users: the header only names it (`typedef struct qlstack_tag qlstack;`), the members are defined in the `.c` file, and users work only with pointers and the declared functions."
+    },
+    {
+      "id": "c24-fc-13",
+      "topic": "c24-files",
+      "front": "In a file that includes only `qlstack.h`, which of these compile: `qlstack *s;`, `qlstack st;`, `sizeof(qlstack)`, `s->size`?",
+      "back": "Only `qlstack *s;`. The others need the struct's members or size, but `struct qlstack_tag` is an incomplete type there (*storage size isn't known*, *invalid use of incomplete typedef*)."
+    },
+    {
+      "id": "c24-fc-14",
+      "topic": "c24-files",
+      "front": "Why does the course `typedef` `qlstack` but not `struct node`?",
+      "back": "A typedef is acceptable for an opaque type, whose users never touch members. `struct node` has members the code uses, and it is private to `qlstack.c` anyway."
+    },
+    {
+      "id": "c24-fc-15",
+      "topic": "c24-files",
+      "front": "What goes in `qlstack.h` and what in `qlstack.c`?",
+      "back": "`.h`: include guard, needed headers (`<stdbool.h>`, `<stddef.h>`), the typedef, commented prototypes. `.c`: `#include \"qlstack.h\"`, the two struct definitions, and the function definitions."
+    },
+    {
+      "id": "c24-fc-16",
+      "topic": "c24-files",
+      "front": "Why does `qlstack.c` include its own header?",
+      "back": "For the `qlstack` typedef, and so the compiler checks each definition against its declaration (*conflicting types* if they differ)."
+    },
+    {
+      "id": "c24-fc-17",
+      "topic": "c24-files",
+      "front": "Command to build the notebook's demo, and the error if you leave out `qlstack.c`?",
+      "back": "`gcc -std=c17 -Wall -o demo demo.c qlstack.c` (never list the `.h`). Without `qlstack.c`: linker errors *undefined reference to `qlstack_new`* and so on."
+    }
+  ],
+  "quiz": [
+    {
+      "id": "c24-q-01",
+      "topic": "c24-pop",
+      "type": "output",
+      "q": "This program is compiled with `qlstack.c` from today's lessons (`gcc -std=c17 -Wall -o p p.c qlstack.c`). What does it print?",
+      "code": "#include <stdio.h>\n#include \"qlstack.h\"\n\nint main(void) {\n    qlstack *s = qlstack_new();\n    if (!s) {\n        return 1;\n    }\n    int a[] = { 6, 1, 8, 3 };\n    for (int i = 0; i < 4; i++) {\n        qlstack_push(s, a[i]);\n    }\n    int x = 0;\n    qlstack_pop(s, &x);\n    qlstack_pop(s, NULL);\n    printf(\"x = %d, size = %zu\\n\", x, qlstack_size(s));\n    qlstack_push(s, x + 10);\n    qlstack_pop(s, &x);\n    qlstack_pop(s, &x);\n    printf(\"x = %d, size = %zu\\n\", x, qlstack_size(s));\n    qlstack_print(\"left: \", s, \"\\n\");\n    qlstack_free(s);\n    return 0;\n}",
+      "answer": "x = 3, size = 2\nx = 1, size = 1\nleft: top : 6 : bottom",
+      "explain": "After the pushes the stack is 3, 8, 1, 6 (top first). `pop(&x)` gives x = 3; `pop(NULL)` removes 8 without changing x: size 2. Push 13 (x + 10): 13, 1, 6. Pop gives 13, the next pop gives 1, leaving 6 with size 1."
+    },
+    {
+      "id": "c24-q-02",
+      "topic": "c24-pop",
+      "type": "mcq",
+      "q": "`oldtop` already points at the top node and `elem` holds its element. Which order of the remaining statements in pop is correct?",
+      "options": [
+        "`free(oldtop); s->top = oldtop->next; s->size--;`",
+        "`s->top = oldtop->next; s->size--; free(oldtop);`",
+        "`s->top = oldtop->next; s->size--;` (no `free` is needed)",
+        "`s->top = NULL; s->size--; free(oldtop);`"
+      ],
+      "answer": 1,
+      "explain": "Unlink first (`top` takes the old top's `next`), then free. Option A reads `oldtop->next` after `free` (use-after-free). Option C leaks the node. Option D loses every node below the top."
+    },
+    {
+      "id": "c24-q-03",
+      "topic": "c24-pop",
+      "type": "short",
+      "q": "A student's pop is\n\n```c\nint elem = s->top->elem;\nfree(s->top);\ns->top = s->top->next;\ns->size--;\n```\n\nWhat is wrong, and how do you fix it?",
+      "answer": "After `free(s->top)` the node is gone, but the next line reads `s->top->next` from it: use-after-free, undefined behaviour. Fix: save the node first and unlink before freeing: `struct node *old = s->top; int elem = old->elem; s->top = old->next; s->size--; free(old);`",
+      "explain": "Save, unlink, free. valgrind would report *Invalid read of size 8* for the `next` member; the program may even seem to work, which is why the rule matters."
+    },
+    {
+      "id": "c24-q-04",
+      "topic": "c24-pop",
+      "type": "short",
+      "q": "Write the notebook's `qlstack *qlstack_pop(qlstack *s, int *popped)` from memory (inside `qlstack.c`, where the structs are known).",
+      "answer": "```c\nqlstack *qlstack_pop(qlstack *s, int *popped) {\n    if (!s) {\n        return NULL;\n    }\n    struct node *oldtop = s->top;\n    int elem = oldtop->elem;\n    s->top = oldtop->next;\n    s->size--;\n    free(oldtop);\n    if (popped) {\n        *popped = elem;\n    }\n    return s;\n}\n```",
+      "explain": "Check marks usually go for: the NULL check, saving the top node, unlinking (`top = oldtop->next`), `size--`, `free`, writing the element only when `popped` is not NULL, returning `s`. The stack must not be empty (the caller checks)."
+    },
+    {
+      "id": "c24-q-05",
+      "topic": "c24-free",
+      "type": "output",
+      "q": "This program is compiled with `qlstack.c` from today's lessons (`gcc -std=c17 -Wall -o p p.c qlstack.c`). What does it print?",
+      "code": "#include <stdio.h>\n#include \"qlstack.h\"\n\nint main(void) {\n    qlstack *s = qlstack_new();\n    if (!s) {\n        return 1;\n    }\n    qlstack_print(\"[\", s, \"]\\n\");\n    qlstack_push(s, 4);\n    qlstack_push(s, -2);\n    qlstack_print(NULL, s, \"\\n\");\n    qlstack_print(\"s: \", s, NULL);\n    qlstack_pop(s, NULL);\n    qlstack_print(\" / \", s, \"\\n\");\n    qlstack_free(s);\n    return 0;\n}",
+      "answer": "[top :  : bottom]\ntop : -2, 4 : bottom\ns: top : -2, 4 : bottom / top : 4 : bottom",
+      "explain": "Empty stack: `top : ` then ` : bottom` (two spaces). A `NULL` `pre` or `post` is skipped, so the third call prints no newline and the fourth call's output continues on the same line after ` / `."
+    },
+    {
+      "id": "c24-q-06",
+      "topic": "c24-free",
+      "type": "short",
+      "q": "What is wrong with this `qlstack_free`, and what does valgrind say about it?\n\n```c\nvoid qlstack_free(qlstack *s) {\n    if (!s) {\n        return;\n    }\n    for (struct node *n = s->top; n != NULL; n = n->next) {\n        free(n);\n    }\n    free(s);\n}\n```",
+      "answer": "The update `n = n->next` runs after `free(n)`, so it reads the `next` member of a freed node (use-after-free). valgrind reports *Invalid read of size 8 ... inside a block of size 16 free'd* (gcc also warns `-Wuse-after-free`). Fix: `struct node *n = s->top; while (n) { struct node *next = n->next; free(n); n = next; }`.",
+      "explain": "It may seem to work, but it is undefined behaviour. Always copy `n->next` into a variable before freeing `n`."
+    },
+    {
+      "id": "c24-q-07",
+      "topic": "c24-free",
+      "type": "short",
+      "q": "Another student writes `free(s);` as the **first** line of `qlstack_free` (after the NULL check), followed by the node-freeing loop starting at `s->top`. What is wrong?",
+      "answer": "After `free(s)` the struct is gone, so reading `s->top` to start the loop is use-after-free. Free the nodes first (reached through `s->top`), then the struct.",
+      "explain": "Free from the inside out: things you reach *through* a block must be freed (or their pointers saved) before the block itself."
+    },
+    {
+      "id": "c24-q-08",
+      "topic": "c24-free",
+      "type": "short",
+      "q": "(In the style of Fall 2014 Q7.) Inside `qlstack.c`, write `long qlstack_sum(const qlstack *s)` that returns the sum of all elements in the stack (0 for an empty stack). Why must this function be in `qlstack.c` and not in `demo.c`?",
+      "answer": "```c\nlong qlstack_sum(const qlstack *s) {\n    long total = 0;\n    for (struct node *n = s->top; n != NULL; n = n->next) {\n        total += n->elem;\n    }\n    return total;\n}\n```\nIt reads `s->top` and the nodes, which are only known inside `qlstack.c`; in `demo.c` the struct is an incomplete type (and `struct node` is not declared at all). Its prototype would be added to `qlstack.h`.",
+      "explain": "The same walk as `qlstack_print`. For the stack 5, 7, 1, 3 it returns 16; for an empty stack the loop does not run and it returns 0."
+    },
+    {
+      "id": "c24-q-09",
+      "topic": "c24-free",
+      "type": "output",
+      "q": "This program is compiled with `qlstack.c` from today's lessons (`gcc -std=c17 -Wall -o p p.c qlstack.c`). What does it print?",
+      "code": "#include <stdio.h>\n#include \"qlstack.h\"\n\nint main(void) {\n    qlstack *a = qlstack_new();\n    qlstack *b = qlstack_new();\n    if (!a || !b) {\n        qlstack_free(a);\n        qlstack_free(b);\n        return 1;\n    }\n    for (int i = 1; i <= 4; i++) {\n        qlstack_push(a, i * i);\n    }\n    while (!qlstack_is_empty(a)) {\n        int x;\n        qlstack_pop(a, &x);\n        if (x % 2 == 0) {\n            qlstack_push(b, x);\n        }\n    }\n    qlstack_print(\"a: \", a, \"\\n\");\n    qlstack_print(\"b: \", b, \"\\n\");\n    printf(\"sizes %zu %zu\\n\", qlstack_size(a), qlstack_size(b));\n    qlstack_free(a);\n    qlstack_free(b);\n    return 0;\n}",
+      "answer": "a: top :  : bottom\nb: top : 4, 16 : bottom\nsizes 0 2",
+      "explain": "a holds 16, 9, 4, 1 (top first). Popping gives 16 (even: pushed onto b), 9, 4 (pushed onto b), 1. b got 16 first and 4 second, so 4 is on top. Moving between stacks reverses the order."
+    },
+    {
+      "id": "c24-q-10",
+      "topic": "c24-files",
+      "type": "mcq",
+      "q": "`user.c` includes only `<stdio.h>` and `\"qlstack.h\"`. Which line compiles in `user.c`?",
+      "options": [
+        "`qlstack st;`",
+        "`printf(\"%zu\\n\", sizeof(qlstack));`",
+        "`qlstack *s = qlstack_new();`",
+        "`if (s->size > 0) { ... }`"
+      ],
+      "answer": 2,
+      "explain": "In `user.c`, `struct qlstack_tag` is an incomplete type: only pointers to it may be declared and passed around. A whole variable (*storage size isn't known*), `sizeof` and member access (*invalid use of incomplete typedef*) need the hidden definition."
+    },
+    {
+      "id": "c24-q-11",
+      "topic": "c24-files",
+      "type": "short",
+      "q": "Give two reasons the notebook hides `struct qlstack_tag` in `qlstack.c` instead of putting it in `qlstack.h` (as Day 20 did with `struct qstr`).",
+      "answer": "1. Users cannot change `top` or `size` directly, so they cannot break the stack (for example make `size` disagree with the number of nodes). 2. The implementation can change (for example to an array) without changing any user's code, because users only call the functions in the header.",
+      "explain": "This is what makes it an opaque type. It is also why the `typedef` is acceptable here under the course's rule: users never need to know it is a struct."
+    },
+    {
+      "id": "c24-q-12",
+      "topic": "c24-files",
+      "type": "mcq",
+      "q": "Which command builds the notebook's demo program from `demo.c`, `qlstack.c` and `qlstack.h`?",
+      "options": [
+        "`gcc -std=c17 -Wall -o demo demo.c`",
+        "`gcc -std=c17 -Wall -o demo demo.c qlstack.h`",
+        "`gcc -std=c17 -Wall -o demo demo.c qlstack.c`",
+        "`gcc -std=c17 -Wall -o demo qlstack.h qlstack.c`"
+      ],
+      "answer": 2,
+      "explain": "Every `.c` file is listed; the header is never listed because `#include` brings it in. Option A gives *undefined reference to `qlstack_new`* (no definitions). Options B and D do not compile `demo.c`, which holds `main`."
+    },
+    {
+      "id": "c24-q-13",
+      "topic": "c24-files",
+      "type": "short",
+      "q": "A file `app.c` starts with `#include \"qlstack.h\"` on line 1 and `#include <stdio.h>` on line 2. With the notebook's original header, gcc says `qlstack.h:24:1: error: unknown type name 'size_t'`. Why does `demo.c` not get this error, and what is the proper fix?",
+      "answer": "`size_t` is defined in `<stddef.h>` (and also by `<stdio.h>`, `<stdlib.h>`). `demo.c` includes `<stdio.h>` before `\"qlstack.h\"`, so `size_t` is already known; `app.c` includes the header first. Fix: the header itself should `#include <stddef.h>`, so it works whatever the include order.",
+      "explain": "A header must include what it uses. gcc even suggests it: *'size_t' is defined in header '<stddef.h>'; did you forget to '#include <stddef.h>'?*"
+    },
+    {
+      "id": "c24-q-14",
+      "topic": "c24-files",
+      "type": "output",
+      "q": "This is the notebook's `demo.c`, built with `gcc -std=c17 -Wall -o demo demo.c qlstack.c`. What does `./demo 5 -2` print?",
+      "code": "#include <stdio.h>\n#include <stdlib.h>\n#include \"qlstack.h\"\n\nint main(int argc, char *argv[]) {\n    size_t n = argc - 1;\n    qlstack *q1 = qlstack_new();\n    qlstack *q2 = qlstack_new();\n\n    for (size_t i = 0; i < n; i++) {\n        int val1 = atoi(argv[i + 1]);\n        int val2 = -val1;\n        if (!qlstack_push(q1, val1)) {\n            fprintf(stderr, \"error pushing to q1\\n\");\n            qlstack_free(q1);\n            exit(EXIT_FAILURE);\n        }\n        if (!qlstack_push(q2, val2)) {\n            fprintf(stderr, \"error pushing to q2\\n\");\n            qlstack_free(q1);\n            exit(EXIT_FAILURE);\n        }\n        qlstack_print(\"q1 \", q1, \"\\n\");\n        qlstack_print(\"q2 \", q2, \"\\n\");\n    }\n\n    for (size_t i = 0; i < n; i++) {\n        int val1;\n        int val2;\n        char pre[100];\n        qlstack_pop(q1, &val1);\n        sprintf(pre, \"popped %d, q1 \", val1);\n        qlstack_print(pre, q1, \"\\n\");\n        \n        qlstack_pop(q2, &val2);\n        sprintf(pre, \"popped %d, q2 \", val2);\n        qlstack_print(pre, q2, \"\\n\");\n    }\n\n    qlstack_free(q1);\n    qlstack_free(q2);\n\n    return 0;\n}",
+      "answer": "q1 top : 5 : bottom\nq2 top : -5 : bottom\nq1 top : -2, 5 : bottom\nq2 top : 2, -5 : bottom\npopped -2, q1 top : 5 : bottom\npopped 2, q2 top : -5 : bottom\npopped 5, q1 top :  : bottom\npopped -5, q2 top :  : bottom",
+      "explain": "q1 gets the arguments, q2 their negatives (-(-2) is 2). Each loop round prints q1 then q2. The pops come out in reverse order: -2 and 2 first."
+    }
+  ],
+  "write": [
+    {
+      "id": "c24-w-01",
+      "topic": "c24-free",
+      "stage": "worked",
+      "marks": 5,
+      "prompt": "Add a function `void qlstack_clear(qlstack *s)` to `qlstack.c`. It removes **every** element (freeing every node) but keeps the stack struct, so `s` is afterwards an empty stack that can be pushed onto again. It does nothing if `s` is `NULL`. (Its prototype would go in `qlstack.h`.)",
+      "starter": "",
+      "solution": "// Removes every element: frees all nodes, but keeps the stack struct\n// so that s is an empty stack that can be used again.\n// Does nothing if s is NULL.\nvoid qlstack_clear(qlstack *s) {\n    if (!s) {\n        return;\n    }\n    struct node *n = s->top;\n    while (n) {\n        struct node *next = n->next;   // save the link BEFORE freeing n\n        free(n);\n        n = next;\n    }\n    s->top = NULL;                     // the stack is empty now\n    s->size = 0;\n}",
+      "explain": "**Plan.** This is `qlstack_free` without the final `free(s)`, plus two lines that make the struct a correct *empty* stack again.\n\n1. `if (!s) return;` handles the NULL case, as `qlstack_free` does.\n2. Walk from `s->top`. In each round save `n->next` **before** `free(n)`, because the node's memory may not be read after it is freed.\n3. After the loop every node is gone, but `s->top` still holds the address of the old (freed) top node: a dangling pointer. Set `s->top = NULL;` and `s->size = 0;` so that `qlstack_is_empty`, `push` and `print` work on the struct again.\n\nTested with a `main` that pushes 1, 2, 3, clears, pushes 99 and frees:\n\n```\nbefore: top : 3, 2, 1 : bottom\nafter clear: top :  : bottom\nsize 0, empty? 1\nreused: top : 99 : bottom\n```\n\nvalgrind: *6 allocs, 6 frees ... All heap blocks were freed*. With `qlstack_clear` written, `qlstack_free` could simply be `qlstack_clear(s); free(s);` (after its NULL check).",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Returns at once when `s` is `NULL`"
+        },
+        {
+          "marks": 1,
+          "item": "Walks every node from `s->top` to `NULL`"
+        },
+        {
+          "marks": 1,
+          "item": "Saves `n->next` before `free(n)` (no use-after-free)"
+        },
+        {
+          "marks": 1,
+          "item": "Frees every node but not the struct `s`"
+        },
+        {
+          "marks": 1,
+          "item": "Sets `s->top = NULL` and `s->size = 0` at the end"
+        }
+      ],
+      "pitfalls": [
+        "Forgetting `s->top = NULL;`: the next push links the new node to freed memory, and print walks into it.",
+        "Calling `free(s)`: the caller's stack would be gone, which is `qlstack_free`'s job, not `clear`'s.",
+        "Writing `for (...; n = n->next) free(n);` (reads a freed node)."
+      ]
+    },
+    {
+      "id": "c24-w-02",
+      "topic": "c24-pop",
+      "stage": "faded",
+      "marks": 5,
+      "prompt": "A pile of plates is a linked stack with different names: each `struct plate` has a `weight` and a pointer `below` to the plate under it, and `struct pile` has `top` and `count`. Fill in the blanks in `pile_pop` (which returns 0 instead of popping an empty pile) and `pile_free` so that the program prints\n\n```\ntook 25, 4 left\ntook 20, 3 left\ntook 15, 2 left\ntop weight now 5\n```\n\nand valgrind reports no leaks and no errors.",
+      "starter": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct plate {\n    int weight;\n    struct plate *below;\n};\n\nstruct pile {\n    struct plate *top;\n    size_t count;\n};\n\nstruct pile *pile_new(void) {\n    struct pile *p = malloc(sizeof(struct pile));\n    if (!p) {\n        return NULL;\n    }\n    p->top = NULL;\n    p->count = 0;\n    return p;\n}\n\nint pile_push(struct pile *p, int weight) {\n    struct plate *n = malloc(sizeof(struct plate));\n    if (!n) {\n        return 0;\n    }\n    n->weight = weight;\n    n->below = p->top;\n    p->top = n;\n    p->count++;\n    return 1;\n}\n\n// Removes the top plate and frees it. Stores its weight in *out\n// (if out is not NULL) and returns 1. Returns 0 if the pile is empty.\nint pile_pop(struct pile *p, int *out) {\n    if (p->top == NULL) {\n        return 0;\n    }\n    struct plate *old = ____;\n    int w = ____;\n    p->top = ____;\n    ____;\n    ____;\n    if (____) {\n        ____ = w;\n    }\n    return 1;\n}\n\n// Frees every plate and then the pile itself. Does nothing if p is NULL.\nvoid pile_free(struct pile *p) {\n    if (!p) {\n        return;\n    }\n    struct plate *n = p->top;\n    while (n != NULL) {\n        struct plate *next = ____;\n        ____;\n        n = ____;\n    }\n    ____;\n}\n\nint main(void) {\n    struct pile *p = pile_new();\n    if (!p) {\n        return 1;\n    }\n    for (int w = 5; w <= 25; w += 5) {\n        if (!pile_push(p, w)) {\n            pile_free(p);\n            return 1;\n        }\n    }\n    int w;\n    while (p->count > 2 && pile_pop(p, &w)) {\n        printf(\"took %d, %zu left\\n\", w, p->count);\n    }\n    pile_pop(p, NULL);\n    printf(\"top weight now %d\\n\", p->top->weight);\n    pile_free(p);\n    return 0;\n}",
+      "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct plate {\n    int weight;\n    struct plate *below;\n};\n\nstruct pile {\n    struct plate *top;\n    size_t count;\n};\n\nstruct pile *pile_new(void) {\n    struct pile *p = malloc(sizeof(struct pile));\n    if (!p) {\n        return NULL;\n    }\n    p->top = NULL;\n    p->count = 0;\n    return p;\n}\n\nint pile_push(struct pile *p, int weight) {\n    struct plate *n = malloc(sizeof(struct plate));\n    if (!n) {\n        return 0;\n    }\n    n->weight = weight;\n    n->below = p->top;\n    p->top = n;\n    p->count++;\n    return 1;\n}\n\n// Removes the top plate and frees it. Stores its weight in *out\n// (if out is not NULL) and returns 1. Returns 0 if the pile is empty.\nint pile_pop(struct pile *p, int *out) {\n    if (p->top == NULL) {\n        return 0;\n    }\n    struct plate *old = p->top;\n    int w = old->weight;\n    p->top = old->below;\n    p->count--;\n    free(old);\n    if (out) {\n        *out = w;\n    }\n    return 1;\n}\n\n// Frees every plate and then the pile itself. Does nothing if p is NULL.\nvoid pile_free(struct pile *p) {\n    if (!p) {\n        return;\n    }\n    struct plate *n = p->top;\n    while (n != NULL) {\n        struct plate *next = n->below;\n        free(n);\n        n = next;\n    }\n    free(p);\n}\n\nint main(void) {\n    struct pile *p = pile_new();\n    if (!p) {\n        return 1;\n    }\n    for (int w = 5; w <= 25; w += 5) {\n        if (!pile_push(p, w)) {\n            pile_free(p);\n            return 1;\n        }\n    }\n    int w;\n    while (p->count > 2 && pile_pop(p, &w)) {\n        printf(\"took %d, %zu left\\n\", w, p->count);\n    }\n    pile_pop(p, NULL);\n    printf(\"top weight now %d\\n\", p->top->weight);\n    pile_free(p);\n    return 0;\n}",
+      "explain": "`pile_pop` is `qlstack_pop` with new names: save the top plate and its weight, unlink (`p->top = old->below`), update the count, free, and only then hand the weight back through `out` if the caller gave an address. `pile_free` is the save-next walk followed by `free(p)`. The loop in `main` stops when two plates are left; `pile_pop(p, NULL)` then throws away the 10, so the 5 is on top.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`old = p->top` and `w = old->weight` saved before anything is freed"
+        },
+        {
+          "marks": 1,
+          "item": "Unlink with `p->top = old->below` and `p->count--`"
+        },
+        {
+          "marks": 1,
+          "item": "`free(old)` after unlinking; `*out = w` only when `out` is not NULL"
+        },
+        {
+          "marks": 1,
+          "item": "`pile_free` saves `n->below` before `free(n)`, then moves on"
+        },
+        {
+          "marks": 1,
+          "item": "`pile_free` frees the pile struct after the loop"
+        }
+      ],
+      "pitfalls": [
+        "Writing `free(p->top)` and then `p->top = p->top->below` (use-after-free).",
+        "Writing `*out = w` without the `if (out)` test: `pile_pop(p, NULL)` would write through a null pointer.",
+        "Forgetting `free(p)` at the end of `pile_free` (valgrind: 16 bytes definitely lost)."
+      ]
+    },
+    {
+      "id": "c24-w-03",
+      "topic": "c24-pop",
+      "stage": "blank",
+      "marks": 8,
+      "examNote": "Modeled on April 2022 Q5(d) (the course stack's `typedef`s are given and you write a function that works on its nodes) and on December 2016 Q5 (remove and free nodes, return a result, and change nothing when the structure is too short). Here the nodes come off the top; Day 25 practises removing a node from the middle.",
+      "prompt": "You are given these types for a linked stack of `int`s:\n\n```c\ntypedef struct node node;\nstruct node {\n    int elem;\n    node *next;\n};\n\ntypedef struct stack stack;\nstruct stack {\n    node *top;      // the top node, NULL if the stack is empty\n    size_t size;    // the number of elements\n};\n```\n\nWrite the function\n\n```c\nint pop_sum(stack *s, size_t k, int *sum)\n```\n\nthat removes the top `k` elements of the stack pointed at by `s`, frees each removed node, stores the **sum** of the removed elements in `*sum`, and returns 1. If the stack has fewer than `k` elements, the function must change nothing (not the stack, not `*sum`) and return 0. For `k == 0` it stores 0 and returns 1. You may assume `s` and `sum` are not `NULL`.\n\nExample: for the stack 5, 7, 1, 3 (top first), `pop_sum(s, 2, &t)` returns 1, sets `t` to 12 and leaves 1, 3 with size 2; then `pop_sum(s, 3, &t)` returns 0 and changes nothing.",
+      "starter": "",
+      "solution": "int pop_sum(stack *s, size_t k, int *sum) {\n    if (s->size < k) {\n        return 0;\n    }\n    int total = 0;\n    for (size_t i = 0; i < k; i++) {\n        node *old = s->top;\n        total += old->elem;\n        s->top = old->next;\n        free(old);\n    }\n    s->size -= k;\n    *sum = total;\n    return 1;\n}",
+      "explain": "Check first, then change: testing `s->size < k` before the loop guarantees that the function either removes all `k` nodes or none. Each round is one pop (save the top node, add its element, unlink, free). `size` can be reduced once by `k` after the loop or by one in each round. Tested on 5, 7, 1, 3: `k = 2` gives 1 and sum 12 (stack 1, 3); `k = 3` gives 0 and changes nothing; `k = 0` gives 1 and sum 0; `k = 2` again gives sum 4 and an empty stack with `top == NULL`; valgrind reports no leaks.",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "Checks `s->size < k` first and returns 0 without changing anything"
+        },
+        {
+          "marks": 1,
+          "item": "Loops exactly `k` times"
+        },
+        {
+          "marks": 1,
+          "item": "Saves the top node in a variable before changing `s->top`"
+        },
+        {
+          "marks": 1,
+          "item": "Adds the node's element to a running total before freeing it"
+        },
+        {
+          "marks": 1,
+          "item": "Unlinks with `s->top = old->next`"
+        },
+        {
+          "marks": 1,
+          "item": "Frees each removed node, after unlinking (no use-after-free)"
+        },
+        {
+          "marks": 1,
+          "item": "Updates `s->size` (by `k` in total)"
+        },
+        {
+          "marks": 1,
+          "item": "Stores the total in `*sum` and returns 1 (also correct for `k == 0`)"
+        }
+      ],
+      "pitfalls": [
+        "Popping first and checking for an empty stack in the middle: if there are too few elements, the stack has already changed, which the question forbids.",
+        "`free(s->top); s->top = s->top->next;` reads a freed node.",
+        "Writing `sum += old->elem;` (changes the pointer) instead of adding to a local total or to `*sum`.",
+        "Forgetting to update `size`, so later `size` checks are wrong.",
+        "Comparing `s->size - k < 0`: `size_t` is unsigned, so the difference is never negative; compare `s->size < k`."
+      ]
+    }
+  ]
+}
