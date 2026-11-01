@@ -1,0 +1,582 @@
+{
+ "day": 13,
+ "title": "Structs",
+ "goal": "Define and initialise your own struct types, reach members with . and ->, pass structs to functions by copy or by pointer, and work with arrays of structs and typedef names.",
+ "topics": [
+  {
+   "id": "c13-define",
+   "title": "Defining a struct, initialising it, and the . operator",
+   "notebook": "c/struct.ipynb",
+   "priority": "high",
+   "examNote": "The Dec 2018 final (Q6) asked you to **define** a struct (a car with make, model and year), make **two initialised** variables of it and print them. The April 2022 final (Q4) stores data in struct members. You must be able to write a struct definition from memory, with the `;` after the `}`, and initialise one with `{ ... }`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### A new type made of several variables\n\nA **struct** groups several variables under one name, in one block of memory. The variables inside are called **members**. A struct is a bit like a Java class where every field is public and there are no methods or constructors. Like a class, it lets you **create a new type**.\n\nThe notebook's example is a point in the plane with real coordinates `x` and `y`:\n\n```c\nstruct point2 {\n    double x;\n    double y;\n};\n```\n\n- `point2` is the struct's **tag** (its name).\n- Each line inside the braces declares one member: a type and a name, ending in `;`.\n- The definition ends with `};`. Forgetting that last `;` is the most common struct typo.\n\nThe **name of the new type is `struct point2`**: two words, the keyword `struct` and the tag. You declare a variable of it like any other variable:\n\n```c\nstruct point2 p;     // p is a struct point2; p.x and p.y are NOT set yet\n```\n\nMembers can have almost any type: `int`, `double`, `char`, pointers, and arrays of a fixed size such as `char title[32]`. A variable-length array member (size known only at run time) is **not** allowed, because the compiler must know the size of the type."
+    },
+    {
+     "type": "md",
+     "text": "### Initialising and using members\n\nInitialise a struct like an array: values in braces, **in the order the members are declared**.\n\n- Fewer values than members: the rest are **empty initialised** (numbers become `0`, pointers become `NULL`). So `{ 0 }` sets everything to zero.\n- More values than members is an error.\n- You can name members with **designators** `.member = value`, in any order. (The notebook's text writes `{ x = 0.1, y = 0.2 }` without the dots; that does not compile. The dot is required.)\n\nTo read or change one member, write the variable, a dot, and the member name: `p.x`. The **`.` operator** is the member access operator, just like a field in Java."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct point2 {\n    double x;\n    double y;\n};\n\nint main(void) {\n    struct point2 p = { 0.1, 0.2 };     // x = 0.1, y = 0.2\n    struct point2 origin = { 0 };       // every member 0.0\n    struct point2 q = { .y = 5.0, .x = -1.0 };   // by name, any order\n\n    printf(\"p = (%f, %f)\\n\", p.x, p.y);\n    printf(\"origin = (%f, %f)\\n\", origin.x, origin.y);\n    printf(\"q = (%f, %f)\\n\", q.x, q.y);\n\n    p.x = 100.0;            // change one member\n    p.y = p.y * 10;\n    printf(\"p = (%f, %f)\\n\", p.x, p.y);\n    printf(\"sizeof(struct point2) = %zu\\n\", sizeof(struct point2));\n    return 0;\n}",
+     "caption": "point.c: definition, three ways to initialise, and the . operator"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o point point.c\n$ ./point\np = (0.100000, 0.200000)\norigin = (0.000000, 0.000000)\nq = (-1.000000, 5.000000)\np = (100.000000, 2.000000)\nsizeof(struct point2) = 16"
+    },
+    {
+     "type": "check",
+     "q": "Write a definition of `struct rect` with two `int` members `width` and `height`, then declare `r` as a `struct rect` that is 3 wide and 4 high.",
+     "a": "```c\nstruct rect {\n    int width;\n    int height;\n};\n\nstruct rect r = { 3, 4 };   // or { .width = 3, .height = 4 }\n```"
+    },
+    {
+     "type": "md",
+     "text": "### Assignment copies every member\n\nHere C is very different from Java. A struct variable **holds the whole object**, not a reference to it. So `b = a;` (or `struct book b = a;`) **copies every member** of `a` into `b`. If a member is an array, the array's elements are copied too, so the two structs are independent:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct book {\n    char title[32];\n    char author[32];\n    int year;\n};\n\nint main(void) {\n    struct book a = { \"Dune\", \"Herbert\", 1965 };\n    struct book b = a;          // copies every member, arrays too\n\n    b.year = 2021;              // change the copy\n    b.title[0] = 'J';           // \"Dune\" becomes \"June\"\n\n    printf(\"a: %s, %s, %d\\n\", a.title, a.author, a.year);\n    printf(\"b: %s, %s, %d\\n\", b.title, b.author, b.year);\n    printf(\"sizeof(struct book) = %zu\\n\", sizeof(struct book));\n    return 0;\n}",
+     "caption": "assign.c: a struct with string members"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o assign assign.c\n$ ./assign\na: Dune, Herbert, 1965\nb: June, Herbert, 2021\nsizeof(struct book) = 68"
+    },
+    {
+     "type": "md",
+     "text": "Changing `b` did not change `a`. (Remember from Day 3 that you cannot assign a whole array with `=`. A struct that *contains* an array **can** be assigned: the struct copy copies the array inside it.)\n\nBut a **pointer** member is copied as a pointer: both structs then point at the **same** characters. This is the notebook's `assignment3.c` idea (it uses `malloc`, Day 18; here the title points at an ordinary array):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct course_info {\n    char code[16];\n    char *title;      // a pointer, not an array\n};\n\nint main(void) {\n    char words[] = \"systems\";\n    struct course_info c = { \"CISC220A\", words };\n    struct course_info i = c;     // copies code[] and the POINTER title\n\n    i.code[7] = 'B';              // only i.code changes\n    i.title[0] = 'S';             // changes words: c.title points there too\n\n    printf(\"c = %s: %s\\n\", c.code, c.title);\n    printf(\"i = %s: %s\\n\", i.code, i.title);\n    return 0;\n}",
+     "caption": "share.c: copying a struct copies the pointer, not what it points at"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o share share.c\n$ ./share\nc = CISC220A: Systems\ni = CISC220B: Systems"
+    },
+    {
+     "type": "pitfall",
+     "text": "A string member declared as an array (`char title[32]`) can be given a value only in the initialiser. `a.title = \"Emma\";` does not compile:\n\n```\nbad.c:2:60: error: assignment to expression with array type\n    2 | int main(void) { struct book a = { \"Dune\", 1965 }; a.title = \"Emma\"; return 0; }\n      |                                                            ^\n```\n\nTo change it later you copy characters (a loop, or `strcpy` from `<string.h>`, which Day 16 covers)."
+    },
+    {
+     "type": "md",
+     "text": "### `sizeof` a struct\n\n`sizeof(struct point2)` is 16: two 8-byte doubles. But a struct can be **bigger** than the sum of its members. The compiler may add unused bytes called **padding** so that each member starts at an address the processor likes (an `int` at a multiple of 4, for example):"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct mixed {\n    char grade;     // 1 byte\n    int mark;       // 4 bytes\n    char section;   // 1 byte\n};\n\nint main(void) {\n    printf(\"sizeof(char) + sizeof(int) + sizeof(char) = %zu\\n\",\n           sizeof(char) + sizeof(int) + sizeof(char));\n    printf(\"sizeof(struct mixed) = %zu\\n\", sizeof(struct mixed));\n    return 0;\n}",
+     "caption": "pad.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o pad pad.c\n$ ./pad\nsizeof(char) + sizeof(int) + sizeof(char) = 6\nsizeof(struct mixed) = 12"
+    },
+    {
+     "type": "md",
+     "text": "You never need to predict padding in CISC220. The rule is simply: **always write `sizeof(struct name)`**, never add up the members by hand. You will need this on Day 18 for `malloc(sizeof(struct point2))`."
+    },
+    {
+     "type": "why",
+     "q": "Why does C copy the whole struct on `b = a;` when Java only copies a reference?",
+     "a": "Because in C the variable `a` **is** the struct: its bytes live in the variable. There is no hidden reference. Assignment copies the value of the variable, and the value is all of the members. If you want two names for the same struct in C, you use a pointer (`struct book *p = &a;`), which is the next topic."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `struct tag { type member; ... };` defines a type called `struct tag`. Don't forget the `;` after `}`.\n- Initialise in member order: `struct point2 p = { 0.1, 0.2 };`. Missing members become 0 / `NULL`; `{ 0 }` zeroes everything. Designators: `{ .y = 5.0, .x = -1.0 }`.\n- Without an initialiser, a local struct's members hold garbage.\n- `p.x` reads or writes one member (the `.` operator).\n- `b = a;` copies every member, array members included. A pointer member is copied as a pointer (both point at the same thing).\n- An array member cannot be assigned with `=` after the declaration.\n- `sizeof(struct tag)` may include padding: always use `sizeof`, never add by hand."
+    }
+   ]
+  },
+  {
+   "id": "c13-pointers",
+   "title": "Structs and functions: copies, pointers and ->",
+   "notebook": "c/struct.ipynb",
+   "priority": "high",
+   "examNote": "Dec 2018 final Q6: write a **print function that takes a pointer to a car** and call it on two initialised cars. That needs exactly three skills from this topic: the parameter type `struct car *c`, the `->` operator inside the function, and `&` at the call (`print_car(&c1);`). The worked example below (`print_student`) and the blank writing item (`print_book`) practise them.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Passing a struct: the function gets a copy\n\nC passes arguments **by value** (Day 4). For a struct this means the parameter is a **copy** of the caller's struct, made exactly like `t = p;`. Changing the copy does not change the caller's struct. This is another big difference from Java, where a method can change an object you pass to it. The notebook's `functioncall.c`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct point2 {\n    double x;\n    double y;\n};\n\n// t is a COPY of the caller's struct\nstruct point2 move(struct point2 t) {\n    t.x += 100.0;\n    t.y += 100.0;\n    printf(\"t during move = (%f, %f)\\n\", t.x, t.y);\n    return t;\n}\n\nint main(void) {\n    struct point2 p = { 1.0, 2.0 };\n    printf(\"p before move = (%f, %f)\\n\", p.x, p.y);\n    move(p);\n    printf(\"p after move  = (%f, %f)\\n\", p.x, p.y);\n\n    p = move(p);\n    printf(\"p after assignment = (%f, %f)\\n\", p.x, p.y);\n    return 0;\n}",
+     "caption": "move.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o move move.c\n$ ./move\np before move = (1.000000, 2.000000)\nt during move = (101.000000, 102.000000)\np after move  = (1.000000, 2.000000)\nt during move = (101.000000, 102.000000)\np after assignment = (101.000000, 102.000000)"
+    },
+    {
+     "type": "md",
+     "text": "The first `move(p);` changed only the copy `t`; its return value was thrown away, so `p` stayed `(1, 2)`. A function can **return** a struct (another copy), and `p = move(p);` stores that copy back in `p`."
+    },
+    {
+     "type": "check",
+     "q": "In `move.c`, what would `p` be after calling `p = move(move(p));` starting from `(1.0, 2.0)`?",
+     "a": "`(201.000000, 202.000000)`. The inner call returns a copy moved by 100, the outer call moves that copy by another 100, and the result is assigned to `p`."
+    },
+    {
+     "type": "md",
+     "text": "### Pointers to structs and the arrow `->`\n\nTo let a function change the caller's struct (and to avoid copying a big struct), pass its **address**, just like `swap` on Day 11. `&p` has type `struct point2 *`: a **pointer to struct point2**.\n\nGiven `struct point2 *ptr = &p;`, there are two ways to reach a member:\n\n| written | meaning |\n|---|---|\n| `(*ptr).x` | dereference `ptr` (giving the struct `p`), then take member `x` |\n| `ptr->x` | exactly the same thing, shorter: the **arrow operator** |\n\nThe brackets in `(*ptr).x` are required because `.` binds **tighter** than `*`. Everyone writes `ptr->x` in practice."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct point2 {\n    double x;\n    double y;\n};\n\nint main(void) {\n    struct point2 p = { 1.0, 2.0 };\n    struct point2 *ptr = &p;      // ptr points at p\n\n    // explicit dereference: brackets needed because . binds tighter than *\n    (*ptr).x = 100.0;\n    (*ptr).y = 200.0;\n    printf(\"p = (%f, %f)\\n\", (*ptr).x, (*ptr).y);\n\n    // arrow: dereference and pick a member in one step\n    ptr->x = -1.5;\n    ptr->y = -2.5;\n    printf(\"p = (%f, %f)\\n\", ptr->x, ptr->y);\n    printf(\"p.x = %f\\n\", p.x);    // p itself changed\n    return 0;\n}",
+     "caption": "arrow.c: (*ptr).x and ptr->x reach the same member"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o arrow arrow.c\n$ ./arrow\np = (100.000000, 200.000000)\np = (-1.500000, -2.500000)\np.x = -1.500000"
+    },
+    {
+     "type": "pitfall",
+     "text": "Pick the operator by the **type on the left**: a struct uses `.` and a pointer to a struct uses `->`. Mixing them up is a compile error, and gcc even suggests the fix. Here line 5 is `ptr.x = 5.0;` (a pointer with `.`) and line 6 is `p->y = 1.0;` (a struct with `->`):\n\n```\ndotptr.c:5:8: error: 'ptr' is a pointer; did you mean to use '->'?\ndotptr.c:6:6: error: invalid type argument of '->' (have 'struct point2')\n```\n\nWriting `*ptr.x` (no brackets) means `*(ptr.x)` and fails the same way: \"'ptr' is a pointer; did you mean to use '->'?\""
+    },
+    {
+     "type": "md",
+     "text": "### A print function that takes a pointer\n\nThis is the Dec 2018 Q6 pattern. The function's parameter is a pointer to the struct; inside, every member is reached with `->`; the caller passes the address with `&`. Adding `const` (Day 8) to the parameter, `const struct student *s`, promises the function only **reads** the struct; the compiler then refuses any change through `s`. A function that must change the struct leaves out `const`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct student {\n    char name[32];\n    int id;\n    double gpa;\n};\n\n// Prints the student that s points at. const: print only reads.\nvoid print_student(const struct student *s) {\n    printf(\"%s (%d): GPA %.1f\\n\", s->name, s->id, s->gpa);\n}\n\n// Raises the GPA of the student that s points at (at most 4.3).\nvoid raise_gpa(struct student *s, double amount) {\n    s->gpa += amount;\n    if (s->gpa > 4.3) {\n        s->gpa = 4.3;\n    }\n}\n\nint main(void) {\n    struct student a = { \"Ada\", 20231, 3.6 };\n    struct student b = { \"Linus\", 20232, 4.1 };\n\n    print_student(&a);\n    print_student(&b);\n\n    raise_gpa(&a, 0.3);\n    raise_gpa(&b, 0.3);\n    print_student(&a);\n    print_student(&b);\n    return 0;\n}",
+     "caption": "student.c: print_student only reads; raise_gpa changes the caller's struct"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o student student.c\n$ ./student\nAda (20231): GPA 3.6\nLinus (20232): GPA 4.1\nAda (20231): GPA 3.9\nLinus (20232): GPA 4.3"
+    },
+    {
+     "type": "md",
+     "text": "Memory picture inside the first call `raise_gpa(&a, 0.3)`, with made-up addresses. The parameter `s` holds the address of `main`'s `a`, so `s->gpa += amount;` changes `a` itself:\n\n```\n  main:      a  @1000 [ name \"Ada\" | id 20231 | gpa 3.6 -> 3.9 ]\n                       ^\n  raise_gpa: s  [ 1000 ]   amount [ 0.3 ]\n```\n\nOnly 8 bytes (the address) were copied into `s`, not the 48-byte struct. That is the second reason to pass pointers to structs: it is cheaper than copying (Day 12, \"pointers and large objects\")."
+    },
+    {
+     "type": "pitfall",
+     "text": "Pass the address, not the struct: `print_student(a);` when the parameter is `struct student *` is a compile error (\"incompatible type for argument 1\"). Write `print_student(&a);`."
+    },
+    {
+     "type": "why",
+     "q": "Why use `const struct student *s` in a print function instead of plain `struct student s`?",
+     "a": "Plain `struct student s` copies the whole struct (48 bytes here, more for bigger structs) on every call. The pointer copies only an address. `const` keeps the safety you would have had with a copy: the function cannot change the caller's struct by mistake, because the compiler reports `assignment of member 'gpa' in read-only object`."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Passing a struct by value copies it; changes inside the function are lost unless you return the struct and assign it.\n- `&s` is a `struct tag *`. Inside the function use `p->member`, which means `(*p).member`.\n- `.` binds tighter than `*`, so `*p.x` is wrong; write `p->x` or `(*p).x`.\n- struct on the left: `.`; pointer to struct on the left: `->`.\n- Print function pattern: `void print_car(const struct car *c) { printf(..., c->make, ...); }` and call `print_car(&c1);`.\n- Pass a pointer to change the caller's struct or to avoid copying a big one; add `const` when the function only reads."
+    }
+   ]
+  },
+  {
+   "id": "c13-arrays",
+   "title": "Arrays of structs and typedef",
+   "notebook": "c/struct.ipynb",
+   "priority": "medium",
+   "examNote": "Fall 2015 final Q6 defined `typedef struct { char firstChar; char lastChar; } initials;` and asked for a function `void firstAndLast(char *filename, initials structArray[])` that **fills an array of structs** (from a file: file input is Day 26). Today's part is the struct side: the anonymous `typedef struct { ... } name;` form, writing `structArray[i].member = ...;` in a loop, and knowing the caller sees the changes. The faded writing item practises this.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### An array whose elements are structs\n\n`struct book shelf[3];` is an array of three `struct book` objects, stored one after another. Initialise it with **braces inside braces**: one inner `{ ... }` per element.\n\nRead `shelf[i].year` from left to right: `shelf[i]` is a `struct book`, so `.year` picks its member. `&shelf[i]` is the address of one element, a `struct book *`, ready for a function that takes a pointer."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nstruct book {\n    char title[32];\n    char author[32];\n    int year;\n};\n\nvoid print_book(const struct book *b) {\n    printf(\"%s by %s (%d)\\n\", b->title, b->author, b->year);\n}\n\n// Returns a pointer to the oldest book in books (n >= 1).\nstruct book *oldest(struct book books[], size_t n) {\n    size_t best = 0;\n    for (size_t i = 1; i < n; i++) {\n        if (books[i].year < books[best].year) {\n            best = i;\n        }\n    }\n    return &books[best];\n}\n\nint main(void) {\n    struct book shelf[3] = {\n        { \"Dune\", \"Herbert\", 1965 },\n        { \"Emma\", \"Austen\", 1815 },\n        { \"Neuromancer\", \"Gibson\", 1984 }\n    };\n    size_t n = 3;\n\n    for (size_t i = 0; i < n; i++) {\n        print_book(&shelf[i]);\n    }\n    printf(\"oldest: \");\n    print_book(oldest(shelf, n));\n    printf(\"shelf[2].title[0] = %c\\n\", shelf[2].title[0]);\n    printf(\"sizeof(shelf) = %zu\\n\", sizeof(shelf));\n    return 0;\n}",
+     "caption": "shelf.c: an array of structs, a print function, and a function returning a pointer to an element"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o shelf shelf.c\n$ ./shelf\nDune by Herbert (1965)\nEmma by Austen (1815)\nNeuromancer by Gibson (1984)\noldest: Emma by Austen (1815)\nshelf[2].title[0] = N\nsizeof(shelf) = 204"
+    },
+    {
+     "type": "md",
+     "text": "- `shelf[2].title[0]`: element 2, its member `title`, character 0.\n- `sizeof(shelf)` is 3 × `sizeof(struct book)` = 3 × 68 = 204.\n- `oldest` returns `&books[best]`, a pointer into the caller's array (Day 12), and `print_book` takes it directly."
+    },
+    {
+     "type": "check",
+     "q": "With `shelf` from `shelf.c`, write an expression for: (a) the year of the second book; (b) the first letter of the third book's author; (c) a pointer to the first book.",
+     "a": "(a) `shelf[1].year` (1815). (b) `shelf[2].author[0]` (`'G'`). (c) `&shelf[0]` (or just `shelf`)."
+    },
+    {
+     "type": "md",
+     "text": "### A function that fills an array of structs\n\nAn array parameter is really a pointer to the caller's first element (Day 5, Day 12). So a function that writes `info[i].len = ...;` writes straight into the **caller's** array: no `&` and no `return` needed. This is how Fall 2015 Q6's `firstAndLast` hands back its five results."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <string.h>\n\nstruct wordinfo {\n    char first;\n    size_t len;\n};\n\n// Fills info[0..n-1] from words[0..n-1].\n// info is really a pointer to the caller's array, so the caller sees the changes.\nvoid fill(struct wordinfo info[], char *words[], size_t n) {\n    for (size_t i = 0; i < n; i++) {\n        info[i].first = words[i][0];\n        info[i].len = strlen(words[i]);\n    }\n}\n\nint main(void) {\n    char *words[] = { \"struct\", \"pointer\", \"arrow\" };\n    struct wordinfo info[3];        // members not set yet\n\n    fill(info, words, 3);\n    for (size_t i = 0; i < 3; i++) {\n        printf(\"%c %zu\\n\", info[i].first, info[i].len);\n    }\n    return 0;\n}",
+     "caption": "fill.c: the function fills the caller's array of structs"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o fill fill.c\n$ ./fill\ns 6\np 7\na 5"
+    },
+    {
+     "type": "md",
+     "text": "### `typedef`: a second name for a type\n\n`typedef` makes an **alias** (another name) for an existing type: `typedef type-name alias;`. The linked stack notebook uses it as `typedef struct qstr qstring;`. Old exams often use a second form with **no tag** at all, where the typedef name is the only name. Then you write the name **without** `struct`."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\n// Form 1: give the struct a tag, then a typedef name for it.\nstruct point2 {\n    double x;\n    double y;\n};\ntypedef struct point2 point;\n\n// Form 2 (common on old exams): no tag, the typedef name is the only name.\ntypedef struct {\n    char first;\n    char last;\n} ends;\n\nint main(void) {\n    point p = { 3.0, 4.0 };          // same as struct point2 p\n    struct point2 q = p;             // both names work for form 1\n    ends e[2] = { { 'c', 't' }, { 'd', 'g' } };   // no \"struct\" here\n\n    printf(\"q = (%f, %f)\\n\", q.x, q.y);\n    printf(\"%c..%c %c..%c\\n\", e[0].first, e[0].last, e[1].first, e[1].last);\n    return 0;\n}",
+     "caption": "td.c: both typedef forms"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o td td.c\n$ ./td\nq = (3.000000, 4.000000)\nc..t d..g"
+    },
+    {
+     "type": "pitfall",
+     "text": "With the tagless form there is no `struct ends` type, only `ends`. Writing `struct ends e = { 'a', 'b' };` fails:\n\n```\ntdbad.c:2:25: error: variable 'e' has initializer but incomplete type\ntdbad.c:2:30: error: storage size of 'e' isn't known\n```"
+    },
+    {
+     "type": "md",
+     "text": "Prof. Ma's advice (linked stack notebook): **don't** typedef a struct just to avoid typing `struct`. When code uses its members, seeing `struct` tells the reader it is a struct. A typedef is fine for an opaque type whose members you never touch (Day 23). So in your own answers write `struct book`; but read and use a typedef when the question gives you one."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- `struct book shelf[3] = { {...}, {...}, {...} };` one inner brace list per element.\n- `shelf[i].year`: index first, then member. `&shelf[i]` points at one element.\n- A function taking `struct T arr[]` changes the caller's array directly (it receives a pointer).\n- `typedef struct point2 point;` makes `point` mean `struct point2`.\n- `typedef struct { ... } name;` (no tag): use `name`, never `struct name`.\n- In your own code prefer `struct tag`; use a given typedef as given."
+    },
+    {
+     "type": "try",
+     "text": "Run `./cdrill.sh start 13` in `~/CISC220_current/c-app/drills`, write the four programs in `~/cisc220_c/day13/`, and test them with `./cdrill.sh check 13`. Task 2 (`rect.c`) practises `->`; task 3 (`books.c`) is the print-function-with-a-pointer pattern on an array of structs."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c13-fc-01",
+   "topic": "c13-define",
+   "front": "What is a struct? What are its members?",
+   "back": "A composite type that groups one or more variables under one name in one block of memory. The variables inside are its **members**."
+  },
+  {
+   "id": "c13-fc-02",
+   "topic": "c13-define",
+   "front": "Define a struct `point2` with two `double` members `x` and `y`.",
+   "back": "```c\nstruct point2 {\n    double x;\n    double y;\n};\n```\nNote the `;` after `}`."
+  },
+  {
+   "id": "c13-fc-03",
+   "topic": "c13-define",
+   "front": "What is the name of the type defined by `struct point2 { ... };`?",
+   "back": "`struct point2` (both words). `point2` alone is the **tag**."
+  },
+  {
+   "id": "c13-fc-04",
+   "topic": "c13-define",
+   "front": "What does `struct point2 p = { 0.1 };` set `p.y` to?",
+   "back": "`0.0`. Members with no initialiser are empty initialised: 0 for numbers, `NULL` for pointers."
+  },
+  {
+   "id": "c13-fc-05",
+   "topic": "c13-define",
+   "front": "Initialise a `struct point2` by member name, `y` first.",
+   "back": "`struct point2 q = { .y = 5.0, .x = -1.0 };` The dots are required."
+  },
+  {
+   "id": "c13-fc-06",
+   "topic": "c13-define",
+   "front": "What does `b = a;` do for two struct variables?",
+   "back": "Copies **every member** of `a` into `b`, array members' elements included. `b` is an independent copy."
+  },
+  {
+   "id": "c13-fc-07",
+   "topic": "c13-define",
+   "front": "Copying a struct that has a `char *` member: what is shared?",
+   "back": "The pointer is copied, not the characters it points at. Both structs point at the **same** string."
+  },
+  {
+   "id": "c13-fc-08",
+   "topic": "c13-define",
+   "front": "Can a struct be larger than the sum of its members' sizes?",
+   "back": "Yes: the compiler may add **padding** bytes for alignment (e.g. `char, int, char` is 12 bytes, not 6). Always use `sizeof(struct tag)`."
+  },
+  {
+   "id": "c13-fc-09",
+   "topic": "c13-define",
+   "front": "Why does `a.title = \"Emma\";` fail when `title` is `char title[32]`?",
+   "back": "An array cannot be assigned with `=` (\"assignment to expression with array type\"). Set it in the initialiser or copy the characters."
+  },
+  {
+   "id": "c13-fc-10",
+   "topic": "c13-pointers",
+   "front": "A function changes its struct parameter `t`. Does the caller's struct change?",
+   "back": "No. The parameter is a copy (pass by value). Return the struct and assign it, or pass a pointer."
+  },
+  {
+   "id": "c13-fc-11",
+   "topic": "c13-pointers",
+   "front": "`ptr` is a `struct point2 *`. Two ways to write its member `x`?",
+   "back": "`ptr->x` and `(*ptr).x`."
+  },
+  {
+   "id": "c13-fc-12",
+   "topic": "c13-pointers",
+   "front": "Why is `*ptr.x` wrong?",
+   "back": "`.` binds tighter than `*`, so it means `*(ptr.x)`, but `ptr` is a pointer, not a struct. Write `ptr->x`."
+  },
+  {
+   "id": "c13-fc-13",
+   "topic": "c13-pointers",
+   "front": "When do you use `.` and when `->`?",
+   "back": "Struct on the left: `.` (`car.year`). Pointer to a struct on the left: `->` (`c->year`)."
+  },
+  {
+   "id": "c13-fc-14",
+   "topic": "c13-pointers",
+   "front": "Header and call for a function that prints a `struct car` through a pointer.",
+   "back": "`void print_car(const struct car *c)`; inside use `c->make` etc.; call `print_car(&c1);`."
+  },
+  {
+   "id": "c13-fc-15",
+   "topic": "c13-arrays",
+   "front": "`struct book shelf[3];` How do you write the year of the second book, and a pointer to it?",
+   "back": "`shelf[1].year` and `&shelf[1]`."
+  },
+  {
+   "id": "c13-fc-16",
+   "topic": "c13-arrays",
+   "front": "What does `typedef struct { char first; char last; } ends;` create?",
+   "back": "A struct type with no tag and the alias `ends`. Declare variables as `ends e;` (not `struct ends e;`)."
+  },
+  {
+   "id": "c13-fc-17",
+   "topic": "c13-arrays",
+   "front": "A function `void fill(struct wordinfo info[], ...)` sets `info[i].len`. Does the caller see it?",
+   "back": "Yes. An array parameter is a pointer to the caller's first element, so the function writes into the caller's array."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c13-q-01",
+   "topic": "c13-define",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nstruct pair {\n    int a;\n    int b;\n};\n\nint main(void) {\n    struct pair p = { 3, 7 };\n    struct pair q = p;\n    q.a = 10;\n    p.b = p.a + q.a;\n    printf(\"%d %d %d %d\\n\", p.a, p.b, q.a, q.b);\n    return 0;\n}",
+   "answer": "3 13 10 7",
+   "explain": "`q = p` copies both members, so `q` is `{3, 7}`. Then `q.a = 10` changes only `q`. `p.b = p.a + q.a` = 3 + 10 = 13. `q.b` is still 7."
+  },
+  {
+   "id": "c13-q-02",
+   "topic": "c13-define",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nstruct item {\n    int id;\n    double price;\n    int stock;\n};\n\nint main(void) {\n    struct item x = { 42 };\n    struct item y = { .stock = 3, .id = 7 };\n    printf(\"%d %.2f %d\\n\", x.id, x.price, x.stock);\n    printf(\"%d %.2f %d\\n\", y.id, y.price, y.stock);\n    return 0;\n}",
+   "answer": "42 0.00 0\n7 0.00 3",
+   "explain": "`x` gets `id = 42`; the missing members are empty initialised to 0. `y` names `stock` and `id`; `price` was not named, so it is 0.0."
+  },
+  {
+   "id": "c13-q-03",
+   "topic": "c13-define",
+   "type": "mcq",
+   "q": "Which line correctly defines a struct type with an `int` member `n`?",
+   "options": [
+    "`struct box { int n; };`",
+    "`struct box { int n; }`  (no semicolon after `}`)",
+    "`struct box = { int n; };`",
+    "`struct box ( int n );`"
+   ],
+   "answer": 0,
+   "explain": "A struct definition is `struct tag { members };` and ends with a semicolon after the closing brace. Without it the compiler reports an error at the next line."
+  },
+  {
+   "id": "c13-q-04",
+   "topic": "c13-define",
+   "type": "short",
+   "q": "`struct course_info { char code[16]; char *title; };` Two variables `c` and `i` and the statement `i = c;`. After it, the program changes `i.code[0]` and `i.title[0]`. Which of these changes are visible through `c`, and why?",
+   "answer": "Only the change through `i.title[0]` is visible in `c` (`c.title` shows it). `i.code` is a separate copy of the array, but `i.title` and `c.title` are copies of the same pointer, so they point at the same characters.",
+   "explain": "Struct assignment copies every member: array members element by element, pointer members as addresses (notebook `assignment2.c` / `assignment3.c`)."
+  },
+  {
+   "id": "c13-q-05",
+   "topic": "c13-pointers",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nstruct counter {\n    char label;\n    int count;\n};\n\nvoid bump(struct counter c) {\n    c.count++;\n}\n\nvoid bump_ptr(struct counter *c) {\n    c->count++;\n}\n\nint main(void) {\n    struct counter k = { 'k', 5 };\n    bump(k);\n    printf(\"%c=%d\\n\", k.label, k.count);\n    bump_ptr(&k);\n    bump_ptr(&k);\n    printf(\"%c=%d\\n\", k.label, k.count);\n    return 0;\n}",
+   "answer": "k=5\nk=7",
+   "explain": "`bump` gets a copy of `k` and changes only the copy, so `k.count` is still 5. `bump_ptr` gets the address of `k` and `c->count++` changes `k` itself; called twice, 5 becomes 7."
+  },
+  {
+   "id": "c13-q-06",
+   "topic": "c13-pointers",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nstruct acct {\n    char owner[16];\n    int balance;\n};\n\nstruct acct deposit(struct acct a, int amount) {\n    a.balance += amount;\n    return a;\n}\n\nint main(void) {\n    struct acct mine = { \"Sam\", 100 };\n    struct acct other = deposit(mine, 50);\n    deposit(mine, 25);\n    other.owner[0] = 'P';\n    printf(\"%s %d\\n\", mine.owner, mine.balance);\n    printf(\"%s %d\\n\", other.owner, other.balance);\n    return 0;\n}",
+   "answer": "Sam 100\nPam 150",
+   "explain": "`deposit` changes its copy and returns it. `other` gets the returned copy (balance 150, owner \"Sam\"). The second call's result is thrown away, so `mine` stays at 100. Changing `other.owner[0]` changes only `other`'s own array: \"Pam\"."
+  },
+  {
+   "id": "c13-q-07",
+   "topic": "c13-pointers",
+   "type": "mcq",
+   "q": "`struct car c1 = { \"Honda\", \"Civic\", 2019 };` and `struct car *p = &c1;`. Which expression is **not** the year 2019?",
+   "options": [
+    "`c1.year`",
+    "`p->year`",
+    "`(*p).year`",
+    "`*p.year`"
+   ],
+   "answer": 3,
+   "explain": "`.` binds tighter than `*`, so `*p.year` means `*(p.year)`; `p` is a pointer, so `p.year` is a compile error. The other three are all the same member."
+  },
+  {
+   "id": "c13-q-08",
+   "topic": "c13-pointers",
+   "type": "short",
+   "q": "Given `struct car { char make[20]; char model[20]; int year; };`, write the **header** of a function `print_car` that prints a car it receives through a pointer (it does not change the car), the `printf` line inside it that prints `2019 Honda Civic`, and the call that prints `struct car c1`.",
+   "answer": "```c\nvoid print_car(const struct car *c)\n    printf(\"%d %s %s\\n\", c->year, c->make, c->model);\nprint_car(&c1);\n```",
+   "explain": "The parameter is a pointer to the struct, members are reached with `->`, and the caller passes the address with `&`. `const` is optional but documents that the function only reads. Dec 2018 Q6 asked for this pattern."
+  },
+  {
+   "id": "c13-q-09",
+   "topic": "c13-pointers",
+   "type": "short",
+   "q": "A function `void reset(struct point2 p) { p.x = 0.0; p.y = 0.0; }` is called as `reset(q);` but `q` does not change. Fix the function **and** the call.",
+   "answer": "`void reset(struct point2 *p) { p->x = 0.0; p->y = 0.0; }` and call `reset(&q);`",
+   "explain": "Pass by value gives the function a copy. Passing the address lets the function reach the caller's struct through the pointer with `->`."
+  },
+  {
+   "id": "c13-q-10",
+   "topic": "c13-arrays",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nstruct point2 {\n    double x;\n    double y;\n};\n\nint main(void) {\n    struct point2 pts[3] = { { 1.0, 2.0 }, { 3.0, 4.0 }, { 5.0, 6.0 } };\n    struct point2 *p = &pts[1];\n\n    p->x = p->x * 10;\n    (*p).y = pts[0].y + pts[2].y;\n    p = pts;\n    p->y = -1.0;\n    for (int i = 0; i < 3; i++) {\n        printf(\"(%.1f, %.1f)\\n\", pts[i].x, pts[i].y);\n    }\n    return 0;\n}",
+   "answer": "(1.0, -1.0)\n(30.0, 8.0)\n(5.0, 6.0)",
+   "explain": "`p` points at `pts[1]`. `p->x = 3.0 * 10` = 30.0. `(*p).y = pts[0].y + pts[2].y` = 2.0 + 6.0 = 8.0 (this runs before `pts[0].y` changes). Then `p = pts` points at `pts[0]` and its `y` becomes -1.0. `pts[2]` never changes."
+  },
+  {
+   "id": "c13-q-11",
+   "topic": "c13-arrays",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\nstruct student {\n    char name[16];\n    int mark;\n};\n\nint main(void) {\n    struct student cls[4] = {\n        { \"Ana\", 71 }, { \"Ben\", 88 }, { \"Cy\", 64 }, { \"Di\", 88 }\n    };\n    int best = 0;\n    int total = 0;\n    for (int i = 0; i < 4; i++) {\n        total += cls[i].mark;\n        if (cls[i].mark > cls[best].mark) {\n            best = i;\n        }\n    }\n    printf(\"%s %d\\n\", cls[best].name, total / 4);\n    printf(\"%c\\n\", cls[2].name[1]);\n    return 0;\n}",
+   "answer": "Ben 77\ny",
+   "explain": "Total = 71 + 88 + 64 + 88 = 311, and 311 / 4 = 77 (integer division). `best` changes only on a strictly larger mark, so Ben (index 1) stays best when Di's 88 ties. `cls[2].name` is \"Cy\" and index 1 is `y`."
+  },
+  {
+   "id": "c13-q-12",
+   "topic": "c13-arrays",
+   "type": "output",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n\ntypedef struct {\n    int num;\n    int den;\n} fraction;\n\nvoid reduce_by(fraction *f, int k) {\n    f->num /= k;\n    f->den /= k;\n}\n\nint main(void) {\n    fraction f = { 12, 18 };\n    fraction g = f;\n    reduce_by(&f, 6);\n    reduce_by(&g, 2);\n    printf(\"%d/%d %d/%d\\n\", f.num, f.den, g.num, g.den);\n    return 0;\n}",
+   "answer": "2/3 6/9",
+   "explain": "`fraction` is a typedef for a tagless struct, so variables are declared as `fraction f`, no `struct`. `g = f` copies `{12, 18}`. `reduce_by(&f, 6)` makes `f` 2/3; `reduce_by(&g, 2)` makes `g` 6/9. Each call changes only the struct whose address it got."
+  },
+  {
+   "id": "c13-q-13",
+   "topic": "c13-arrays",
+   "type": "short",
+   "q": "Given `typedef struct { char first; char last; } ends;`, write the header of a function `record` that takes a string `word` and an array `out` of `ends`, and the statement inside it that stores the first character of `word` in element 2 of the array.",
+   "answer": "`void record(char *word, ends out[])` and `out[2].first = word[0];`",
+   "explain": "With a tagless typedef the type is written `ends` (not `struct ends`). `out[2]` is an `ends`, so its member is reached with `.`. This is the Fall 2015 Q6 header style (`initials structArray[]`)."
+  }
+ ],
+ "write": [
+  {
+   "id": "c13-w-01",
+   "topic": "c13-pointers",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Define `struct time` with two `int` members, `hours` (0 to 23) and `minutes` (0 to 59). Write `void print_time(const struct time *t)` that prints the time as `HH:MM` and a newline, and `void add_minutes(struct time *t, int m)` that adds `m` minutes (m >= 0) to the time `t` points at, wrapping past midnight. In `main`, make two initialised times, 9:45 and 23:30, add 50 and 45 minutes, and print both.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\nstruct time {\n    int hours;      // 0 to 23\n    int minutes;    // 0 to 59\n};\n\n// Prints the time that t points at as HH:MM.\nvoid print_time(const struct time *t) {\n    printf(\"%02d:%02d\\n\", t->hours, t->minutes);\n}\n\n// Adds m minutes (m >= 0) to the time that t points at, wrapping past midnight.\nvoid add_minutes(struct time *t, int m) {\n    int total = t->hours * 60 + t->minutes + m;\n    t->hours = (total / 60) % 24;\n    t->minutes = total % 60;\n}\n\nint main(void) {\n    struct time start = { 9, 45 };\n    struct time late = { 23, 30 };\n\n    add_minutes(&start, 50);\n    add_minutes(&late, 45);\n    print_time(&start);\n    print_time(&late);\n    return 0;\n}\n\n// Output:\n// 10:35\n// 00:15",
+   "explain": "1. The struct definition lists the members and ends with `};`.\n2. Both functions take a **pointer** to the struct. `print_time` only reads, so its parameter is `const struct time *`; `add_minutes` changes the caller's time, so no `const`.\n3. Inside, every member is reached with `->`: `t->hours`, `t->minutes`.\n4. `add_minutes` converts to total minutes, adds `m`, then splits again: hours = `(total / 60) % 24` (the `% 24` wraps past midnight), minutes = `total % 60`.\n5. `main` initialises in member order, `{ 9, 45 }`, and passes **addresses**: `add_minutes(&start, 50)`, `print_time(&start)`.\n6. `%02d` prints an int at least 2 wide, padded with a leading `0`, so 0 prints as `00`. 9:45 + 50 min = 10:35; 23:30 + 45 min = 24:15, which wraps to 00:15.",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "correct struct definition with `;` after `}`"
+    },
+    {
+     "marks": 1,
+     "item": "`print_time` takes a pointer and prints with `->`"
+    },
+    {
+     "marks": 2,
+     "item": "`add_minutes` changes the caller's struct through `->` and wraps correctly"
+    },
+    {
+     "marks": 1,
+     "item": "two initialised structs in `main`; calls pass `&start`, `&late`"
+    }
+   ],
+   "pitfalls": [
+    "Taking `struct time t` by value in `add_minutes`: the caller's time never changes.",
+    "Writing `t.hours` on a pointer: `t` is a pointer, so use `t->hours`.",
+    "Forgetting `% 24`, which prints `24:15`."
+   ]
+  },
+  {
+   "id": "c13-w-02",
+   "topic": "c13-arrays",
+   "stage": "faded",
+   "marks": 5,
+   "prompt": "Fill in the blanks. `analyse` stores, for each word, its first character and its number of lower-case vowels in the matching element of the array of structs `out` (the Fall 2015 Q6 shape: a function that fills an array of structs). `main` should print:\n\n```\nqueue: starts with q, 4 vowels\nstack: starts with s, 1 vowels\ntree: starts with t, 2 vowels\n```",
+   "starter": "#include <stdio.h>\n\nstruct letters {\n    char first;\n    int vowels;\n};\n\n// For each i from 0 to n - 1, stores the first character of words[i]\n// and the number of lower-case vowels in words[i] in out[i].\nvoid analyse(char *words[], struct letters out[], size_t n) {\n    for (size_t i = 0; i < n; i++) {\n        ____ = words[i][0];\n        out[i].____ = 0;\n        for (size_t j = 0; ____; j++) {\n            char c = words[i][j];\n            if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u') {\n                ____;\n            }\n        }\n    }\n}\n\nint main(void) {\n    char *words[] = { \"queue\", \"stack\", \"tree\" };\n    struct letters out[3];\n\n    analyse(____, ____, 3);\n    for (size_t i = 0; i < 3; i++) {\n        printf(\"%s: starts with %c, %d vowels\\n\", words[i], out[i].first, out[i].vowels);\n    }\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n\nstruct letters {\n    char first;\n    int vowels;\n};\n\n// For each i from 0 to n - 1, stores the first character of words[i]\n// and the number of lower-case vowels in words[i] in out[i].\nvoid analyse(char *words[], struct letters out[], size_t n) {\n    for (size_t i = 0; i < n; i++) {\n        out[i].first = words[i][0];\n        out[i].vowels = 0;\n        for (size_t j = 0; words[i][j] != '\\0'; j++) {\n            char c = words[i][j];\n            if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u') {\n                out[i].vowels++;\n            }\n        }\n    }\n}\n\nint main(void) {\n    char *words[] = { \"queue\", \"stack\", \"tree\" };\n    struct letters out[3];\n\n    analyse(words, out, 3);\n    for (size_t i = 0; i < 3; i++) {\n        printf(\"%s: starts with %c, %d vowels\\n\", words[i], out[i].first, out[i].vowels);\n    }\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`out[i].first` (index, then `.member`)"
+    },
+    {
+     "marks": 1,
+     "item": "resets `out[i].vowels` to 0 for each word"
+    },
+    {
+     "marks": 1,
+     "item": "loop condition `words[i][j] != '\\0'`"
+    },
+    {
+     "marks": 1,
+     "item": "`out[i].vowels++`"
+    },
+    {
+     "marks": 1,
+     "item": "call `analyse(words, out, 3)`: the array name, no `&` needed"
+    }
+   ],
+   "pitfalls": [
+    "Writing `out.first[i]`: the index goes on the array, `out[i].first`.",
+    "Using `->` on `out[i]`: it is a struct, not a pointer, so use `.`.",
+    "Forgetting to set `vowels` to 0: `struct letters out[3];` starts with garbage."
+   ]
+  },
+  {
+   "id": "c13-w-03",
+   "topic": "c13-pointers",
+   "stage": "blank",
+   "marks": 5,
+   "prompt": "Write a complete C program that:\n\n1. defines a struct type `struct book` with three members: a title and an author (strings of at most 63 characters) and the year it was published (an integer);\n2. defines a function `print_book` that takes a **pointer** to a `struct book` and prints its three members, one per line, as `Title: ...`, `Author: ...`, `Year: ...`;\n3. in `main`, declares and initialises two books (for example Dune, Frank Herbert, 1965 and Emma, Jane Austen, 1815) and prints both using `print_book`.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n\nstruct book {\n    char title[64];\n    char author[64];\n    int year;\n};\n\n// Prints the book that b points at.\nvoid print_book(struct book *b) {\n    printf(\"Title: %s\\n\", b->title);\n    printf(\"Author: %s\\n\", b->author);\n    printf(\"Year: %d\\n\", b->year);\n}\n\nint main(void) {\n    struct book b1 = { \"Dune\", \"Frank Herbert\", 1965 };\n    struct book b2 = { \"Emma\", \"Jane Austen\", 1815 };\n\n    print_book(&b1);\n    print_book(&b2);\n    return 0;\n}\n\n// Output:\n// Title: Dune\n// Author: Frank Herbert\n// Year: 1965\n// Title: Emma\n// Author: Jane Austen\n// Year: 1815",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "struct definition with `char title[64]`, `char author[64]`, `int year` and `};`"
+    },
+    {
+     "marks": 1,
+     "item": "header `void print_book(struct book *b)` (with or without `const`)"
+    },
+    {
+     "marks": 1,
+     "item": "uses `b->title`, `b->author`, `b->year` (or `(*b).title`) with `%s`, `%s`, `%d`"
+    },
+    {
+     "marks": 1,
+     "item": "two initialised structs with `{ \"...\", \"...\", year }` in member order"
+    },
+    {
+     "marks": 1,
+     "item": "calls `print_book(&b1); print_book(&b2);` with `&`"
+    }
+   ],
+   "pitfalls": [
+    "Sizing the strings `[63]`: a 63-character string needs 64 chars for the `'\\0'`.",
+    "Using `b.title` inside the function: `b` is a pointer.",
+    "Calling `print_book(b1)` without `&`.",
+    "Missing `;` after the struct's `}`."
+   ]
+  }
+ ]
+}
