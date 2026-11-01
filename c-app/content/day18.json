@@ -1,0 +1,603 @@
+{
+ "day": 18,
+ "title": "Dynamic memory, part 1",
+ "goal": "Create objects and arrays on the heap with malloc and calloc, check for NULL, return them from functions, release them with free, and use valgrind to find leaks and use-after-free bugs.",
+ "topics": [
+  {
+   "id": "c18-heap",
+   "title": "The heap: malloc, sizeof, NULL and free",
+   "notebook": "c/allocating_and_deallocating_memory.ipynb",
+   "priority": "high",
+   "examNote": "The April 2022 final (Q3(a), 4 points) asked: *show how to use `malloc` to allocate memory for a single value and for an array of 10 values*. The answer pattern is `T *p = malloc(sizeof(T));` and `T *a = malloc(10 * sizeof(T));`. Prof. Ma's note on the Dec 2019 final (Q3): \"arrays on the heap\" simply means arrays made with `malloc` or `calloc`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### A third kind of lifetime\n\nOn Day 7 you met two **storage durations** (the rules for how long an object lives):\n\n- **automatic**: ordinary local variables and parameters. Created when the block starts, destroyed when it ends.\n- **static**: globals and `static` variables. One copy for the whole run.\n\nNeither fits a common need: *make an object inside a function and keep it after the function returns*, or *make an array whose length you only learn while the program runs* (for example from a command line argument).\n\nThe notebook's answer is the third kind: **allocated storage duration**. Here **you**, the programmer, control the lifetime. You:\n\n1. **request** memory with an allocation function (`malloc` or `calloc` today);\n2. store a value in it;\n3. use it for as long as you need;\n4. **release** it with `free`.\n\nRemembering step 4 is your job, and forgetting it is one of the most common C mistakes."
+    },
+    {
+     "type": "md",
+     "text": "### The stack and the heap\n\nProgrammers usually give the two main memory areas nicknames (the notebook does not use them, but you will hear them everywhere, including in valgrind's messages):\n\n| Area | What lives there | Who creates and destroys it |\n|---|---|---|\n| **the stack** | automatic objects: locals and parameters of each function call | automatic: a call gets its space when it starts and loses it when it returns |\n| **the heap** | allocated objects made by `malloc` / `calloc` | you: created by `malloc`/`calloc`, destroyed only by `free` |\n\n(Globals and statics live in a third area of their own.) The program below prints one address from each area. The pointer variable `heap` is itself a local, so **it** is on the stack, while the `int` it points to is on the heap."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint counter = 0;                     // static storage duration\n\nint main(void) {\n    int local = 5;                   // automatic: on the stack\n    int *heap = malloc(sizeof(int)); // allocated: on the heap\n    *heap = 7;\n\n    printf(\"&counter = %p (static)\\n\", (void *) &counter);\n    printf(\"heap     = %p (heap)\\n\", (void *) heap);\n    printf(\"&local   = %p (stack)\\n\", (void *) &local);\n    printf(\"&heap    = %p (stack: the pointer variable itself)\\n\", (void *) &heap);\n\n    free(heap);\n    return 0;\n}",
+     "caption": "where.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o where where.c\n$ ./where\n&counter = 0x557604c79014 (static)\nheap     = 0x55763555b2a0 (heap)\n&local   = 0x7fff31d1baac (stack)\n&heap    = 0x7fff31d1bab0 (stack: the pointer variable itself)",
+     "caption": "One run: the addresses change every time, but on Linux the stack addresses (0x7fff...) are always far away from the static and heap ones."
+    },
+    {
+     "type": "md",
+     "text": "### `malloc`\n\n`malloc` (\"memory allocate\") is declared in `<stdlib.h>`:\n\n```c\nvoid *malloc(size_t size);\n```\n\n- `size` is the number of **bytes** you want.\n- It returns a pointer to the **first byte** of a new block of memory. The type is `void *` (Day 12: a pointer to \"anything\"), so you can store it in **any** pointer variable without a cast: `int *p = malloc(...);`.\n- The new memory is **not initialized**: it may contain any bits. Store a value before you read it.\n- If it fails, it returns a **null pointer** (`NULL`).\n\nHow many bytes is one `int`? Do not guess 4: ask the compiler with `sizeof` (Day 12). `malloc(sizeof(int))` is \"enough bytes for one `int`\" on any machine. This is the notebook's first example, cut down to three types:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *ip = malloc(sizeof(int));        // lifetime of the int object starts here\n    *ip = 99;\n    printf(\"ip points at: %d\\n\", *ip);\n    free(ip);                             // lifetime of the int object ends here\n\n    double *dp = malloc(sizeof(double));  // a new double object on the heap\n    *dp = -1.5;\n    printf(\"dp points at: %f\\n\", *dp);\n    free(dp);\n\n    char *cp = malloc(1);                 // sizeof(char) is always 1\n    *cp = 'a';\n    printf(\"cp points at: %c\\n\", *cp);\n    free(cp);\n    return 0;\n}",
+     "caption": "heap1.c (from the notebook's malloc_obj.c)"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o heap1 heap1.c\n$ ./heap1\nip points at: 99\ndp points at: -1.500000\ncp points at: a"
+    },
+    {
+     "type": "md",
+     "text": "The objects have no names: you reach them only through the pointers, with `*ip`, `*dp`, `*cp`. A struct works the same way (Day 13): `struct point2 *s = malloc(sizeof(struct point2));`."
+    },
+    {
+     "type": "md",
+     "text": "### `free`\n\n```c\nvoid free(void *ptr);\n```\n\n`free(p)` gives the block that `p` points at back to the system: the object's **lifetime ends**. Rules:\n\n- Pass exactly a pointer that `malloc`/`calloc` returned (the start of the block), and free each block **once**.\n- `free(NULL)` is allowed and does nothing.\n- After `free(p)`, the pointer `p` still holds the old address, but the object is gone. Using `*p` now is undefined behaviour (lesson 3).\n\nOne `malloc` call, one `free` call: count them."
+    },
+    {
+     "type": "md",
+     "text": "### Checking for `NULL`\n\nThe standard advice: **always test** the pointer an allocation function returns. If it is `NULL` there is no memory to use. What to do then \"depends\", says the notebook, but the usual simple answer for small programs is: print a message to standard error and stop, with `exit(EXIT_FAILURE)` (Day 4; `exit` ends the program from inside any function)."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    double *d = malloc(sizeof(double));\n    if (!d) {                                  // same as d == NULL\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    *d = 2.75;\n    printf(\"*d = %.2f\\n\", *d);\n    free(d);\n    return 0;\n}",
+     "caption": "nullcheck.c: the pattern to copy"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o nullcheck nullcheck.c\n$ ./nullcheck\n*d = 2.75"
+    },
+    {
+     "type": "md",
+     "text": "The notebook adds a surprising fact: on Linux and macOS, `malloc` practically never returns `NULL`; if memory really runs out, the operating system kills a memory-hungry process instead. Only Windows commonly returns `NULL`. Write the check anyway: it is portable, it is what the course expects, and marks on an exam can depend on it."
+    },
+    {
+     "type": "check",
+     "q": "Write one line that allocates space for a single `double` on the heap and stores the pointer in `d`.",
+     "a": "`double *d = malloc(sizeof(double));`"
+    },
+    {
+     "type": "pitfall",
+     "text": "`malloc(4)` for an `int` happens to work on our machine, but it is wrong style and wrong on a machine where `int` is not 4 bytes. Always write `sizeof(type)`."
+    },
+    {
+     "type": "why",
+     "q": "Why is the pointer `d` on the stack when the `double` is on the heap?",
+     "a": "`d` is an ordinary local variable (automatic storage), so it lives in `main`'s part of the stack and dies when `main` returns. It just *holds the address* of the heap object. The heap object has no name and lives until `free(d)`, no matter which function is running."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Three storage durations: automatic (the **stack**), static, and **allocated** (the **heap**), whose lifetime you control.\n- `#include <stdlib.h>`. `T *p = malloc(sizeof(T));` makes one `T`. `malloc` counts **bytes** and returns a `void *` (no cast needed).\n- `malloc` memory is **not initialized**: store before you read.\n- Test the result: `if (!p) { fprintf(stderr, \"...\\n\"); exit(EXIT_FAILURE); }`.\n- `free(p)` ends the object's lifetime: one `free` per allocation, never twice. `free(NULL)` does nothing."
+    }
+   ]
+  },
+  {
+   "id": "c18-arrays",
+   "title": "Dynamic arrays, returning them, and calloc",
+   "notebook": "c/allocating_and_deallocating_memory.ipynb",
+   "priority": "high",
+   "examNote": "Expect to write `int *a = malloc(n * sizeof(int));` (or `calloc(n, sizeof(int))`) for \"an array on the heap\", and to explain why a function may return a pointer to `malloc`'d memory but **not** the address of a local array. April 2022 Q3(a)(ii) asked for an array of 10 values with `malloc`.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Arrays on the heap\n\nTo get an array of `n` elements, ask for `n` times the size of one element:\n\n```c\nint *a = malloc(n * sizeof(int));        // n ints\ndouble *d = malloc(n * sizeof(double));  // n doubles\nchar *s = malloc(n);                     // n chars (sizeof(char) is 1)\n```\n\nThe result is a pointer to the first element, so you use it **exactly like an array**: `a[i]`, `*(a + i)`, pointer loops (Day 12). The big win: `n` can be a **variable** whose value is only known when the program runs. Here it comes from the command line:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(int argc, char *argv[]) {\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s n\\n\", argv[0]);\n        return 1;\n    }\n    size_t n = atoi(argv[1]);\n    if (n == 0) {\n        fprintf(stderr, \"n must be at least 1\\n\");\n        return 1;\n    }\n\n    int *sq = malloc(n * sizeof(int));        // room for n ints\n    if (!sq) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < n; i++) {\n        sq[i] = (int) (i * i);                // use it like any array\n    }\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%d \", sq[i]);\n    }\n    printf(\"\\n\");\n\n    double *half = malloc(n * sizeof(double)); // room for n doubles\n    if (!half) {\n        free(sq);\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < n; i++) {\n        half[i] = sq[i] / 2.0;\n    }\n    printf(\"half[n - 1] = %.1f\\n\", half[n - 1]);\n\n    free(sq);\n    free(half);\n    return 0;\n}",
+     "caption": "dynarr.c: an int array and a double array of length n"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o dynarr dynarr.c\n$ ./dynarr 5\n0 1 4 9 16 \nhalf[n - 1] = 8.0\n$ ./dynarr 8\n0 1 4 9 16 25 36 49 \nhalf[n - 1] = 24.5\n$ ./dynarr\nusage: ./dynarr n"
+    },
+    {
+     "type": "md",
+     "text": "Notice the second `NULL` check: if the second `malloc` fails, the program first frees the first array. The notebook's rule: release whatever you allocated, then stop cleanly."
+    },
+    {
+     "type": "pitfall",
+     "text": "`malloc(n)` for an array of `n` ints asks for `n` **bytes**, which is room for only `n / 4` ints. Writing past the end is undefined behaviour (it may seem to work). The notebook's own `return_arr.c` has exactly this slip (`malloc(len)` for an `int` array); the correct call is `malloc(len * sizeof(int))`."
+    },
+    {
+     "type": "check",
+     "q": "Allocate an array of 30 `long` values on the heap, pointed at by `big`.",
+     "a": "`long *big = malloc(30 * sizeof(long));` (or `calloc(30, sizeof(long))`)."
+    },
+    {
+     "type": "md",
+     "text": "### Returning a new array from a function\n\nThe notebook: *a function that must create a new array and return it must dynamically allocate the array and return a pointer to its first element.* This works because heap memory **does not die when the function returns**. Only `free` ends its lifetime. The caller now owns the array and must free it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n// Returns a pointer to the first element of a new array holding\n// n, n - 1, ..., 1. The caller must free it. Returns NULL if out of memory.\nint *countdown(size_t n) {\n    int *arr = malloc(n * sizeof(int));   // lifetime starts here...\n    if (!arr) {\n        return NULL;\n    }\n    for (size_t i = 0; i < n; i++) {\n        arr[i] = (int) (n - i);\n    }\n    return arr;                           // ...and does NOT end here\n}\n\nint main(void) {\n    int *a = countdown(5);\n    if (!a) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < 5; i++) {\n        printf(\"%d \", a[i]);\n    }\n    printf(\"\\n\");\n    free(a);                              // lifetime ends here\n    return 0;\n}",
+     "caption": "retarr.c"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o retarr retarr.c\n$ ./retarr\n5 4 3 2 1 "
+    },
+    {
+     "type": "md",
+     "text": "Compare the same idea with a **local** array. `arr` is automatic, so it is destroyed when `countdown3` returns, and the caller gets a dangling pointer (Day 7). gcc warns, and on our machine the program crashed:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n\nint *countdown3(void) {\n    int arr[3] = {3, 2, 1};   // automatic: dies when the function returns\n    return arr;               // WRONG: address of a local array\n}\n\nint main(void) {\n    int *a = countdown3();\n    printf(\"%d\\n\", a[0]);     // undefined behaviour\n    return 0;\n}",
+     "caption": "badarr.c: DON'T do this"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o badarr badarr.c\nbadarr.c: In function 'countdown3':\nbadarr.c:5:12: warning: function returns address of local variable [-Wreturn-local-addr]\n    5 |     return arr;               // WRONG: address of a local array\n      |            ^~~\n$ ./badarr\nSegmentation fault",
+     "caption": "Undefined behaviour: there is no fixed output. Treat this warning as an error."
+    },
+    {
+     "type": "why",
+     "q": "Both versions return a pointer. Why is one fine and the other a bug?",
+     "a": "What matters is the lifetime of the object the pointer points to. In `retarr.c` it points to heap memory, which lives until someone calls `free`. In `badarr.c` it points to an automatic array in `countdown3`'s stack space, which is gone the moment the function returns."
+    },
+    {
+     "type": "md",
+     "text": "### `calloc`: allocate and set to zero\n\n```c\nvoid *calloc(size_t num, size_t size);\n```\n\n`calloc` (\"cleared allocate\") makes room for `num` objects of `size` bytes each and sets **every bit to zero**. So `calloc(n, sizeof(int))` is an array of `n` ints that all start at 0. Note the **two** arguments, separated by a comma, where `malloc` takes one product. Otherwise it is like `malloc`: returns `void *`, `NULL` on failure, release with `free`.\n\nUse it when you need zeros anyway, for example counters:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    size_t n = 6;\n    unsigned int *count = calloc(n, sizeof(unsigned int));  // n zeros\n    if (!count) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    int rolls[] = {2, 5, 2, 0, 5, 5, 3};\n    for (size_t i = 0; i < 7; i++) {\n        count[rolls[i]]++;            // safe: every count started at 0\n    }\n    for (size_t i = 0; i < n; i++) {\n        printf(\"%zu: %u\\n\", i, count[i]);\n    }\n    free(count);\n    return 0;\n}",
+     "caption": "callocdemo.c: counting with calloc"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -o callocdemo callocdemo.c\n$ ./callocdemo\n0: 1\n1: 0\n2: 2\n3: 1\n4: 0\n5: 3"
+    },
+    {
+     "type": "md",
+     "text": "With `malloc` instead of `calloc`, the counters would start with unknown values and the output would be garbage. (The notebook's `return_arr_calloc.c` makes the same point: its `a[0]` is \"guaranteed to be zero\".)"
+    },
+    {
+     "type": "check",
+     "q": "Rewrite `int *z = malloc(50 * sizeof(int));` so that all 50 elements are guaranteed to start at 0, with one call and no loop.",
+     "a": "`int *z = calloc(50, sizeof(int));`"
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- Array of `n` elements: `T *a = malloc(n * sizeof(T));`, then use `a[i]` as usual. `n` may be a run time value.\n- `malloc(n)` is `n` **bytes**, not `n` elements (except for `char`).\n- A function may return a `malloc`'d pointer: heap memory outlives the call, and the caller must `free` it. Never return the address of a local (automatic) variable or array.\n- `calloc(num, size)` = room for `num` objects of `size` bytes, **all bits zero**. Two arguments.\n- If a later allocation fails, free the earlier ones before you stop."
+    }
+   ]
+  },
+  {
+   "id": "c18-bugs",
+   "title": "Memory leaks, use-after-free, and valgrind",
+   "notebook": "c/allocating_and_deallocating_memory.ipynb",
+   "priority": "medium",
+   "examNote": "On a handwritten exam you cannot run valgrind, but markers check that every `malloc`/`calloc` has a matching `free`, and that nothing is used after it is freed. Count allocations and frees in your answer before you hand it in.",
+   "blocks": [
+    {
+     "type": "md",
+     "text": "### Two classic bugs\n\nBecause *you* control the lifetime of heap memory, you can get it wrong in two opposite ways:\n\n| Bug | What happens | Effect |\n|---|---|---|\n| **memory leak** | you never `free` a block (often: the only pointer to it is lost) | the memory stays in use until the program ends; a long-running program slowly eats memory |\n| **use-after-free** | you use `*p` or `p[i]` after `free(p)` | undefined behaviour: wrong values, crashes, security holes |\n\nA leak is easy to create: store the only pointer in a local variable, and return without freeing. When the function returns, the **pointer** (on the stack) dies, but the **block** (on the heap) does not. Now nobody can ever free it."
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\n// Returns the sum 1 + 2 + ... + n, using a heap array (to show a leak)\nint total(int n) {\n    int *a = malloc(n * sizeof(int));\n    for (int i = 0; i < n; i++) {\n        a[i] = i + 1;\n    }\n    int sum = 0;\n    for (int i = 0; i < n; i++) {\n        sum += a[i];\n    }\n    return sum;            // BUG: a is never freed\n}\n\nint main(void) {\n    for (int k = 1; k <= 3; k++) {\n        printf(\"total(%d) = %d\\n\", 10 * k, total(10 * k));\n    }\n    return 0;\n}",
+     "caption": "leak.c: three leaked arrays"
+    },
+    {
+     "type": "md",
+     "text": "The program prints correct answers, so the bug is invisible. To see it, use **valgrind**, a tool that runs your program and watches every heap operation.\n\n- Install it once (Ubuntu): `sudo apt install valgrind`\n- Compile with `-g` so valgrind can print **line numbers**.\n- Run `valgrind --leak-check=full ./prog` (put the program's own arguments after it as usual)."
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o leak leak.c\n$ valgrind --leak-check=full ./leak\n==16009== Memcheck, a memory error detector\n==16009== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.\n==16009== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info\n==16009== Command: ./leak\n==16009==\ntotal(10) = 55\ntotal(20) = 210\ntotal(30) = 465\n==16009==\n==16009== HEAP SUMMARY:\n==16009==     in use at exit: 240 bytes in 3 blocks\n==16009==   total heap usage: 4 allocs, 1 frees, 4,336 bytes allocated\n==16009==\n==16009== 240 bytes in 3 blocks are definitely lost in loss record 1 of 1\n==16009==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)\n==16009==    by 0x109188: total (leak.c:6)\n==16009==    by 0x10921F: main (leak.c:19)\n==16009==\n==16009== LEAK SUMMARY:\n==16009==    definitely lost: 240 bytes in 3 blocks\n==16009==    indirectly lost: 0 bytes in 0 blocks\n==16009==      possibly lost: 0 bytes in 0 blocks\n==16009==    still reachable: 0 bytes in 0 blocks\n==16009==         suppressed: 0 bytes in 0 blocks\n==16009==\n==16009== For lists of detected and suppressed errors, rerun with: -s\n==16009== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)",
+     "caption": "Real output. Each line valgrind adds starts with ==PID== (the process number); the program's own output is mixed in."
+    },
+    {
+     "type": "md",
+     "text": "How to read it:\n\n- **definitely lost: 240 bytes in 3 blocks**: three blocks were never freed and nothing points to them any more. 40 + 80 + 120 bytes = 10, 20 and 30 ints of 4 bytes.\n- The stack of `at ... by ...` lines says **where** they were allocated: in `total`, at `leak.c:6` (the `malloc` line), called from `main` at line 19.\n- **4 allocs, 1 frees**: the extra allocation (and its free) belongs to `printf`, which made its own output buffer. Only *your* blocks are reported as lost.\n\nThe fix is one line before the `return` in `total`: `free(a);`. Then valgrind reports `All heap blocks were freed -- no leaks are possible`, as it does for `retarr.c` from lesson 2:"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o retarr retarr.c\n$ valgrind --leak-check=full ./retarr\n==16011== Memcheck, a memory error detector\n==16011== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.\n==16011== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info\n==16011== Command: ./retarr\n==16011==\n5 4 3 2 1\n==16011==\n==16011== HEAP SUMMARY:\n==16011==     in use at exit: 0 bytes in 0 blocks\n==16011==   total heap usage: 2 allocs, 2 frees, 4,116 bytes allocated\n==16011==\n==16011== All heap blocks were freed -- no leaks are possible\n==16011==\n==16011== For lists of detected and suppressed errors, rerun with: -s\n==16011== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)",
+     "caption": "A clean run: 0 bytes in use at exit, 0 errors."
+    },
+    {
+     "type": "try",
+     "text": "Run `valgrind --version`. If the command is missing, install it with `sudo apt install valgrind`. Copy leak.c, compile it with `gcc -std=c17 -Wall -g -o leak leak.c`, and run `valgrind --leak-check=full ./leak`. Then add `free(a);` before `return sum;` in `total`, recompile, and run valgrind again until it says no leaks are possible."
+    },
+    {
+     "type": "md",
+     "text": "### Use-after-free\n\nAfter `free(p)`, `p` still holds the old address, which makes it easy to keep using it by mistake. This time gcc `-Wall` even warns, and valgrind reports an **Invalid read**, with the line of the bad read, the line of the `free`, and the line of the `malloc`:"
+    },
+    {
+     "type": "code",
+     "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *p = malloc(3 * sizeof(int));\n    p[0] = 10;\n    p[1] = 20;\n    p[2] = 30;\n    free(p);                  // the array is gone...\n    printf(\"%d\\n\", p[1]);     // BUG: ...but we still read it\n    return 0;\n}",
+     "caption": "uaf.c: DON'T do this"
+    },
+    {
+     "type": "code",
+     "code": "$ gcc -std=c17 -Wall -g -o uaf uaf.c\nuaf.c: In function 'main':\nuaf.c:10:21: warning: pointer 'p' used after 'free' [-Wuse-after-free]\n   10 |     printf(\"%d\\n\", p[1]);     // BUG: ...but we still read it\n      |                     ^\nuaf.c:9:5: note: call to 'free' here\n    9 |     free(p);                  // the array is gone...\n      |     ^~~~~~~\n$ ./uaf\n5\n$ valgrind ./uaf\n==16010== Memcheck, a memory error detector\n==16010== Copyright (C) 2002-2022, and GNU GPL'd, by Julian Seward et al.\n==16010== Using Valgrind-3.22.0 and LibVEX; rerun with -h for copyright info\n==16010== Command: ./uaf\n==16010==\n==16010== Invalid read of size 4\n==16010==    at 0x1091DD: main (uaf.c:10)\n==16010==  Address 0x4a7b044 is 4 bytes inside a block of size 12 free'd\n==16010==    at 0x484988F: free (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)\n==16010==    by 0x1091D4: main (uaf.c:9)\n==16010==  Block was alloc'd at\n==16010==    at 0x4846828: malloc (in /usr/libexec/valgrind/vgpreload_memcheck-amd64-linux.so)\n==16010==    by 0x10919E: main (uaf.c:5)\n==16010==\n20\n==16010==\n==16010== HEAP SUMMARY:\n==16010==     in use at exit: 0 bytes in 0 blocks\n==16010==   total heap usage: 2 allocs, 2 frees, 4,108 bytes allocated\n==16010==\n==16010== All heap blocks were freed -- no leaks are possible\n==16010==\n==16010== For lists of detected and suppressed errors, rerun with: -s\n==16010== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)",
+     "caption": "Undefined behaviour: on its own the program printed 5, under valgrind it printed 20. Neither is \"the\" output."
+    },
+    {
+     "type": "pitfall",
+     "text": "\"It printed the right value, so it works\" is never a valid argument for undefined behaviour. A use-after-free or a leak can stay silent for years and then crash a program in production. Check with valgrind."
+    },
+    {
+     "type": "check",
+     "q": "valgrind ends with `definitely lost: 80 bytes in 2 blocks`. What went wrong, and what is the cure?",
+     "a": "Two heap blocks (80 bytes in total) were never freed and no pointer to them remains: a memory leak. Find the `malloc`/`calloc` lines valgrind lists and add a matching `free` once each block is no longer needed."
+    },
+    {
+     "type": "why",
+     "q": "Why doesn't the operating system just free leaked memory?",
+     "a": "It does, but only when the **whole program ends**. Until then the memory is reserved for the program. For a short lab that is harmless; for a server or a game loop that leaks a little on every request or frame, memory use grows until the program or the machine slows down or is killed."
+    },
+    {
+     "type": "md",
+     "text": "### Key points\n\n- **Leak**: a block is never freed (often its only pointer, a local, died). **Use-after-free**: using `*p` after `free(p)`: undefined behaviour.\n- Every `malloc`/`calloc` needs exactly one `free`, after the last use.\n- valgrind: `sudo apt install valgrind`; compile with `-g`; run `valgrind --leak-check=full ./prog args`.\n- Read: **definitely lost** = leak (with the allocating line); **Invalid read/write** = bad memory access (with the line); a clean run says `All heap blocks were freed` and `0 errors`."
+    }
+   ]
+  }
+ ],
+ "flashcards": [
+  {
+   "id": "c18-fc-01",
+   "topic": "c18-heap",
+   "front": "What are the three storage durations seen so far, and which one does the programmer control?",
+   "back": "Automatic (locals, parameters), static (globals, `static`), and **allocated** (made by `malloc`/`calloc`, ended by `free`). The programmer controls allocated storage."
+  },
+  {
+   "id": "c18-fc-02",
+   "topic": "c18-heap",
+   "front": "What lives on \"the stack\" and what lives on \"the heap\"?",
+   "back": "Stack: automatic objects (each call's locals and parameters), freed automatically when the call returns. Heap: objects from `malloc`/`calloc`, alive until `free`."
+  },
+  {
+   "id": "c18-fc-03",
+   "topic": "c18-heap",
+   "front": "Prototype of `malloc`, and which header declares it?",
+   "back": "`void *malloc(size_t size);` in `<stdlib.h>`. `size` is in **bytes**."
+  },
+  {
+   "id": "c18-fc-04",
+   "topic": "c18-heap",
+   "front": "Allocate one `int` on the heap.",
+   "back": "`int *p = malloc(sizeof(int));`"
+  },
+  {
+   "id": "c18-fc-05",
+   "topic": "c18-heap",
+   "front": "What value does memory from `malloc` start with?",
+   "back": "Nothing defined: it is **not initialized** and may hold any bits. Store a value before reading."
+  },
+  {
+   "id": "c18-fc-06",
+   "topic": "c18-heap",
+   "front": "Do you need a cast in `double *d = malloc(sizeof(double));`?",
+   "back": "No. `malloc` returns `void *`, which C converts to any object pointer type automatically."
+  },
+  {
+   "id": "c18-fc-07",
+   "topic": "c18-heap",
+   "front": "What does `malloc` return when it fails?",
+   "back": "A null pointer (`NULL`)."
+  },
+  {
+   "id": "c18-fc-08",
+   "topic": "c18-heap",
+   "front": "The standard check after an allocation?",
+   "back": "`if (!p) { fprintf(stderr, \"out of memory\\n\"); exit(EXIT_FAILURE); }`"
+  },
+  {
+   "id": "c18-fc-09",
+   "topic": "c18-heap",
+   "front": "What does `free(p)` do? What may you pass to it?",
+   "back": "Ends the lifetime of the block `p` points at. Pass a pointer returned by `malloc`/`calloc` (not yet freed), or `NULL` (does nothing)."
+  },
+  {
+   "id": "c18-fc-10",
+   "topic": "c18-arrays",
+   "front": "Allocate an array of `n` doubles with `malloc`.",
+   "back": "`double *a = malloc(n * sizeof(double));`"
+  },
+  {
+   "id": "c18-fc-11",
+   "topic": "c18-arrays",
+   "front": "Why is `int *a = malloc(n);` wrong for `n` ints?",
+   "back": "It asks for `n` **bytes**, enough for only `n / sizeof(int)` ints. Use `n * sizeof(int)`."
+  },
+  {
+   "id": "c18-fc-12",
+   "topic": "c18-arrays",
+   "front": "Prototype of `calloc` and how it differs from `malloc`.",
+   "back": "`void *calloc(size_t num, size_t size);` Room for `num` objects of `size` bytes, with **all bits set to zero**. Two arguments instead of one."
+  },
+  {
+   "id": "c18-fc-13",
+   "topic": "c18-arrays",
+   "front": "Why may a function return a pointer to `malloc`'d memory but not the address of its local array?",
+   "back": "Heap memory lives until `free`; a local (automatic) array dies when the function returns, leaving a dangling pointer."
+  },
+  {
+   "id": "c18-fc-14",
+   "topic": "c18-arrays",
+   "front": "\"Create an array on the heap\" (Dec 2019 Q3 wording) means?",
+   "back": "Use `malloc` or `calloc`, e.g. `int *a = malloc(n * sizeof(int));`."
+  },
+  {
+   "id": "c18-fc-15",
+   "topic": "c18-bugs",
+   "front": "What is a memory leak?",
+   "back": "Allocated memory that is never freed, usually because the last pointer to it was lost. It stays in use until the program ends."
+  },
+  {
+   "id": "c18-fc-16",
+   "topic": "c18-bugs",
+   "front": "What is a use-after-free?",
+   "back": "Reading or writing through a pointer after its block was freed: undefined behaviour."
+  },
+  {
+   "id": "c18-fc-17",
+   "topic": "c18-bugs",
+   "front": "How do you run a program under valgrind to look for leaks?",
+   "back": "Compile with `-g`, then `valgrind --leak-check=full ./prog args`. Install with `sudo apt install valgrind`."
+  }
+ ],
+ "quiz": [
+  {
+   "id": "c18-q-01",
+   "type": "output",
+   "topic": "c18-heap",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int x = 4;\n    int *p = malloc(sizeof(int));\n    int *q = p;\n    *p = x * 2;\n    *q = *q + 3;\n    x = 100;\n    printf(\"%d %d %d\\n\", x, *p, *q);\n    free(p);\n    return 0;\n}",
+   "answer": "100 11 11",
+   "explain": "`p` and `q` point at the **same** heap `int`. `*p = x * 2` stores 8, `*q = *q + 3` makes it 11. Changing `x` afterwards does not affect the heap object: it got a copy of `x * 2`, not a link to `x`."
+  },
+  {
+   "id": "c18-q-02",
+   "type": "short",
+   "topic": "c18-heap",
+   "q": "Show how to use `malloc` to allocate memory for (i) a single `char`, and (ii) an array of 40 `long` values. Store the pointers in `c` and `nums`.",
+   "answer": "(i) `char *c = malloc(sizeof(char));` (or `malloc(1)`)\n(ii) `long *nums = malloc(40 * sizeof(long));`",
+   "explain": "One object: `sizeof` of its type. An array: number of elements times `sizeof` one element. The pointer type matches the element type. Same pattern as April 2022 Q3(a), with different types."
+  },
+  {
+   "id": "c18-q-03",
+   "type": "mcq",
+   "topic": "c18-arrays",
+   "q": "Which call correctly allocates an array of `n` `double` values?",
+   "options": [
+    "`double *d = malloc(n);`",
+    "`double *d = malloc(sizeof(double));`",
+    "`double *d = malloc(n * sizeof(double));`",
+    "`double *d = malloc(n, sizeof(double));`"
+   ],
+   "answer": 2,
+   "explain": "`malloc` counts bytes, so multiply the count by the size of one element. `malloc(n)` is only `n` bytes, `malloc(sizeof(double))` is one double, and `malloc` takes one argument (the two-argument form is `calloc`)."
+  },
+  {
+   "id": "c18-q-04",
+   "type": "output",
+   "topic": "c18-arrays",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    size_t n = 5;\n    int *a = malloc(n * sizeof(int));\n    a[0] = 1;\n    for (size_t i = 1; i < n; i++) {\n        a[i] = a[i - 1] * 3;\n    }\n    for (size_t i = 0; i < n; i += 2) {\n        printf(\"%d\\n\", a[i]);\n    }\n    free(a);\n    return 0;\n}",
+   "answer": "1\n9\n81",
+   "explain": "The array is 1, 3, 9, 27, 81 (each element is 3 times the previous). The second loop steps `i` by 2, printing indexes 0, 2 and 4."
+  },
+  {
+   "id": "c18-q-05",
+   "type": "output",
+   "topic": "c18-arrays",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    int *t = calloc(4, sizeof(int));\n    int data[] = {7, 2, 9, 4, 6, 1};\n    for (int i = 0; i < 6; i++) {\n        t[data[i] % 4] += data[i];\n    }\n    for (int i = 0; i < 4; i++) {\n        printf(\"t[%d] = %d\\n\", i, t[i]);\n    }\n    free(t);\n    return 0;\n}",
+   "answer": "t[0] = 4\nt[1] = 10\nt[2] = 8\nt[3] = 7",
+   "explain": "`calloc` makes every `t[i]` start at 0. Each value is added to `t[value % 4]`: 7 → t[3], 2 → t[2], 9 → t[1], 4 → t[0], 6 → t[2] (2 + 6 = 8), 1 → t[1] (9 + 1 = 10)."
+  },
+  {
+   "id": "c18-q-06",
+   "type": "output",
+   "topic": "c18-arrays",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\ndouble *halves(int a[], size_t n) {\n    double *h = malloc(n * sizeof(double));\n    for (size_t i = 0; i < n; i++) {\n        h[i] = a[i] / 2;\n    }\n    return h;\n}\n\nint main(void) {\n    int a[] = {5, 8, 3};\n    double *h = halves(a, 3);\n    for (size_t i = 0; i < 3; i++) {\n        printf(\"%.1f\\n\", h[i]);\n    }\n    free(h);\n    return 0;\n}",
+   "answer": "2.0\n4.0\n1.0",
+   "explain": "Returning `h` is fine: it is heap memory and `main` frees it. But `a[i] / 2` divides two `int`s, so the fraction is dropped **before** the result is stored in the `double` (5 / 2 = 2, 3 / 2 = 1). Write `a[i] / 2.0` to get 2.5 and 1.5."
+  },
+  {
+   "id": "c18-q-07",
+   "type": "output",
+   "topic": "c18-arrays",
+   "q": "What does this program print?",
+   "code": "#include <stdio.h>\n#include <stdlib.h>\n\nint *make(size_t n, int start) {\n    int *arr = calloc(n, sizeof(int));\n    for (size_t i = 0; i < n; i += 2) {\n        arr[i] = start;\n        start = start + 10;\n    }\n    return arr;\n}\n\nint main(void) {\n    int *a = make(5, 1);\n    int *b = a + 1;\n    *b = *a + a[4];\n    printf(\"%d %d %d %d %d\\n\", a[0], a[1], a[2], a[3], a[4]);\n    free(a);\n    return 0;\n}",
+   "answer": "1 22 11 0 21",
+   "explain": "`calloc` gives 0 0 0 0 0. The loop writes indexes 0, 2, 4 with 1, 11, 21, so the array is 1 0 11 0 21. `b` points at `a[1]`, and `*b = *a + a[4]` stores 1 + 21 = 22 there."
+  },
+  {
+   "id": "c18-q-08",
+   "type": "mcq",
+   "topic": "c18-arrays",
+   "q": "`int *a = calloc(8, sizeof(int));` succeeds. Which statement is true?",
+   "options": [
+    "`a[0]` to `a[7]` hold unknown values until you set them",
+    "`a[0]` to `a[7]` are all 0",
+    "Only `a[0]` is 0",
+    "`a` must be cast: `(int *) calloc(...)`"
+   ],
+   "answer": 1,
+   "explain": "`calloc` sets every bit of the block to zero, so all eight ints are 0. No cast is needed for a `void *` result."
+  },
+  {
+   "id": "c18-q-09",
+   "type": "short",
+   "topic": "c18-arrays",
+   "q": "A student writes:\n\n```c\nint *firsts(void) {\n    int a[3] = {1, 2, 3};\n    return a;\n}\n```\n\ngcc warns `function returns address of local variable`. Explain the problem and fix the function so it returns a valid array holding 1, 2, 3.",
+   "answer": "`a` is automatic: it is destroyed when `firsts` returns, so the caller gets a dangling pointer (undefined behaviour). Allocate on the heap instead:\n\n```c\nint *firsts(void) {\n    int *a = malloc(3 * sizeof(int));\n    if (!a) {\n        return NULL;\n    }\n    a[0] = 1;\n    a[1] = 2;\n    a[2] = 3;\n    return a;    // the caller must free it\n}\n```",
+   "explain": "Heap memory lives until `free`, so returning a pointer to it is safe. The caller now owns the array and must call `free`."
+  },
+  {
+   "id": "c18-q-10",
+   "type": "short",
+   "topic": "c18-bugs",
+   "q": "This function is called thousands of times in a long-running program. What is the bug, and what one line fixes it?\n\n```c\ndouble average(int a[], size_t n) {\n    double *tmp = malloc(n * sizeof(double));\n    double sum = 0;\n    for (size_t i = 0; i < n; i++) {\n        tmp[i] = a[i];\n        sum += tmp[i];\n    }\n    return sum / n;\n}\n```",
+   "answer": "A memory leak: `tmp`'s block is never freed, and when the function returns the only pointer to it is gone. Fix: store the result, free, then return, e.g. `double avg = sum / n; free(tmp); return avg;` (the key line is `free(tmp);` before the `return`).",
+   "explain": "Each call leaks `n * sizeof(double)` bytes; thousands of calls add up. The `free` must come after the last use of `tmp` and before the function ends. (This function does not need a heap array at all, but if it allocates one, it must free it.)"
+  },
+  {
+   "id": "c18-q-11",
+   "type": "short",
+   "topic": "c18-bugs",
+   "q": "What does this code print?\n\n```c\nint *p = malloc(2 * sizeof(int));\np[0] = 5;\np[1] = 6;\nfree(p);\nprintf(\"%d\\n\", p[0] + p[1]);\n```",
+   "answer": "There is no fixed output: reading `p[0]` and `p[1]` after `free(p)` is a use-after-free, which is undefined behaviour.",
+   "explain": "`free` ends the array's lifetime, but `p` still holds the old address. It might print 11, garbage, or crash. gcc warns `pointer 'p' used after 'free'`, and valgrind reports `Invalid read of size 4`."
+  },
+  {
+   "id": "c18-q-12",
+   "type": "mcq",
+   "topic": "c18-bugs",
+   "q": "valgrind's leak summary says `definitely lost: 0 bytes in 0 blocks` but earlier shows `Invalid write of size 4 ... at main (prog.c:12)`. What does that mean?",
+   "options": [
+    "The program is correct",
+    "Line 12 writes 4 bytes (e.g. one int) to memory it must not use, such as past the end of a block or after it was freed",
+    "Line 12 leaks 4 bytes",
+    "valgrind could not find line numbers"
+   ],
+   "answer": 1,
+   "explain": "\"Invalid write\" is a bad memory access (undefined behaviour), not a leak. A common cause is `malloc(n)` instead of `malloc(n * sizeof(int))` and then writing `a[i]` past the small block."
+  },
+  {
+   "id": "c18-q-13",
+   "type": "short",
+   "topic": "c18-heap",
+   "q": "In this function, which objects are on the stack and which are on the heap? When does each one's lifetime end?\n\n```c\nvoid f(size_t n) {\n    int k = 3;\n    int *v = calloc(n, sizeof(int));\n    // ...\n    free(v);\n}\n```",
+   "answer": "Stack: the parameter `n`, and the locals `k` and `v` (the pointer variable itself); they die when `f` returns. Heap: the array of `n` ints that `v` points to; it dies at `free(v)`.",
+   "explain": "A pointer variable is just a local holding an address. What it points at can be somewhere else, here a block made by `calloc`."
+  }
+ ],
+ "write": [
+  {
+   "id": "c18-w-01",
+   "topic": "c18-arrays",
+   "stage": "worked",
+   "marks": 5,
+   "prompt": "Write a function `int *range(int lo, int hi)` (assume `lo <= hi`) that returns a **new** array holding `lo, lo + 1, ..., hi`, or `NULL` if memory runs out. Write a `main` that calls `range(3, 7)`, prints the five values on one line, and releases the memory.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Returns a new array holding lo, lo + 1, ..., hi (requires lo <= hi).\n// Its length is hi - lo + 1. The caller must free it. NULL if out of memory.\nint *range(int lo, int hi) {\n    size_t n = hi - lo + 1;\n    int *arr = malloc(n * sizeof(int));\n    if (!arr) {\n        return NULL;\n    }\n    for (size_t i = 0; i < n; i++) {\n        arr[i] = lo + (int) i;\n    }\n    return arr;\n}\n\nint main(void) {\n    int *r = range(3, 7);\n    if (!r) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (size_t i = 0; i < 5; i++) {\n        printf(\"%d \", r[i]);\n    }\n    printf(\"\\n\");\n    free(r);\n    return 0;\n}",
+   "explain": "The array's length is `hi - lo + 1` (from 3 to 7 is 5 values), so allocate `n * sizeof(int)` bytes. The array must outlive the call, so it must be on the heap: a local array would die when `range` returns. Element `i` is `lo + i`. If `malloc` fails, return `NULL` and let the caller decide what to do; `main` checks for it, prints an error and exits with status 1. When `main` is done it calls `free(r)`: one `malloc`, one `free`. Output:\n\n```\n$ ./range\n3 4 5 6 7 \n```",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "computes the length `hi - lo + 1`"
+    },
+    {
+     "marks": 1,
+     "item": "`malloc(n * sizeof(int))` stored in an `int *`"
+    },
+    {
+     "marks": 1,
+     "item": "checks for `NULL` (returns `NULL` from `range`, and `main` checks too)"
+    },
+    {
+     "marks": 1,
+     "item": "fills `arr[i] = lo + i` and returns the pointer"
+    },
+    {
+     "marks": 1,
+     "item": "main prints the values and calls `free`"
+    }
+   ],
+   "pitfalls": [
+    "Declaring `int arr[n];` locally and returning it: dangling pointer.",
+    "`malloc(n)` instead of `malloc(n * sizeof(int))`.",
+    "Off by one: the length is `hi - lo + 1`, not `hi - lo`.",
+    "Forgetting `free(r)` in main."
+   ]
+  },
+  {
+   "id": "c18-w-02",
+   "topic": "c18-arrays",
+   "stage": "faded",
+   "marks": 4,
+   "prompt": "Complete `digit_counts`: it returns a new array of 10 counts where element `d` is the number of times the digit character `d` appears in `s`, or `NULL` if memory runs out. Use `calloc` so that the counts start at 0 without a loop. Then complete `main`'s cleanup. The program should print\n\n```\n0: 1\n1: 3\n2: 2\n6: 1\n8: 1\n```",
+   "starter": "#include <stdio.h>\n#include <stdlib.h>\n\nsize_t *digit_counts(char s[]) {\n    size_t *counts = ____;\n    if (____) {\n        return NULL;\n    }\n    for (size_t i = 0; s[i] != '\\0'; i++) {\n        if (s[i] >= '0' && s[i] <= '9') {\n            counts[____]++;\n        }\n    }\n    return counts;\n}\n\nint main(void) {\n    size_t *c = digit_counts(\"2026-11-18\");\n    if (!c) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (int d = 0; d < 10; d++) {\n        if (c[d] > 0) {\n            printf(\"%d: %zu\\n\", d, c[d]);\n        }\n    }\n    ____;\n    return 0;\n}",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\n// Returns a new array of 10 counts: element d is how many times the\n// digit character d appears in s. The caller must free it. NULL if out of memory.\nsize_t *digit_counts(char s[]) {\n    size_t *counts = calloc(10, sizeof(size_t));\n    if (!counts) {\n        return NULL;\n    }\n    for (size_t i = 0; s[i] != '\\0'; i++) {\n        if (s[i] >= '0' && s[i] <= '9') {\n            counts[s[i] - '0']++;\n        }\n    }\n    return counts;\n}\n\nint main(void) {\n    size_t *c = digit_counts(\"2026-11-18\");\n    if (!c) {\n        fprintf(stderr, \"out of memory\\n\");\n        return 1;\n    }\n    for (int d = 0; d < 10; d++) {\n        if (c[d] > 0) {\n            printf(\"%d: %zu\\n\", d, c[d]);\n        }\n    }\n    free(c);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "`calloc(10, sizeof(size_t))` (two arguments, element size of `size_t`)"
+    },
+    {
+     "marks": 1,
+     "item": "NULL test: `!counts` (or `counts == NULL`)"
+    },
+    {
+     "marks": 1,
+     "item": "index `s[i] - '0'` turns the digit character into 0 to 9 (Day 5)"
+    },
+    {
+     "marks": 1,
+     "item": "`free(c);` at the end of main"
+    }
+   ],
+   "pitfalls": [
+    "`malloc(10 * sizeof(size_t))`: the counts would start with unknown values.",
+    "`calloc(10 * sizeof(size_t))`: calloc takes two arguments.",
+    "`counts[s[i]]++`: `'2'` is 50, far past the end of the array.",
+    "Returning a local `size_t counts[10]` instead of a heap array."
+   ]
+  },
+  {
+   "id": "c18-w-03",
+   "topic": "c18-heap",
+   "stage": "blank",
+   "marks": 6,
+   "examNote": "Modeled on April 2022 final Q3(a), with different types and an added `calloc` part.",
+   "prompt": "Write a `main` (with the `#include`s it needs) that shows how to:\n\n(a) use `malloc` to allocate memory for a single `long` value and store 123456789 in it;\n\n(b) use `malloc` to allocate memory for an array of 25 `short` values and store 1, 2, ..., 25 in it;\n\n(c) use `calloc` to allocate memory for an array of 40 `double` values that are all 0.0, without writing a loop;\n\n(d) release all of the memory.\n\nCheck every allocation for failure (print a message to standard error and exit with `EXIT_FAILURE`). You may print a few values to test it.",
+   "starter": "",
+   "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    // (a) one long\n    long *big = malloc(sizeof(long));\n    if (!big) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    *big = 123456789L;\n\n    // (b) an array of 25 short values, set to 1, 2, ..., 25\n    short *s = malloc(25 * sizeof(short));\n    if (!s) {\n        free(big);\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    for (int i = 0; i < 25; i++) {\n        s[i] = i + 1;\n    }\n\n    // (c) an array of 40 double values, all 0.0, without a loop\n    double *d = calloc(40, sizeof(double));\n    if (!d) {\n        free(big);\n        free(s);\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n\n    printf(\"%ld %d %d %.1f\\n\", *big, s[0], s[24], d[39]);\n\n    // (d) release everything\n    free(big);\n    free(s);\n    free(d);\n    return 0;\n}",
+   "rubric": [
+    {
+     "marks": 1,
+     "item": "(a) `long *big = malloc(sizeof(long));` and `*big = 123456789;`"
+    },
+    {
+     "marks": 1,
+     "item": "(b) `short *s = malloc(25 * sizeof(short));`"
+    },
+    {
+     "marks": 1,
+     "item": "(b) loop stores `s[i] = i + 1` for i = 0 to 24"
+    },
+    {
+     "marks": 1,
+     "item": "(c) `double *d = calloc(40, sizeof(double));` (two arguments, no loop)"
+    },
+    {
+     "marks": 1,
+     "item": "each pointer is tested for `NULL`, with a message to `stderr` and `exit(EXIT_FAILURE)`"
+    },
+    {
+     "marks": 1,
+     "item": "(d) exactly one `free` for each of the three blocks"
+    }
+   ],
+   "pitfalls": [
+    "`malloc(25)` for 25 shorts: that is 25 bytes, not 25 shorts.",
+    "Storing into `big` instead of `*big` (`big = 123456789;` changes the pointer).",
+    "Forgetting one of the three `free` calls, or freeing one twice.",
+    "Missing `#include <stdlib.h>` (needed for malloc, calloc, free, exit)."
+   ]
+  }
+ ]
+}
