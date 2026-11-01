@@ -1,0 +1,564 @@
+{
+  "day": 23,
+  "title": "A linked stack, part 1",
+  "goal": "Understand what a stack is, link nodes on the heap with next pointers, and write the notebook's stack struct, qlstack_new and qlstack_push while drawing memory after every pointer change.",
+  "topics": [
+    {
+      "id": "c23-nodes",
+      "title": "Stacks, and nodes linked by pointers",
+      "notebook": "c/linked_stack.ipynb",
+      "priority": "high",
+      "examNote": "Linked structures are on Prof. Ma's list of exam topics. The Fall 2016 final (Q5, 10 points) gave a `struct ListNode` with an `int data` and a `struct ListNode *next` and asked for a function that deletes the second node and frees it. Days 23 to 25 build up to that kind of question: today you learn the node struct and how to link nodes; Day 24 removes and frees them.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### Where the next three days are going\n\nYou now know structs (Day 13), pointers (Days 11 and 12) and `malloc`/`free` (Days 18 and 19). Today and tomorrow you combine all three, following the course notebook *A stack type* (`c/linked_stack.ipynb`), to build a **stack** out of **linked nodes**. Day 25 makes the stack generic.\n\nThis is the kind of code old finals ask you to write by hand, so we draw a memory picture for **every** pointer change."
+        },
+        {
+          "type": "md",
+          "text": "### What a stack is\n\nA **stack** is a collection of elements where you can insert and remove elements, but removing **always** takes away the element that was inserted most recently. This rule is called **last-in, first-out**, or **LIFO**.\n\nThink of a stack of plates: you put a new plate on the top, and you take a plate off the top. The plate at the bottom was put there first and comes off last.\n\nAll the action happens at one end, called the **top**. Classically a stack has two operations:\n\n1. **push**: add an element to the top.\n2. **pop**: remove the element at the top.\n\nMany stacks also have **peek** (look at the top element without removing it), plus *is it empty?* and *how many elements?* Here is a trace, with the top on the left:\n\n| operation | stack afterwards (top first) | removed |\n|---|---|---|\n| push 5 | 5 | |\n| push 8 | 8 5 | |\n| push 2 | 2 8 5 | |\n| pop | 8 5 | 2 |\n| push 9 | 9 8 5 | |\n| pop | 8 5 | 9 |\n\nThe last element pushed (2, then 9) is always the first one popped."
+        },
+        {
+          "type": "check",
+          "q": "Start with an empty stack. Do: push 1, push 2, pop, push 3, push 4, pop. Which elements were removed, in order, and what is left (top first)?",
+          "a": "Removed 2, then 4. Left: 3 (top), then 1."
+        },
+        {
+          "type": "md",
+          "text": "### A node: an element plus a link\n\nStacks, queues and linked lists can all be built as a **linked sequence of nodes**. A **node** stores two things:\n\n- the **element**: the value stored in the node;\n- the **link**: which node comes next in the sequence.\n\nIn C a node is a struct (Day 13), and the link is a **pointer** to the next node:\n\n```c\nstruct node {\n    int elem;\n    struct node *next;\n};\n```\n\nA struct may contain a pointer to its own type. It may **not** contain a whole member of its own type: a node that contains a node that contains a node... would be infinitely big. gcc refuses:"
+        },
+        {
+          "type": "code",
+          "code": "struct node {\n    int elem;\n    struct node next;     // a whole node inside a node?\n};\n\nint main(void) {\n    return 0;\n}",
+          "caption": "recursive.c: a node inside a node"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o recursive recursive.c\nrecursive.c:3:17: error: field ‘next’ has incomplete type\n    3 |     struct node next;     // a whole node inside a node?\n      |                 ^~~~"
+        },
+        {
+          "type": "why",
+          "q": "Why is `struct node *next` allowed when `struct node next` is not?",
+          "a": "To lay out a struct, the compiler must know the size of every member. `struct node next` would need the size of a node *inside* the definition of a node, which is not finished yet (\"incomplete type\"), and it would be infinite anyway. A pointer is always the same size (8 bytes on our machines), whatever it points at, so `struct node *next` has a known size."
+        },
+        {
+          "type": "md",
+          "text": "### Linking three nodes\n\nThe notebook first links three nodes that are ordinary local variables. Each `next` member holds the **address** of the following node, and the last node's `next` is `NULL`, which marks the end of the sequence."
+        },
+        {
+          "type": "code",
+          "code": "#include <stdio.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nint main(void) {\n    struct node n1;\n    struct node n2;\n    struct node n3;\n\n    // n1 is the start of the sequence\n    n1.elem = 1;\n    n1.next = &n2;\n\n    n2.elem = 2;\n    n2.next = &n3;\n\n    // n3 is the end of the sequence so its next member is NULL\n    n3.elem = 3;\n    n3.next = NULL;\n\n    printf(\"n1.elem             = %d\\n\", n1.elem);\n    printf(\"n1.next->elem       = %d\\n\", n1.next->elem);\n    printf(\"n1.next->next->elem = %d\\n\", n1.next->next->elem);\n    if (n3.next == NULL) {\n        printf(\"n3.next is NULL\\n\");\n    }\n    return 0;\n}",
+          "caption": "nodes_local.c (the notebook's example, with printing added)"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o nodes_local nodes_local.c\n$ ./nodes_local\nn1.elem             = 1\nn1.next->elem       = 2\nn1.next->next->elem = 3\nn3.next is NULL"
+        },
+        {
+          "type": "md",
+          "text": "Memory after the six assignments:\n\n```\nn1                     n2                     n3\n+------+-----+         +------+-----+         +------+------+\n| elem |  1  |         | elem |  2  |         | elem |  3   |\n| next |  *--+-------->| next |  *--+-------->| next | NULL |\n+------+-----+         +------+-----+         +------+------+\n```\n\nWe will usually draw a node in a shorter way, `[ elem | next ]`, with an arrow leaving the `*` when `next` points at something:\n\n```\n[ 1 | * ]---> [ 2 | * ]---> [ 3 | NULL ]\n```\n\nReading the chain: `n1` is a struct, so `n1.next` uses the dot. But `n1.next` is a **pointer** to `n2`, so to reach a member of `n2` you use the arrow (Day 13): `n1.next->elem` is 2. `n1.next->next` is a pointer to `n3`, so `n1.next->next->elem` is 3. Each `->next` moves one node along."
+        },
+        {
+          "type": "md",
+          "text": "### Nodes on the heap\n\nLocal nodes die when their function returns (Day 7). A stack must survive between function calls (one call pushes, a later call pops), so in practice every node is made with `malloc` (Day 18). The notebook's heap version uses pointers `n1`, `n2`, `n3`, so every member access is now `->`:"
+        },
+        {
+          "type": "code",
+          "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nint main(void) {\n    struct node *n1 = malloc(sizeof(struct node));\n    struct node *n2 = malloc(sizeof(struct node));\n    struct node *n3 = malloc(sizeof(struct node));\n    if (!n1 || !n2 || !n3) {\n        fprintf(stderr, \"out of memory\\n\");\n        free(n1);\n        free(n2);\n        free(n3);\n        exit(EXIT_FAILURE);\n    }\n\n    // n1 is the start of the sequence\n    n1->elem = 1;\n    n1->next = n2;\n\n    n2->elem = 2;\n    n2->next = n3;\n\n    // n3 is the end of the sequence so its next member is NULL\n    n3->elem = 3;\n    n3->next = NULL;\n\n    // follow the links from the first node\n    for (struct node *p = n1; p != NULL; p = p->next) {\n        printf(\"%d\\n\", p->elem);\n    }\n\n    free(n1);\n    free(n2);\n    free(n3);\n    return 0;\n}",
+          "caption": "nodes_heap.c"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o nodes_heap nodes_heap.c\n$ ./nodes_heap\n1\n2\n3"
+        },
+        {
+          "type": "md",
+          "text": "Memory after the links are set:\n\n```\nmain's variables (on the stack), each pointing at a node on the heap:\n\n n1               n2               n3\n |                |                |\n v                v                v\n[ 1 | * ]------> [ 2 | * ]------> [ 3 | NULL ]\n```\n\nThe **nodes** have no names; only the pointer variables do. Notice `n1->next = n2;` with no `&`: `n2` already **is** an address."
+        },
+        {
+          "type": "md",
+          "text": "### Following the links with a loop\n\nYou can reach every node by starting at the first one and following `next` until you hit `NULL`. That is the `for` loop in `nodes_heap.c`:\n\n```c\nfor (struct node *p = n1; p != NULL; p = p->next) {\n    printf(\"%d\\n\", p->elem);\n}\n```\n\n- `p = n1`: start at the first node.\n- `p != NULL`: stop after the last node (its `next` is `NULL`).\n- `p = p->next`: move `p` to the following node.\n\nIt has the same shape as walking a string with a pointer (Day 16): there `p++` moved to the next char and `'\\0'` marked the end; here `p = p->next` moves to the next node and `NULL` marks the end. Nodes are **not** next to each other in memory, so `p++` would be wrong here."
+        },
+        {
+          "type": "pitfall",
+          "text": "Forgetting `n3->next = NULL;` on the last node. `malloc` memory is not initialized (Day 18), so `next` holds garbage, and the walking loop follows it into memory that is not a node: undefined behaviour (often a crash). Every chain must end with a `NULL` link."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- A **stack** is **LIFO**: push adds at the top, pop removes from the top, peek looks at the top.\n- A **node** holds an element and a link: `struct node { int elem; struct node *next; };`. The member must be a **pointer** to a node (a node inside a node is an incomplete type).\n- The last node's `next` is `NULL`; that marks the end.\n- Nodes that must outlive a function are made with `malloc(sizeof(struct node))` and reached with `->`.\n- `a->next->elem` is the element one node further on. Walk all nodes with `for (struct node *p = first; p != NULL; p = p->next)`."
+        }
+      ]
+    },
+    {
+      "id": "c23-stack-struct",
+      "title": "The stack struct: top, size and qlstack_new",
+      "notebook": "c/linked_stack.ipynb",
+      "priority": "high",
+      "examNote": "The April 2022 final (Q5(d)) printed exactly this design for the course's (generic) stack, as `struct node { ... node *next; }` and `struct stack { node *top; size_t size; }`, and asked for a function that works on it. Knowing the two structs by heart saves time on the exam.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### The idea: a pointer to the top node, plus a count\n\nTo build a stack from nodes, the notebook keeps:\n\n- a pointer `top` to the node that holds the **top** element, and\n- for convenience, `size`, the number of elements.\n\nEach node's `next` points at the node **below** it. Here is the stack as elements are pushed (the box on the left is the stack struct).\n\n**Empty**: there is no top node, so `top` is `NULL`, and `size` is 0.\n\n```\n+------+------+\n| top  | NULL |\n| size | 0    |\n+------+------+\n```\n\n**After pushing 1**: one node. It has no node below it, so its `next` is `NULL`.\n\n```\n+------+---+\n| top  | *-+---> [ 1 | NULL ]\n| size | 1 |\n+------+---+\n```\n\n**After pushing 2**: `top` now points at the new node holding 2, and that node is linked to the node that was the top before.\n\n```\n+------+---+\n| top  | *-+---> [ 2 | * ]---> [ 1 | NULL ]\n| size | 2 |\n+------+---+\n```\n\n**After pushing 3**:\n\n```\n+------+---+\n| top  | *-+---> [ 3 | * ]---> [ 2 | * ]---> [ 1 | NULL ]\n| size | 3 |\n+------+---+\n```\n\nStarting from `top` and following the links you can reach every node. A sequence where each element is joined to the next by one link is called a **singly linked list**."
+        },
+        {
+          "type": "md",
+          "text": "### Push takes the same few steps every time\n\nPushing always takes the same three steps, no matter how many elements are already in the stack:\n\n1. make a new node to hold the element;\n2. set the new node's link to point at the current top node;\n3. set `top` to point at the new node.\n\n(Plus `size++`.) Nothing walks along the list, so push is **O(1)**: constant time in the worst case."
+        },
+        {
+          "type": "md",
+          "text": "### The two structs\n\nThe notebook's `qlstack.c` declares a struct for the nodes and a struct for the stack itself:\n\n```c\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct qlstack_tag {\n    struct node *top;\n    size_t size;\n};\n\ntypedef struct qlstack_tag qlstack;\n```\n\n- `size` is a `size_t` (Day 2: the unsigned type for counts), printed with `%zu`.\n- The `typedef` line (Day 13) makes `qlstack` another name for `struct qlstack_tag`, so the code can write `qlstack *s` instead of `struct qlstack_tag *s`. The notebook names the tag with a `_tag` ending so that the tag and the typedef name are different words. Why the course uses a `typedef` here, and not for `struct node`, is Day 24's topic (the stack becomes an *opaque type* behind a header file).\n\nFor comparison, a Java version would be a class `LinkedStack` with a private nested class `Node` and two fields, `top` and `size`. In C there are no classes: two structs plus functions that take a pointer to the stack."
+        },
+        {
+          "type": "md",
+          "text": "### Creating a stack: `qlstack_new`\n\nA new stack is made on the heap, so it lives until the program frees it (the same reason Day 18's functions returned `malloc`'d arrays). Then both members are set:\n\n```c\nqlstack *qlstack_new(void) {\n    qlstack *s = malloc(sizeof(qlstack));\n    if (!s) {\n        return NULL;\n    }\n    s->top = NULL;\n    s->size = 0;\n    return s;\n}\n```\n\n(The notebook writes `qlstack_new()` with empty parentheses. In C17, empty parentheses mean \"arguments not specified\"; we write `(void)`, \"no arguments\", as we do for `main`.)\n\nMemory, step by step:\n\nAfter `qlstack *s = malloc(sizeof(qlstack));`\n\n```\ns ---> +------+---+\n       | top  | ? |      malloc'd memory is NOT initialized:\n       | size | ? |      both members hold garbage\n       +------+---+\n```\n\nAfter `s->top = NULL;` and `s->size = 0;`\n\n```\ns ---> +------+------+\n       | top  | NULL |\n       | size | 0    |\n       +------+------+\n```\n\nThe function returns `s`, a copy of the address. The local variable `s` dies, but the heap struct stays: the caller now holds its address, for example in `qlstack *stack = qlstack_new();`. If `malloc` fails, the function returns `NULL` and the caller must check (Day 18)."
+        },
+        {
+          "type": "pitfall",
+          "text": "Leaving out `s->top = NULL;`. `malloc` does not zero memory, so `top` would hold a garbage address. The first push would link the new node to that garbage, and walking the stack later is undefined behaviour. (`calloc` would zero it, but the notebook sets each member, which is clearer.)"
+        },
+        {
+          "type": "md",
+          "text": "### `qlstack_size` and `qlstack_is_empty`\n\nBecause the stack keeps a count, these are one line each:\n\n```c\n#include <stdbool.h>\n\nbool qlstack_is_empty(const qlstack *s) {\n    return s->size == 0;\n}\n\nsize_t qlstack_size(const qlstack *s) {\n    return s->size;\n}\n```\n\n- `bool` comes from `<stdbool.h>` (Day 2 mentioned it). A `bool` holds `true` or `false`. `s->size == 0` is 1 or 0 (Day 2), which becomes `true` or `false`. Printed with `%d`, `true` shows as `1` and `false` as `0`.\n- `const qlstack *s` promises the function only reads the stack (Day 13).\n- Both have **undefined behaviour** if `s` is `NULL` (they dereference it); the notebook's header says so in a comment. The caller must pass a real stack."
+        },
+        {
+          "type": "check",
+          "q": "Right after `qlstack *st = qlstack_new();` succeeds, what are `st->top`, `st->size`, `qlstack_is_empty(st)` and `qlstack_size(st)`?",
+          "a": "`st->top` is `NULL`, `st->size` is 0, `qlstack_is_empty(st)` is `true` (prints as 1 with `%d`), and `qlstack_size(st)` is 0."
+        },
+        {
+          "type": "why",
+          "q": "Why store `size` at all? You could count the nodes when someone asks.",
+          "a": "Counting means walking every node, which takes time proportional to the number of elements. Keeping `size` up to date costs one `size++` per push (and one `size--` per pop), so `qlstack_size` and `qlstack_is_empty` are constant time. The price is that every function that adds or removes a node must remember to update `size`."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- The stack struct holds `struct node *top` (the top node, `NULL` when empty) and `size_t size` (the element count).\n- Each node's `next` points at the node **below** it; the bottom node's `next` is `NULL`.\n- `typedef struct qlstack_tag qlstack;` lets you write `qlstack` for the stack struct.\n- `qlstack_new`: `malloc(sizeof(qlstack))`, return `NULL` on failure, set `top = NULL` and `size = 0`, return the pointer.\n- `is_empty` is `s->size == 0` (a `bool` from `<stdbool.h>`); `size` returns `s->size`. Both are O(1)."
+        }
+      ]
+    },
+    {
+      "id": "c23-push",
+      "title": "Push: allocate a node and link it in",
+      "notebook": "c/linked_stack.ipynb",
+      "priority": "high",
+      "examNote": "On the Fall 2016 final (Q5) a list was simply a pointer to its first node: `typedef struct ListNode *LinkedList;`. Adding or removing a node in such a list uses exactly the link changes you practise here, so learn the rule *connect the new node first, then redirect the old pointer*. Today's blank writing exercise is a new question in that style.",
+      "blocks": [
+        {
+          "type": "md",
+          "text": "### The code\n\nThis is the notebook's `qlstack_push`:\n\n```c\nqlstack *qlstack_push(qlstack *s, int elem) {\n    if (!s) {\n        return NULL;\n    }\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        return NULL;\n    }\n    n->elem = elem;\n    n->next = s->top;\n    s->top = n;\n    s->size++;\n    return s;\n}\n```\n\n- If `s` is `NULL` there is no stack: return `NULL`.\n- The node is allocated with `malloc` because it must outlive this call. A local `struct node` would die when `push` returns.\n- If `malloc` fails, return `NULL` and leave the stack unchanged.\n- Then come the three link steps from the last lesson, plus `size++`.\n- It returns `s` so the caller can check for failure: `if (!qlstack_push(s, v)) { ...error... }`."
+        },
+        {
+          "type": "md",
+          "text": "### Trace 1: push 1 onto an empty stack\n\n**Before:**\n\n```\ns ---> +------+------+\n       | top  | NULL |\n       | size | 0    |\n       +------+------+\n```\n\n**`struct node *n = malloc(sizeof(struct node));`** makes a new node. Its members are not initialized yet.\n\n```\ns ---> +------+------+\n       | top  | NULL |\n       | size | 0    |\n       +------+------+\n\nn ---> [ ? | ? ]        the new node: garbage so far\n```\n\n**`n->elem = elem;`**\n\n```\ns ---> +------+------+\n       | top  | NULL |\n       | size | 0    |\n       +------+------+\n\nn ---> [ 1 | ? ]\n```\n\n**`n->next = s->top;`** copies the pointer that is in `top`. Here that is `NULL`, which is exactly right: the only node is also the bottom node.\n\n```\ns ---> +------+------+\n       | top  | NULL |\n       | size | 0    |\n       +------+------+\n\nn ---> [ 1 | NULL ]     next got a copy of s->top, which is NULL\n```\n\n**`s->top = n;`** copies the new node's address into `top`. Now two pointers point at the node: `top` and the local `n`.\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 1 | NULL ]\n       | size | 0 |       ^\n       +------+---+       |\n                          |\nn ------------------------+\n```\n\n**`s->size++;`** then `return s;`. The local `n` dies; the node stays, reachable through `top`.\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 1 | NULL ]\n       | size | 1 |\n       +------+---+\n```\n\nThe empty stack needs no special `if`: copying `NULL` into the new node's `next` is the right thing."
+        },
+        {
+          "type": "md",
+          "text": "### Trace 2: push 2 onto that stack\n\n**After `malloc` and `n->elem = elem;`:**\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 1 | NULL ]\n       | size | 1 |\n       +------+---+\n\nn ---> [ 2 | ? ]\n```\n\n**`n->next = s->top;`** The new node now points at the old top node (the one holding 1). Nothing else changed yet: `top` still points at 1.\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 1 | NULL ]\n       | size | 1 |       ^\n       +------+---+       |\n                          |\nn ---> [ 2 | * ]----------+\n```\n\n**`s->top = n;`** `top` moves to the new node. The node holding 1 is still reachable: through the new node's `next`.\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 2 | * ]---> [ 1 | NULL ]\n       | size | 1 |       ^\n       +------+---+       |\n                          |\nn ------------------------+\n```\n\n**`s->size++;`** and return:\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 2 | * ]---> [ 1 | NULL ]\n       | size | 2 |\n       +------+---+\n```"
+        },
+        {
+          "type": "check",
+          "q": "Draw the stack after pushing 3 onto the stack from Trace 2. Which pointer changes, and which pointers do not change?",
+          "a": "`top` -> `[ 3 | * ]` -> `[ 2 | * ]` -> `[ 1 | NULL ]`, size 3. The new node's `next` is set (to the old top, the node holding 2) and `top` changes (to the new node). The links of the nodes holding 2 and 1 do not change at all: push only touches the new node, `top` and `size`."
+        },
+        {
+          "type": "md",
+          "text": "### The whole thing in one program\n\nHere are the structs, `qlstack_new`, `is_empty`, `size` and `push` in one file, with a `main` that pushes 1, 2, 3, peeks at the top after each push (`s->top->elem`), and finally walks from the top to the bottom. (Day 24 splits the stack into `qlstack.h` and `qlstack.c` like the notebook.)"
+        },
+        {
+          "type": "code",
+          "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct qlstack_tag {\n    struct node *top;\n    size_t size;\n};\n\ntypedef struct qlstack_tag qlstack;\n\nqlstack *qlstack_new(void) {\n    qlstack *s = malloc(sizeof(qlstack));\n    if (!s) {\n        return NULL;\n    }\n    s->top = NULL;\n    s->size = 0;\n    return s;\n}\n\nbool qlstack_is_empty(const qlstack *s) {\n    return s->size == 0;\n}\n\nsize_t qlstack_size(const qlstack *s) {\n    return s->size;\n}\n\nqlstack *qlstack_push(qlstack *s, int elem) {\n    if (!s) {\n        return NULL;\n    }\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        return NULL;\n    }\n    n->elem = elem;\n    n->next = s->top;\n    s->top = n;\n    s->size++;\n    return s;\n}\n\nint main(void) {\n    qlstack *s = qlstack_new();\n    if (!s) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    printf(\"empty? %d, size %zu\\n\", qlstack_is_empty(s), qlstack_size(s));\n\n    for (int i = 1; i <= 3; i++) {\n        if (!qlstack_push(s, i)) {\n            fprintf(stderr, \"out of memory\\n\");\n            exit(EXIT_FAILURE);\n        }\n        printf(\"pushed %d: top elem %d, size %zu\\n\", i, s->top->elem, qlstack_size(s));\n    }\n    printf(\"empty? %d\\n\", qlstack_is_empty(s));\n\n    printf(\"top to bottom:\");\n    for (struct node *n = s->top; n != NULL; n = n->next) {\n        printf(\" %d\", n->elem);\n    }\n    printf(\"\\n\");\n    // the nodes and the stack are not freed yet: Day 24 writes qlstack_free\n    return 0;\n}",
+          "caption": "stack1.c"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o stack1 stack1.c\n$ ./stack1\nempty? 1, size 0\npushed 1: top elem 1, size 1\npushed 2: top elem 2, size 2\npushed 3: top elem 3, size 3\nempty? 0\ntop to bottom: 3 2 1"
+        },
+        {
+          "type": "md",
+          "text": "The walk prints `3 2 1`: the reverse of the push order, as LIFO says. Peeking (`s->top->elem`) is only safe when the stack is not empty: on an empty stack `s->top` is `NULL`, and `NULL->elem` is undefined behaviour.\n\nThis program never frees its memory: we have not written a way to remove nodes yet. valgrind (Day 18) reports it, and notice the new word *indirectly*:\n\n```\n$ gcc -std=c17 -Wall -g -o stack1 stack1.c\n$ valgrind --leak-check=full ./stack1\n...\n==23644== LEAK SUMMARY:\n==23644==    definitely lost: 16 bytes in 1 blocks\n==23644==    indirectly lost: 48 bytes in 3 blocks\n```\n\nThe stack struct (16 bytes) is *definitely lost*: no pointer to it remains when `main` ends. The three nodes (16 bytes each) are *indirectly lost*: they could only be reached through that lost struct. Day 24 writes `qlstack_pop` and `qlstack_free`, which fix this."
+        },
+        {
+          "type": "pitfall",
+          "text": "Doing the two link steps in the wrong order:\n\n```c\ns->top = n;        // WRONG ORDER\nn->next = s->top;  // s->top is n now, so n points at itself\n```\n\nOnce `top` is overwritten, the only pointer to the old top node is gone, and the new node ends up pointing at **itself**. Rule: **connect the new node first** (`n->next = s->top;`), **then redirect the old pointer** (`s->top = n;`). The program below makes the mistake on purpose:"
+        },
+        {
+          "type": "code",
+          "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct qlstack_tag {\n    struct node *top;\n    size_t size;\n};\n\ntypedef struct qlstack_tag qlstack;\n\n// BROKEN: the last two link steps are in the wrong order\nqlstack *bad_push(qlstack *s, int elem) {\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        return NULL;\n    }\n    n->elem = elem;\n    s->top = n;          // top now points at the new node...\n    n->next = s->top;    // ...so this makes the new node point at ITSELF\n    s->size++;\n    return s;\n}\n\nint main(void) {\n    qlstack st = { NULL, 0 };     // a stack struct on the stack, for this test only\n    bad_push(&st, 1);\n    bad_push(&st, 2);\n    printf(\"size %zu, top elem %d\\n\", st.size, st.top->elem);\n    if (st.top->next == st.top) {\n        printf(\"the top node's next points at the top node itself\\n\");\n    }\n    printf(\"following next 5 times:\");\n    struct node *p = st.top;\n    for (int i = 0; i < 5; i++) {\n        printf(\" %d\", p->elem);\n        p = p->next;\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+          "caption": "wrongorder.c"
+        },
+        {
+          "type": "code",
+          "code": "$ gcc -std=c17 -Wall -o wrongorder wrongorder.c\n$ ./wrongorder\nsize 2, top elem 2\nthe top node's next points at the top node itself\nfollowing next 5 times: 2 2 2 2 2"
+        },
+        {
+          "type": "md",
+          "text": "Memory after the two bad pushes:\n\n```\ns ---> +------+---+\n       | top  | *-+---> [ 2 | * ]---+\n       | size | 2 |       ^         |\n       +------+---+       +---------+\n\n        [ 1 | NULL ]    nothing points here any more: lost (a leak)\n```\n\nFollowing `next` never reaches `NULL`, so the walking loop from `stack1.c` would run forever (stop it with Ctrl+C), and the node holding 1 is leaked."
+        },
+        {
+          "type": "pitfall",
+          "text": "Using a local node:\n\n```c\nstruct node n;     // WRONG: automatic storage\nn.elem = elem;\nn.next = s->top;\ns->top = &n;\n```\n\nThis compiles, but `n` dies when `push` returns, so `top` is left as a **dangling pointer** (Day 12). Using it later is undefined behaviour. Nodes must come from `malloc`."
+        },
+        {
+          "type": "md",
+          "text": "### The same two steps anywhere in a list\n\nOld exams often use a list with no stack struct: the list is just a pointer to its first node. The Fall 2016 final wrote this as\n\n```c\ntypedef struct ListNode *LinkedList;   // LinkedList means \"struct ListNode *\"\n```\n\nso `LinkedList list = NULL;` is an empty list. (This `typedef` names a **pointer** type; Day 13's examples named struct types.)\n\nTo put a new node `n` **after** some node in such a list, use the same rule as push. For the list 10, 30 and a new node holding 20 that should go after 10:\n\n```\nlist ---> [ 10 | * ]---> [ 30 | NULL ]\n\nn    ---> [ 20 | ? ]\n```\n\n**Connect the new node first:** point it at the node that will come after it, 30.\n\n```\nlist ---> [ 10 | * ]---> [ 30 | NULL ]\n                           ^\nn    ---> [ 20 | * ]-------+\n```\n\n**Then redirect the old pointer:** the `next` of the node holding 10 now points at the new node.\n\n```\nlist ---> [ 10 | * ]     [ 30 | NULL ]\n                 |         ^\n                 v         |\nn    ---> [ 20 | * ]-------+\n\nthat is:  list ---> [ 10 | * ]---> [ 20 | * ]---> [ 30 | NULL ]\n```\n\nIn push, the \"old pointer\" is `s->top`; here it is the `next` member of the node before the gap. You write a function that does this in today's blank exercise. Removing a node (the 2016 question) is the reverse, and comes on Day 24."
+        },
+        {
+          "type": "try",
+          "text": "Type in stack1.c and run it. Then change main to push the numbers 10, 20, 30, 40 and, after the loop, print s->top->next->elem (it should be 30). Finally swap the two lines n->next = s->top; and s->top = n; in qlstack_push, recompile and run again: the walk never ends. Press Ctrl+C to stop it, and swap the lines back."
+        },
+        {
+          "type": "md",
+          "text": "### Key points\n\n- Push: check `s`; `struct node *n = malloc(sizeof(struct node));` and check it; `n->elem = elem;` then `n->next = s->top;` then `s->top = n;` then `s->size++;`; return `s`.\n- Draw a picture before and after **every** pointer assignment. A pointer assignment copies an address; the node it pointed at does not move.\n- Order matters: **connect the new node first, then redirect the old pointer**. The other order loses the old top (a leak) and makes a node that points at itself.\n- The empty stack needs no special case: the new node's `next` gets `NULL`.\n- Nodes must come from `malloc`; a local node becomes a dangling pointer after the function returns.\n- Peek is `s->top->elem`, only when the stack is not empty. Push is O(1)."
+        }
+      ]
+    }
+  ],
+  "flashcards": [
+    {
+      "id": "c23-fc-01",
+      "topic": "c23-nodes",
+      "front": "What does LIFO mean for a stack?",
+      "back": "Last-in, first-out: pop always removes the element that was pushed most recently."
+    },
+    {
+      "id": "c23-fc-02",
+      "topic": "c23-nodes",
+      "front": "Name the two classic stack operations and the common extra one.",
+      "back": "**push** (add at the top) and **pop** (remove from the top); **peek** looks at the top element without removing it."
+    },
+    {
+      "id": "c23-fc-03",
+      "topic": "c23-nodes",
+      "front": "Write the course's node struct for a stack of `int`s.",
+      "back": "```c\nstruct node {\n    int elem;\n    struct node *next;\n};\n```"
+    },
+    {
+      "id": "c23-fc-04",
+      "topic": "c23-nodes",
+      "front": "Why can't a `struct node` contain a member `struct node next;`?",
+      "back": "The struct would contain itself, infinitely; gcc says *field 'next' has incomplete type*. A pointer `struct node *next` has a fixed size (8 bytes), so it is allowed."
+    },
+    {
+      "id": "c23-fc-05",
+      "topic": "c23-nodes",
+      "front": "What value marks the end of a linked sequence?",
+      "back": "The last node's `next` is `NULL`."
+    },
+    {
+      "id": "c23-fc-06",
+      "topic": "c23-nodes",
+      "front": "`n1` is a `struct node` (not a pointer) linked to `n2` and `n3`. How do you write the element of `n3` starting from `n1`?",
+      "back": "`n1.next->next->elem`: a dot for the struct `n1`, then arrows because each `next` is a pointer."
+    },
+    {
+      "id": "c23-fc-07",
+      "topic": "c23-nodes",
+      "front": "The loop that visits every node starting at `first`?",
+      "back": "`for (struct node *p = first; p != NULL; p = p->next) { ... p->elem ... }`"
+    },
+    {
+      "id": "c23-fc-08",
+      "topic": "c23-nodes",
+      "front": "Why are stack nodes made with `malloc` and not as local variables?",
+      "back": "The nodes must outlive the function that creates them (push makes a node; a later call pops it). Local variables die when their function returns."
+    },
+    {
+      "id": "c23-fc-09",
+      "topic": "c23-stack-struct",
+      "front": "Write the notebook's stack struct and its typedef.",
+      "back": "```c\nstruct qlstack_tag {\n    struct node *top;\n    size_t size;\n};\ntypedef struct qlstack_tag qlstack;\n```"
+    },
+    {
+      "id": "c23-fc-10",
+      "topic": "c23-stack-struct",
+      "front": "In an empty `qlstack`, what are `top` and `size`?",
+      "back": "`top` is `NULL` and `size` is 0."
+    },
+    {
+      "id": "c23-fc-11",
+      "topic": "c23-stack-struct",
+      "front": "The body of `qlstack_new`?",
+      "back": "`qlstack *s = malloc(sizeof(qlstack)); if (!s) { return NULL; } s->top = NULL; s->size = 0; return s;`"
+    },
+    {
+      "id": "c23-fc-12",
+      "topic": "c23-stack-struct",
+      "front": "How does the notebook write `qlstack_is_empty`, and where does `bool` come from?",
+      "back": "`return s->size == 0;` with return type `bool` from `<stdbool.h>`."
+    },
+    {
+      "id": "c23-fc-13",
+      "topic": "c23-stack-struct",
+      "front": "Which way do the `next` links point in the linked stack?",
+      "back": "From each node to the node **below** it (pushed just before it). The bottom node's `next` is `NULL`."
+    },
+    {
+      "id": "c23-fc-14",
+      "topic": "c23-push",
+      "front": "The four statements of push after the new node `n` is allocated and checked, in order?",
+      "back": "`n->elem = elem;` `n->next = s->top;` `s->top = n;` `s->size++;`"
+    },
+    {
+      "id": "c23-fc-15",
+      "topic": "c23-push",
+      "front": "What goes wrong with `s->top = n; n->next = s->top;`?",
+      "back": "The old top is lost (nothing points at it: a leak) and the new node's `next` points at itself, so a walk never reaches `NULL`."
+    },
+    {
+      "id": "c23-fc-16",
+      "topic": "c23-push",
+      "front": "The rule for linking a new node into a chain?",
+      "back": "Connect the new node first (its `next` gets the pointer to the node that will follow it), then redirect the old pointer to the new node."
+    },
+    {
+      "id": "c23-fc-17",
+      "topic": "c23-push",
+      "front": "What is the worst-case complexity of push on a linked stack, and why?",
+      "back": "O(1): it allocates one node and changes a fixed number of pointers, without walking the list."
+    },
+    {
+      "id": "c23-fc-18",
+      "topic": "c23-push",
+      "front": "`typedef struct ListNode *LinkedList;` What is a `LinkedList`, and how do you write an empty one?",
+      "back": "A pointer to a `struct ListNode` (the first node of the list). Empty list: `LinkedList list = NULL;`"
+    }
+  ],
+  "quiz": [
+    {
+      "id": "c23-q-01",
+      "type": "mcq",
+      "topic": "c23-nodes",
+      "q": "An empty stack gets: push 4, push 7, push 1, pop, push 9, pop, pop. Which element is on top now?",
+      "options": [
+        "`4`",
+        "`7`",
+        "`1`",
+        "`9`"
+      ],
+      "answer": 0,
+      "explain": "After the pushes the stack is 1 7 4 (top first). pop removes 1, push 9 gives 9 7 4, pop removes 9, pop removes 7. Only 4 is left."
+    },
+    {
+      "id": "c23-q-02",
+      "type": "output",
+      "topic": "c23-nodes",
+      "q": "What does this program print?",
+      "code": "#include <stdio.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nint main(void) {\n    struct node a;\n    struct node b;\n    struct node c;\n    a.elem = 10;\n    b.elem = 20;\n    c.elem = 30;\n    c.next = &a;\n    a.next = &b;\n    b.next = NULL;\n    printf(\"%d %d %d\\n\", c.elem, c.next->elem, c.next->next->elem);\n    printf(\"%d\\n\", a.next->elem + c.next->elem);\n    return 0;\n}",
+      "answer": "30 10 20\n30",
+      "explain": "The chain starts at `c`: `c` (30) -> `a` (10) -> `b` (20) -> NULL. So `c.next->elem` is 10 and `c.next->next->elem` is 20. On the second line, `a.next->elem` is `b`'s 20 and `c.next->elem` is `a`'s 10: 30."
+    },
+    {
+      "id": "c23-q-03",
+      "type": "output",
+      "topic": "c23-nodes",
+      "q": "What does this program print?",
+      "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nint main(void) {\n    struct node *x = malloc(sizeof(struct node));\n    struct node *y = malloc(sizeof(struct node));\n    struct node *z = malloc(sizeof(struct node));\n    if (!x || !y || !z) {\n        return 1;\n    }\n    x->elem = 1;\n    y->elem = 2;\n    z->elem = 3;\n    z->next = x;\n    x->next = y;\n    y->next = NULL;\n    for (struct node *p = z; p != NULL; p = p->next) {\n        printf(\"%d \", p->elem);\n    }\n    printf(\"\\n\");\n    free(x);\n    free(y);\n    free(z);\n    return 0;\n}",
+      "answer": "3 1 2 ",
+      "explain": "The order of the `malloc` calls does not matter; only the links do. The walk starts at `z` (3), then `z->next` is `x` (1), then `x->next` is `y` (2), whose `next` is `NULL`. Output: `3 1 2 ` (each number is followed by a space)."
+    },
+    {
+      "id": "c23-q-04",
+      "type": "short",
+      "topic": "c23-nodes",
+      "q": "A student writes `struct node { int elem; struct node next; };`. What does gcc say, and how do you fix it?",
+      "answer": "gcc gives an error: *field 'next' has incomplete type*. Fix: make the member a pointer, `struct node *next;`.",
+      "explain": "A node cannot contain a whole node (it would contain itself forever, and the type is not complete inside its own definition). A pointer has a fixed size, so a pointer to a node is fine."
+    },
+    {
+      "id": "c23-q-05",
+      "type": "short",
+      "topic": "c23-stack-struct",
+      "q": "Write the two struct definitions for a linked stack of `double` values: a node struct `dnode` (members `value` and `next`) and a stack struct `dstack` that keeps a pointer to the top node and the number of elements.",
+      "answer": "```c\nstruct dnode {\n    double value;\n    struct dnode *next;\n};\n\nstruct dstack {\n    struct dnode *top;\n    size_t size;\n};\n```",
+      "explain": "Same design as the notebook's `struct node` and `struct qlstack_tag`, with the element type changed. `next` must be a `struct dnode *`; the count is a `size_t`. The April 2022 final printed this design (with a `void *` element) for its stack question."
+    },
+    {
+      "id": "c23-q-06",
+      "type": "short",
+      "topic": "c23-stack-struct",
+      "q": "Draw (or describe) memory right after `qlstack *s = malloc(sizeof(qlstack));` and again at the end of `qlstack_new`. Why are the assignments to `top` and `size` needed?",
+      "answer": "After `malloc`: `s` points at a heap struct whose `top` and `size` hold garbage. At the end: `top` is `NULL` and `size` is 0. The assignments are needed because `malloc` does not initialize memory.",
+      "explain": "Without `s->top = NULL;`, the first push would copy a garbage address into the new node's `next`, and walking the stack would follow it: undefined behaviour."
+    },
+    {
+      "id": "c23-q-07",
+      "type": "mcq",
+      "topic": "c23-push",
+      "q": "The new node `n` has been allocated and `n->elem` set. Which order of statements correctly finishes `push`?",
+      "options": [
+        "`s->top = n; n->next = s->top; s->size++;`",
+        "`n->next = s->top; s->top = n; s->size++;`",
+        "`n->next = NULL; s->top = n; s->size++;`",
+        "`s->top->next = n; s->size++;`"
+      ],
+      "answer": 1,
+      "explain": "Connect the new node first, then move `top`. Option A makes `n` point at itself and loses the old top. Option C loses every node below (they become unreachable). Option D links the new node *below* the old top and never moves `top`."
+    },
+    {
+      "id": "c23-q-08",
+      "type": "output",
+      "topic": "c23-push",
+      "q": "What does this program print?",
+      "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct stack {\n    struct node *top;\n    size_t size;\n};\n\nvoid push(struct stack *s, int elem) {\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        exit(EXIT_FAILURE);\n    }\n    n->elem = elem;\n    n->next = s->top;\n    s->top = n;\n    s->size++;\n}\n\nint main(void) {\n    struct stack s = { NULL, 0 };\n    push(&s, 5);\n    push(&s, 8);\n    printf(\"%d %zu\\n\", s.top->elem, s.size);\n    push(&s, 2);\n    printf(\"%d %d\\n\", s.top->next->elem, s.top->next->next->elem);\n    for (struct node *n = s.top; n != NULL; n = n->next) {\n        printf(\"[%d]\", n->elem);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+      "answer": "8 2\n8 5\n[2][8][5]",
+      "explain": "After pushing 5 and 8 the stack is 8 5 (top first), so line 1 is `8 2`. After pushing 2 it is 2 8 5: `s.top->next->elem` is 8 and `s.top->next->next->elem` is 5. The walk prints top to bottom: `[2][8][5]`. (Here the stack struct itself is a local variable, `struct stack s`, so the code uses `s.top` and `&s`; the nodes are still on the heap.)"
+    },
+    {
+      "id": "c23-q-09",
+      "type": "output",
+      "topic": "c23-push",
+      "q": "What does this program print?",
+      "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct stack {\n    struct node *top;\n    size_t size;\n};\n\nint main(void) {\n    struct stack s = { NULL, 0 };\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        return 1;\n    }\n    n->elem = 4;\n    n->next = s.top;\n    s.top = n;\n\n    struct node *m = malloc(sizeof(struct node));\n    if (!m) {\n        return 1;\n    }\n    m->elem = 6;\n    s.top = m;           // wrong order!\n    m->next = s.top;\n\n    struct node *p = s.top;\n    for (int i = 0; i < 4; i++) {\n        printf(\"%d \", p->elem);\n        p = p->next;\n    }\n    printf(\"\\n\");\n    if (n->next == NULL) {\n        printf(\"the node holding 4 is still there, but nothing points at it\\n\");\n    }\n    free(n);\n    free(m);\n    return 0;\n}",
+      "answer": "6 6 6 6 \nthe node holding 4 is still there, but nothing points at it",
+      "explain": "The first push is correct: `top` -> `[4 | NULL]`. The second does the steps in the wrong order: `s.top = m;` then `m->next = s.top;` makes `m` point at itself. Following `next` four times visits `m` four times: `6 6 6 6 `. The node holding 4 still exists (its `next` is `NULL`), but no pointer in the stack reaches it any more."
+    },
+    {
+      "id": "c23-q-10",
+      "type": "output",
+      "topic": "c23-push",
+      "q": "What does this program print?",
+      "code": "#include <stdio.h>\n#include <stdlib.h>\n#include <stdbool.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nstruct stack {\n    struct node *top;\n    size_t size;\n};\n\nbool is_empty(const struct stack *s) {\n    return s->size == 0;\n}\n\nvoid push(struct stack *s, int elem) {\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        exit(EXIT_FAILURE);\n    }\n    n->elem = elem;\n    n->next = s->top;\n    s->top = n;\n    s->size++;\n}\n\nint main(void) {\n    struct stack s = { NULL, 0 };\n    printf(\"%d\\n\", is_empty(&s));\n    for (int i = 1; i <= 4; i++) {\n        push(&s, i * i);\n    }\n    printf(\"%d %zu\\n\", is_empty(&s), s.size);\n    printf(\"%d\\n\", s.top->elem - s.top->next->next->next->elem);\n    if (s.top->next->next->next->next == NULL) {\n        printf(\"bottom reached\\n\");\n    }\n    return 0;\n}",
+      "answer": "1\n0 4\n15\nbottom reached",
+      "explain": "Empty at first: `is_empty` is `true`, printed as 1. The loop pushes 1, 4, 9, 16, so the stack is 16 9 4 1 (top first): not empty (0), size 4. `s.top->next->next->next` is the fourth node from the top, the bottom one holding 1, so 16 - 1 = 15. The bottom node's `next` is `NULL`, so the last line is printed."
+    },
+    {
+      "id": "c23-q-11",
+      "type": "output",
+      "topic": "c23-push",
+      "q": "What does this program print?",
+      "code": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\nvoid show(const struct node *first) {\n    for (const struct node *p = first; p != NULL; p = p->next) {\n        printf(\"%d \", p->elem);\n    }\n    printf(\"\\n\");\n}\n\nint main(void) {\n    struct node *b = malloc(sizeof(struct node));\n    struct node *a = malloc(sizeof(struct node));\n    struct node *n = malloc(sizeof(struct node));\n    if (!a || !b || !n) {\n        return 1;\n    }\n    b->elem = 3;\n    b->next = NULL;\n    a->elem = 1;\n    a->next = b;\n    show(a);\n\n    n->elem = 2;\n    n->next = a->next;\n    a->next = n;\n    show(a);\n    printf(\"%d\\n\", n->next->elem);\n    free(a);\n    free(b);\n    free(n);\n    return 0;\n}",
+      "answer": "1 3 \n1 2 3 \n3",
+      "explain": "First the list is 1 -> 3. Then the new node `n` (2) is linked in after `a`: first `n->next = a->next` (n points at 3), then `a->next = n`. The list is now 1 -> 2 -> 3, and `n->next->elem` is 3. Same rule as push: connect the new node first, then redirect the old pointer."
+    },
+    {
+      "id": "c23-q-12",
+      "type": "short",
+      "topic": "c23-push",
+      "q": "Why does `qlstack_push` allocate the node with `malloc` instead of declaring `struct node n;` and setting `s->top = &n;`?",
+      "answer": "A local `struct node` has automatic storage: it is destroyed when `qlstack_push` returns, so `top` would be a dangling pointer and using it later is undefined behaviour. A `malloc`'d node lives until it is freed, so it stays in the stack after the call.",
+      "explain": "This is the notebook's reason: \"Dynamic allocation is required because the node lifetime extends past the end of the function duration.\""
+    },
+    {
+      "id": "c23-q-13",
+      "type": "short",
+      "topic": "c23-push",
+      "q": "Using `struct node` and `struct stack { struct node *top; size_t size; };` from today, write `int peek_or(const struct stack *s, int dflt)` that returns the top element **without removing it**, or `dflt` if the stack is empty.",
+      "answer": "```c\nint peek_or(const struct stack *s, int dflt) {\n    if (s->top == NULL) {\n        return dflt;\n    }\n    return s->top->elem;\n}\n```",
+      "explain": "Peek is just `s->top->elem`, but only when there is a top node: on an empty stack `s->top` is `NULL` and `s->top->elem` is undefined behaviour. Testing `s->size == 0` instead of `s->top == NULL` is also correct. `const` is fine because nothing is changed."
+    }
+  ],
+  "write": [
+    {
+      "id": "c23-w-01",
+      "topic": "c23-push",
+      "stage": "worked",
+      "marks": 4,
+      "prompt": "Using `struct node { int elem; struct node *next; };`, write a function `struct node *prepend(struct node *first, int elem)` that makes a new node holding `elem` in front of the node `first` points at (`first` may be `NULL`, an empty list) and returns a pointer to the new first node, or `NULL` if memory runs out. Then write a `main` that starts with an empty list, uses `prepend` to build the list 10, 20, 30 (in that order from the front), and walks it to print `10 20 30 `.",
+      "starter": "",
+      "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct node {\n    int elem;\n    struct node *next;\n};\n\n// Makes a new node holding elem in front of the node first points at\n// (first may be NULL for an empty list). Returns a pointer to the new\n// first node, or NULL if memory runs out.\nstruct node *prepend(struct node *first, int elem) {\n    struct node *n = malloc(sizeof(struct node));\n    if (!n) {\n        return NULL;\n    }\n    n->elem = elem;\n    n->next = first;\n    return n;\n}\n\nint main(void) {\n    struct node *list = NULL;          // an empty list\n    for (int v = 30; v >= 10; v = v - 10) {\n        list = prepend(list, v);\n        if (!list) {\n            fprintf(stderr, \"out of memory\\n\");\n            exit(EXIT_FAILURE);\n        }\n    }\n    for (struct node *p = list; p != NULL; p = p->next) {\n        printf(\"%d \", p->elem);\n    }\n    printf(\"\\n\");\n    return 0;\n}",
+      "explain": "`prepend` is push without a stack struct. It allocates a node (heap, because it must outlive the call), checks for `NULL`, stores `elem`, and **connects the new node first**: `n->next = first;`. For an empty list `first` is `NULL`, so the new node correctly ends the list. There is no `top` to redirect inside the function: the caller's variable plays that role, and since `first` is only a copy of it, the new first node is **returned** and the caller stores it with `list = prepend(list, v);`.\n\nTo end with 10 at the front, the values are added in the order 30, 20, 10 (each one goes in front). Then the usual walk prints them. Memory after the loop:\n\n```\nlist ---> [ 10 | * ]---> [ 20 | * ]---> [ 30 | NULL ]\n```\n\nOutput:\n\n```\n$ ./w1\n10 20 30 \n```\n\n(The nodes are not freed; freeing a whole list is Day 24.)",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`malloc(sizeof(struct node))` and a `NULL` check"
+        },
+        {
+          "marks": 1,
+          "item": "sets `n->elem = elem` and `n->next = first`"
+        },
+        {
+          "marks": 1,
+          "item": "returns the new node, and main stores it: `list = prepend(list, v);`"
+        },
+        {
+          "marks": 1,
+          "item": "main starts from `NULL`, adds 30, 20, 10, and walks with `p = p->next` until `NULL`"
+        }
+      ],
+      "pitfalls": [
+        "Calling `prepend(list, v);` without storing the result: `list` stays `NULL`.",
+        "Starting with an uninitialized `struct node *list;` instead of `NULL`: the last node's `next` is garbage.",
+        "Adding 10, 20, 30 in that order: each goes in front, so the list comes out 30, 20, 10."
+      ]
+    },
+    {
+      "id": "c23-w-02",
+      "topic": "c23-push",
+      "stage": "faded",
+      "marks": 5,
+      "prompt": "A stack of `double` values uses the structs below (note the different member names: `below` instead of `next`, `count` instead of `size`). Fill in the blanks of `dstack_new` and `dstack_push` so the program prints\n\n```\n4.0 2.5 1.5 \ncount 3\n```",
+      "starter": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct dnode {\n    double val;\n    struct dnode *below;\n};\n\nstruct dstack {\n    struct dnode *top;\n    size_t count;\n};\n\nstruct dstack *dstack_new(void) {\n    struct dstack *s = ____;\n    if (!s) {\n        return NULL;\n    }\n    ____;\n    ____;\n    return s;\n}\n\nstruct dstack *dstack_push(struct dstack *s, double val) {\n    if (!s) {\n        return NULL;\n    }\n    struct dnode *n = ____;\n    if (!n) {\n        return NULL;\n    }\n    n->val = val;\n    ____ = ____;\n    ____ = ____;\n    ____;\n    return s;\n}\n\nint main(void) {\n    struct dstack *s = dstack_new();\n    if (!dstack_push(s, 1.5) || !dstack_push(s, 2.5) || !dstack_push(s, 4.0)) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    for (struct dnode *n = s->top; n != NULL; n = n->below) {\n        printf(\"%.1f \", n->val);\n    }\n    printf(\"\\ncount %zu\\n\", s->count);\n    return 0;\n}",
+      "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct dnode {\n    double val;\n    struct dnode *below;\n};\n\nstruct dstack {\n    struct dnode *top;\n    size_t count;\n};\n\n// Returns a pointer to a new empty stack, or NULL if memory runs out.\nstruct dstack *dstack_new(void) {\n    struct dstack *s = malloc(sizeof(struct dstack));\n    if (!s) {\n        return NULL;\n    }\n    s->top = NULL;\n    s->count = 0;\n    return s;\n}\n\n// Pushes val onto the top of the stack s points at.\n// Returns s, or NULL if s is NULL or memory runs out.\nstruct dstack *dstack_push(struct dstack *s, double val) {\n    if (!s) {\n        return NULL;\n    }\n    struct dnode *n = malloc(sizeof(struct dnode));\n    if (!n) {\n        return NULL;\n    }\n    n->val = val;\n    n->below = s->top;\n    s->top = n;\n    s->count++;\n    return s;\n}\n\nint main(void) {\n    struct dstack *s = dstack_new();\n    if (!dstack_push(s, 1.5) || !dstack_push(s, 2.5) || !dstack_push(s, 4.0)) {\n        fprintf(stderr, \"out of memory\\n\");\n        exit(EXIT_FAILURE);\n    }\n    for (struct dnode *n = s->top; n != NULL; n = n->below) {\n        printf(\"%.1f \", n->val);\n    }\n    printf(\"\\ncount %zu\\n\", s->count);\n    return 0;\n}",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "`malloc(sizeof(struct dstack))` in `dstack_new`"
+        },
+        {
+          "marks": 1,
+          "item": "`s->top = NULL;` and `s->count = 0;`"
+        },
+        {
+          "marks": 1,
+          "item": "`malloc(sizeof(struct dnode))` for the node"
+        },
+        {
+          "marks": 1,
+          "item": "`n->below = s->top;` BEFORE `s->top = n;`"
+        },
+        {
+          "marks": 1,
+          "item": "`s->count++;`"
+        }
+      ],
+      "pitfalls": [
+        "`malloc(sizeof(struct dstack *))` or `malloc(sizeof(s))`: that is the size of a pointer (8), not of the struct.",
+        "Swapping the two link lines: the node points at itself and the old top is lost.",
+        "Forgetting `s->count++`: the walk still works, but `count` is wrong."
+      ]
+    },
+    {
+      "id": "c23-w-03",
+      "topic": "c23-push",
+      "stage": "blank",
+      "marks": 6,
+      "examNote": "Modeled on the Fall 2016 final, Q5 (`deleteSecond` on a `LinkedList`), with insertion instead of deletion and new names. Day 24 practises the deletion side.",
+      "prompt": "A linked list uses these types:\n\n```c\nstruct Cell {\n    int value;            // the data in this node\n    struct Cell *next;    // pointer to the next node\n};\n\ntypedef struct Cell *CellList;   // a list is a pointer to its first node\n```\n\nThe `next` pointer of the last node is `NULL`, and an empty list is `NULL`.\n\nWrite the function\n\n```c\nint insertSecond(CellList list, int value)\n```\n\nthat inserts a new node holding `value` as the **second** node of the list (right after the first node) and returns 1. If the list is empty, or memory cannot be allocated, it must change nothing and return 0. Example (with a `printList` function that prints `[a,b,...]`):\n\n```\non empty: 0 []\nreturned 1 [7,8]          (the list was [7])\n[10,30]\nreturned 1 [10,20,30]     (insertSecond(list, 20))\nreturned 1 [10,15,20,30]  (insertSecond(list, 15))\n```",
+      "starter": "",
+      "solution": "#include <stdio.h>\n#include <stdlib.h>\n\nstruct Cell {\n    int value;            // the data in this node\n    struct Cell *next;    // pointer to the next node\n};\n\ntypedef struct Cell *CellList;   // a list is a pointer to its first node\n\nint insertSecond(CellList list, int value) {\n    if (list == NULL) {\n        return 0;                       // empty list: nothing to insert after\n    }\n    struct Cell *n = malloc(sizeof(struct Cell));\n    if (!n) {\n        return 0;                       // out of memory: change nothing\n    }\n    n->value = value;\n    n->next = list->next;               // 1. new node points at the old second node\n    list->next = n;                     // 2. first node points at the new node\n    return 1;\n}\n\nvoid printList(CellList list) {\n    printf(\"[\");\n    for (struct Cell *p = list; p != NULL; p = p->next) {\n        printf(\"%d\", p->value);\n        if (p->next != NULL) {\n            printf(\",\");\n        }\n    }\n    printf(\"]\\n\");\n}\n\nint main(void) {\n    CellList list = NULL;\n    printf(\"on empty: %d \", insertSecond(list, 5));\n    printList(list);\n\n    struct Cell *one = malloc(sizeof(struct Cell));\n    if (!one) {\n        return 1;\n    }\n    one->value = 7;\n    one->next = NULL;\n    printf(\"returned %d \", insertSecond(one, 8));\n    printList(one);\n\n    struct Cell *last = malloc(sizeof(struct Cell));\n    struct Cell *first = malloc(sizeof(struct Cell));\n    if (!last || !first) {\n        return 1;\n    }\n    last->value = 30;\n    last->next = NULL;\n    first->value = 10;\n    first->next = last;\n    list = first;\n    printList(list);\n    printf(\"returned %d \", insertSecond(list, 20));\n    printList(list);\n    printf(\"returned %d \", insertSecond(list, 15));\n    printList(list);\n\n    return 0;\n}",
+      "explain": "Only `insertSecond` is asked for; `printList` and `main` are the test program. Draw it for the list 10, 30 and value 20:\n\n```\nlist ---> [ 10 | * ]---> [ 30 | NULL ]\n\nn    ---> [ 20 | ? ]\n```\n\n1. `n->next = list->next;` connects the new node first, to the old second node:\n\n```\nlist ---> [ 10 | * ]---> [ 30 | NULL ]\n                           ^\nn    ---> [ 20 | * ]-------+\n```\n\n2. `list->next = n;` then redirects the first node's link:\n\n```\nlist ---> [ 10 | * ]     [ 30 | NULL ]\n                 |         ^\n                 v         |\nn    ---> [ 20 | * ]-------+\n\nthat is:  list ---> [ 10 | * ]---> [ 20 | * ]---> [ 30 | NULL ]\n```\n\nThe first node does not change, so `list` itself does not change and nothing needs to be returned except the 1 or 0. For a one-node list, `list->next` is `NULL`, so the new node gets `next = NULL` and correctly becomes the last node: no special case. Real output of the test program:\n\n```\n$ ./w3\non empty: 0 []\nreturned 1 [7,8]\n[10,30]\nreturned 1 [10,20,30]\nreturned 1 [10,15,20,30]\n```",
+      "rubric": [
+        {
+          "marks": 1,
+          "item": "empty list (`list == NULL`) returns 0 without allocating"
+        },
+        {
+          "marks": 1,
+          "item": "`malloc(sizeof(struct Cell))`, and returns 0 if it is `NULL`"
+        },
+        {
+          "marks": 1,
+          "item": "stores `value` in the new node"
+        },
+        {
+          "marks": 1,
+          "item": "`n->next = list->next;` (new node points at the old second node, or `NULL` for a one-node list)"
+        },
+        {
+          "marks": 1,
+          "item": "`list->next = n;` done AFTER the previous step"
+        },
+        {
+          "marks": 1,
+          "item": "returns 1 on success; does not change or return `list` itself"
+        }
+      ],
+      "pitfalls": [
+        "`list->next = n;` first: the old second node is lost and `n->next = list->next` then makes `n` point at itself.",
+        "Forgetting the empty-list case: `list->next` on `NULL` is undefined behaviour (usually a crash).",
+        "`malloc(sizeof(CellList))`: `CellList` is a pointer type (8 bytes), not the node size.",
+        "Writing a special case for a one-node list: not needed, `list->next` is `NULL` and the new node correctly becomes the last one."
+      ]
+    }
+  ]
+}
